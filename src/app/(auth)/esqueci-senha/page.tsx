@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
             <Image
-              src="/logo-devinga.png"
+              src="/logo_devinga_mobile.png"
               alt="Devinga Logo"
               width={150}
               height={60}
