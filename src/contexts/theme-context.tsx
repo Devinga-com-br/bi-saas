@@ -33,8 +33,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             .eq('id', user.id)
             .single()
 
-          if (profile?.theme_preference) {
-            const savedTheme = profile.theme_preference as Theme
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((profile as any)?.theme_preference) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const savedTheme = (profile as any).theme_preference as Theme
             setThemeState(savedTheme)
             applyTheme(savedTheme)
           } else {
@@ -87,7 +89,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const supabaseClient = supabase as any
+        await supabaseClient
           .from('user_profiles')
           .update({ theme_preference: newTheme })
           .eq('id', user.id)

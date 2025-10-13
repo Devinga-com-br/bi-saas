@@ -6,7 +6,7 @@ import { X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Command, CommandGroup, CommandItem } from '@/components/ui/command'
+import { CommandGroup, CommandItem } from '@/components/ui/command'
 import { Command as CommandPrimitive } from 'cmdk'
 
 type Option = Record<'value' | 'label', string>
@@ -29,7 +29,7 @@ const multiSelectVariants = cva(
 )
 
 interface MultiSelectProps
-  extends React.ButtonHTMLAttributes<HTMLDivElement>,
+  extends Omit<React.ButtonHTMLAttributes<HTMLDivElement>, 'value'>,
     VariantProps<typeof multiSelectVariants> {
   options: Option[]
   value: Option[]
@@ -47,10 +47,8 @@ export const MultiSelect = React.forwardRef<
     onValueChange,
     variant,
     placeholder = 'Selecione...',
-    className,
-    ...props
-  },
-  ref
+    className
+  }
 ) => {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')

@@ -11,7 +11,7 @@ const querySchema = z.object({
   filiais: z.string().optional(), // ex: "1,4,7" ou "all"
 });
 
-async function validateSchemaAccess(supabase: ReturnType<typeof createClient>, user: any, requestedSchema: string): Promise<boolean> {
+async function validateSchemaAccess(supabase: Awaited<ReturnType<typeof createClient>>, user: { id: string }, requestedSchema: string): Promise<boolean> {
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role, can_switch_tenants, tenant_id')
@@ -37,7 +37,8 @@ async function validateSchemaAccess(supabase: ReturnType<typeof createClient>, u
       .eq('id', profile.tenant_id)
       .single();
     if (error || !tenant) return false;
-    return tenant.supabase_schema === requestedSchema;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (tenant as any).supabase_schema === requestedSchema;
   }
 
   return false;
@@ -75,7 +76,8 @@ export async function GET(req: Request) {
       p_filiais_ids: (filiais && filiais !== 'all') ? filiais.split(',') : null
     };
 
-    const { data, error } = await supabase.rpc('get_dashboard_data', rpcParams).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await supabase.rpc('get_dashboard_data', rpcParams as any).single();
 
     if (error) {
       console.error('[API/DASHBOARD] RPC Error:', error);

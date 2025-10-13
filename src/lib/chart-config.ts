@@ -45,7 +45,8 @@ export function registerChartJS() {
  * Configurações padrão para todos os gráficos
  * Tema moderno dark com verde neon
  */
-export const defaultChartOptions: ChartOptions = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const defaultChartOptions: any = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -120,7 +121,8 @@ export const chartColorsRGBA = {
  * Opções específicas para Line Charts (incluindo Area Charts)
  * Tema dark com eixos sutis
  */
-export const lineChartOptions: ChartOptions<'line'> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const lineChartOptions: any = {
   ...defaultChartOptions,
   scales: {
     x: {
@@ -159,7 +161,8 @@ export const lineChartOptions: ChartOptions<'line'> = {
  * Opções específicas para Bar Charts
  * Tema dark com eixos sutis
  */
-export const barChartOptions: ChartOptions<'bar'> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const barChartOptions: any = {
   ...defaultChartOptions,
   scales: {
     x: {
