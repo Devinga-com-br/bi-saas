@@ -5,9 +5,9 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="min-h-screen bg-black flex">
-      {/* Coluna da Esquerda - Visual e Branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12">
+    <div className="min-h-screen flex">
+      {/* Coluna da Esquerda - Visual e Branding (Cinza Escuro) */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 bg-gray-900">
         {/* Logo */}
         <div className="mb-12">
           <Image
@@ -31,8 +31,8 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      {/* Coluna da Direita - Formulário */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+      {/* Coluna da Direita - Formulário (Cinza Claro) */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-100">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
@@ -47,8 +47,8 @@ export default function ForgotPasswordPage() {
 
           <div className="space-y-6">
             <div className="text-center lg:text-left">
-              <h1 className="text-3xl font-bold text-white mb-2">Esqueci minha senha</h1>
-              <p className="text-gray-400">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Esqueci minha senha</h1>
+              <p className="text-gray-600">
                 Informe seu email e enviaremos as instruções para redefinir sua senha
               </p>
             </div>

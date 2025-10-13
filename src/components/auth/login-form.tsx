@@ -53,7 +53,7 @@ export function LoginForm() {
   return (
     <form onSubmit={handleLogin} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-white font-medium">Email</Label>
+        <Label htmlFor="email" className="text-gray-700 font-medium">Email</Label>
         <Input
           id="email"
           type="email"
@@ -62,13 +62,13 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           disabled={loading}
-          className="bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
+          className="bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
         />
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="password" className="text-white font-medium">Senha</Label>
+          <Label htmlFor="password" className="text-gray-700 font-medium">Senha</Label>
           <Link
             href="/esqueci-senha"
             className="text-xs text-[#1cca5b] hover:text-[#1cca5b]/80 transition-colors"
@@ -84,12 +84,12 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
           disabled={loading}
-          className="bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
+          className="bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
         />
       </div>
 
       {error && (
-        <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 p-3 rounded-md">
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 p-3 rounded-md">
           {error}
         </div>
       )}
