@@ -51,9 +51,9 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleLogin} className="space-y-4">
+    <form onSubmit={handleLogin} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-white font-medium">Email</Label>
         <Input
           id="email"
           type="email"
@@ -62,15 +62,16 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           disabled={loading}
+          className="bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
         />
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="password">Senha</Label>
+          <Label htmlFor="password" className="text-white font-medium">Senha</Label>
           <Link
             href="/esqueci-senha"
-            className="text-xs text-muted-foreground hover:text-primary"
+            className="text-xs text-[#1cca5b] hover:text-[#1cca5b]/80 transition-colors"
           >
             Esqueci minha senha
           </Link>
@@ -83,16 +84,21 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
           disabled={loading}
+          className="bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
         />
       </div>
 
       {error && (
-        <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md">
+        <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 p-3 rounded-md">
           {error}
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button 
+        type="submit" 
+        className="w-full bg-[#1cca5b] hover:bg-[#1cca5b]/90 text-black font-semibold py-3 transition-colors" 
+        disabled={loading}
+      >
         {loading ? 'Entrando...' : 'Entrar'}
       </Button>
     </form>

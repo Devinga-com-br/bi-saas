@@ -44,9 +44,9 @@ export function ForgotPasswordForm() {
 
   if (success) {
     return (
-      <Alert className="border-green-200 bg-green-50">
-        <CheckCircle2 className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-800">
+      <Alert className="border-[#1cca5b]/30 bg-[#1cca5b]/10">
+        <CheckCircle2 className="h-4 w-4 text-[#1cca5b]" />
+        <AlertDescription className="text-[#1cca5b]">
           Email enviado com sucesso! Verifique sua caixa de entrada e siga as
           instruções para redefinir sua senha.
         </AlertDescription>
@@ -55,9 +55,9 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-white font-medium">Email</Label>
         <Input
           id="email"
           type="email"
@@ -66,19 +66,24 @@ export function ForgotPasswordForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           disabled={loading}
+          className="bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:border-[#1cca5b] focus:ring-[#1cca5b]"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-400">
           Digite o email da sua conta para receber as instruções de redefinição
         </p>
       </div>
 
       {error && (
-        <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md">
+        <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 p-3 rounded-md">
           {error}
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button 
+        type="submit" 
+        className="w-full bg-[#1cca5b] hover:bg-[#1cca5b]/90 text-black font-semibold py-3 transition-colors" 
+        disabled={loading}
+      >
         {loading ? 'Enviando...' : 'Enviar email de redefinição'}
       </Button>
     </form>
