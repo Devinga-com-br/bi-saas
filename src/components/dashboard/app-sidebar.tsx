@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image' 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -114,10 +115,10 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <BarChart3 className="size-4" />
+                  <Image src="/favicon/ico_192x192.png" alt="DevIngá" width={32} height={32} />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">BI System</span>
+                  <span className="truncate font-semibold">DevIngá</span>
                   <span className="truncate text-xs">Business Intelligence</span>
                 </div>
               </Link>

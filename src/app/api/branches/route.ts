@@ -1,3 +1,4 @@
+import { type BranchInsert } from '@/types'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
   }
 }
 
+// POST - Criar nova filial
 // POST - Criar nova filial
 export async function POST(request: Request) {
   try {
@@ -85,14 +87,16 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    const newBranch: BranchInsert = {
+      tenant_id,
+      branch_code,
+      store_code: store_code || null,
+    }
+
     // Create branch
     const { data: branch, error } = await supabase
       .from('branches')
-      .insert({
-        tenant_id,
-        branch_code,
-        store_code: store_code || null
-      })
+      .insert(newBranch)
       .select()
       .single()
 

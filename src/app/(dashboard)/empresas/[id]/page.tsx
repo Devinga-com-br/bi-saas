@@ -119,12 +119,7 @@ export default async function EmpresaDetailsPage({
                 <dd className="mt-1 text-sm">{tenant.phone}</dd>
               </div>
             )}
-            {tenant.address && (
-              <div className="md:col-span-2">
-                <dt className="text-sm font-medium text-muted-foreground">Endereço</dt>
-                <dd className="mt-1 text-sm">{tenant.address}</dd>
-              </div>
-            )}
+
             {tenant.supabase_schema && (
               <div>
                 <dt className="text-sm font-medium text-muted-foreground">Schema do Banco</dt>

@@ -1,37 +1,41 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Building2, Edit, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { Tenant } from '@/types'
 
+interface TenantWithCount extends Tenant {
+  user_count: number
+}
+
 interface TenantCardProps {
-  tenant: Tenant & { user_count: number }
+  tenant: TenantWithCount
 }
 
 export function TenantCard({ tenant }: TenantCardProps) {
   const router = useRouter()
 
-  const handleCardClick = () => {
-    router.push(`/empresas/${tenant.id}`)
-  }
-
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     router.push(`/empresas/${tenant.id}/editar`)
   }
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // TODO: Implementar função de deletar
-    alert('Funcionalidade de deletar será implementada em breve')
+    e.preventDefault()
+    // TODO: Implement delete functionality
+    console.log('Delete tenant', tenant.id)
   }
 
   return (
-    <div
-      onClick={handleCardClick}
-      className="flex items-center justify-between p-4 border border-border rounded-2xl hover:bg-accent/50 hover:border-primary/50 transition-all duration-300 cursor-pointer group"
+    <Link
+      key={tenant.id}
+      href={`/empresas/${tenant.id}`}
+      className="flex items-center justify-between p-4 border border-border rounded-2xl hover:bg-accent/50 hover:border-primary/50 transition-all duration-300 group"
     >
       <div className="flex items-center gap-4 flex-1">
         <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 ring-1 ring-primary/20">
@@ -78,22 +82,13 @@ export function TenantCard({ tenant }: TenantCardProps) {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleEditClick}
-        >
+        <Button variant="outline" size="sm" onClick={handleEditClick}>
           <Edit className="h-4 w-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-destructive hover:text-destructive hover:border-destructive"
-          onClick={handleDeleteClick}
-        >
+        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:border-destructive" onClick={handleDeleteClick}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
-    </div>
+    </Link>
   )
 }

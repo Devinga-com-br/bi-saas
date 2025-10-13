@@ -67,7 +67,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadTheme()
-  }, [])
+  }, [supabase])
 
   const applyTheme = (newTheme: Theme) => {
     const root = document.documentElement

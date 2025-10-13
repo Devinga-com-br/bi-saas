@@ -5,6 +5,7 @@ export type Tenant = Database['public']['Tables']['tenants']['Row']
 export type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 export type UserTenantAccess = Database['public']['Tables']['user_tenant_access']['Row']
 export type Branch = Database['public']['Tables']['branches']['Row']
+export type BranchInsert = Database['public']['Tables']['branches']['Insert']
 
 // User roles
 export type UserRole = 'superadmin' | 'admin' | 'user' | 'viewer'

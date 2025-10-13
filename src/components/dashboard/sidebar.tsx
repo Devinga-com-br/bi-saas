@@ -30,7 +30,7 @@ export function Sidebar() {
     <div className="flex h-full w-64 flex-col border-r bg-background">
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold">BI System</h1>
+        <h1 className="text-xl font-bold">DevIngá</h1>
       </div>
 
       {/* Navigation */}

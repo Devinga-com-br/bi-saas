@@ -269,6 +269,9 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat('pt-BR').format(value)
 }
 
-export function formatPercentage(value: number): string {
+export function formatPercentage(value: number | null | undefined): string {
+  if (value === null || typeof value === 'undefined') {
+    return '0.0%'
+  }
   return `${value.toFixed(1)}%`
 }

@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/contexts/theme-context";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "BI System - Business Intelligence",
+  title: "DevIngá - Business Intelligence",
   description: "Sistema de Business Intelligence SaaS",
 };
 

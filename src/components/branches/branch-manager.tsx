@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,11 +47,7 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
   const [branchCode, setBranchCode] = useState('')
   const [storeCode, setStoreCode] = useState('')
 
-  useEffect(() => {
-    loadBranches()
-  }, [tenantId])
-
-  const loadBranches = async () => {
+  const loadBranches = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch(`/api/branches?tenant_id=${tenantId}`)
@@ -76,7 +72,11 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenantId])
+
+  useEffect(() => {
+    loadBranches()
+  }, [loadBranches])
 
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault()

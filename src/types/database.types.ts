@@ -114,6 +114,25 @@ export interface Database {
           created_at?: string
         }
       }
+      branches: {
+        Row: {
+          branch_code: string
+          tenant_id: string
+          store_code: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          branch_code: string
+          tenant_id: string
+          store_code?: string | null
+        }
+        Update: {
+          branch_code?: string
+          tenant_id?: string
+          store_code?: string | null
+        }
+      }
     }
   }
 }

@@ -133,7 +133,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [loadTenants])
+  }, [loadTenants, supabase.auth])
 
   const canSwitchTenants = userProfile?.role === 'superadmin' && userProfile?.can_switch_tenants === true
 
