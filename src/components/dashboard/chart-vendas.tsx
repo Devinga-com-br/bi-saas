@@ -6,8 +6,7 @@ import { barChartOptions, createBarDataset, chartColors } from '@/lib/chart-conf
 
 interface SalesChartData {
   mes: string
-  ano_atual: number
-  ano_anterior: number
+  total_vendas: number
 }
 
 interface ChartVendasProps {
@@ -29,13 +28,8 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
     labels: data.map((d) => d.mes),
     datasets: [
       createBarDataset(
-        'Ano Anterior',
-        data.map((d) => d.ano_anterior),
-        chartColors.quaternary
-      ),
-      createBarDataset(
-        'Ano Atual',
-        data.map((d) => d.ano_atual),
+        'Vendas do Ano Atual',
+        data.map((d) => d.total_vendas),
         chartColors.primary
       ),
     ],

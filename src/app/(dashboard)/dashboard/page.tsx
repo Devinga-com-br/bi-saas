@@ -84,6 +84,13 @@ export default function DashboardPage() {
 
   const { data, error, isLoading } = useSWR<DashboardData>(apiUrl, fetcher, { refreshInterval: 0 });
 
+  // Buscar dados para o gráfico de vendas
+  const chartApiUrl = currentTenant?.supabase_schema
+    ? `/api/charts/sales-by-month?schema=${currentTenant.supabase_schema}`
+    : null
+  const { data: chartData, isLoading: isChartLoading } = useSWR(chartApiUrl, fetcher, { refreshInterval: 0 });
+
+
   // Buscar filiais reais do tenant atual
   const { options: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
@@ -217,14 +224,14 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Comparativo de Vendas</CardTitle>
-          <CardDescription>Análise de vendas da sua empresa.</CardDescription>
+          <CardTitle>Vendas Mensais (Ano Atual)</CardTitle>
+          <CardDescription>Total de vendas por mês para o ano corrente.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isDataLoading ? (
+          {isChartLoading ? (
             <Skeleton className="h-[350px] w-full" />
-          ) : data ? (
-            <ChartVendas data={data.grafico_vendas} />
+          ) : chartData ? (
+            <ChartVendas data={chartData} />
           ) : (
             <div className="text-center text-muted-foreground">
               {error ? 'Erro ao carregar dados do gráfico.' : 'Nenhum dado para exibir.'}
