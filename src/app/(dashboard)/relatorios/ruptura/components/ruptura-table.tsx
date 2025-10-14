@@ -1,5 +1,7 @@
 'use client'
 
+import { cn } from '@/lib/utils'
+
 import {
   Table,
   TableBody,
@@ -18,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { MoreHorizontal } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/lib/chart-config'
 import { type RupturaData } from '../types'
 
 interface RupturaTableProps {
