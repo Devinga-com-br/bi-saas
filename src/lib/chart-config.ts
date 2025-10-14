@@ -18,6 +18,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
 
 // Registrar todos os elementos necessários do Chart.js
 // Isso habilita tree-shaking e reduz o bundle size
@@ -32,7 +33,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  ChartDataLabels
 )
 
 // Função mantida para compatibilidade (agora é no-op)
@@ -276,4 +278,21 @@ export function formatPercentage(value: number | null | undefined): string {
     return '0.0%'
   }
   return `${value.toFixed(1)}%`
+}
+
+/**
+ * Formatar valores grandes de forma resumida (Mi, Bi, etc)
+ */
+export function formatValueShort(value: number): string {
+  const absValue = Math.abs(value)
+  
+  if (absValue >= 1_000_000_000) {
+    return `R$ ${(value / 1_000_000_000).toFixed(1)} Bi`
+  } else if (absValue >= 1_000_000) {
+    return `R$ ${(value / 1_000_000).toFixed(1)} Mi`
+  } else if (absValue >= 1_000) {
+    return `R$ ${(value / 1_000).toFixed(1)} K`
+  }
+  
+  return formatCurrency(value)
 }
