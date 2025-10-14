@@ -22,7 +22,7 @@ export default function RupturaPage() {
 
   const { data, isLoading } = useSWR<RupturaResponse>(
     ['/api/relatorios/ruptura', filters],
-    async ([url, filters]) => {
+    async ([url, filters]: [string, ReportFilters]) => {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
