@@ -75,8 +75,8 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
           family: "'Inter', sans-serif",
         },
         formatter: (value: number, context: { datasetIndex: number }) => {
-          // Apenas mostrar labels nas barras (dataset 0), não na linha
-          if (context.datasetIndex === 1) return null
+          // datasetIndex 0 = linha (não mostrar), datasetIndex 1 = barras (mostrar)
+          if (context.datasetIndex === 0) return null
           return formatValueShort(value)
         },
         padding: {

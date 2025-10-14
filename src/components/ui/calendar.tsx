@@ -7,6 +7,7 @@ import {
   ChevronRightIcon,
 } from "lucide-react"
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker"
+import { ptBR } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -29,21 +30,26 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:2.5rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button_previous>svg]:rotate-180`,
         className
       )}
       captionLayout={captionLayout}
+      locale={ptBR}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString("pt-BR", { month: "short" }),
+        formatWeekdayName: (date) =>
+          date.toLocaleDateString("pt-BR", { weekday: "short" }).charAt(0).toUpperCase() + 
+          date.toLocaleDateString("pt-BR", { weekday: "short" }).slice(1, 3),
         ...formatters,
       }}
+      weekStartsOn={0}
       classNames={{
         root: cn("w-full", defaultClassNames.root),
         months: cn(
-          "relative flex flex-col gap-4 md:flex-row",
+          "relative flex flex-col gap-4 sm:flex-row",
           defaultClassNames.months
         ),
         month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
@@ -82,12 +88,12 @@ function Calendar({
           defaultClassNames.caption_label
         ),
         table: "w-full border-collapse",
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn("flex gap-1", defaultClassNames.weekdays),
         weekday: cn(
           "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal",
           defaultClassNames.weekday
         ),
-        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week: cn("mt-2 flex w-full gap-1", defaultClassNames.week),
         week_number_header: cn(
           "w-[--cell-size] select-none",
           defaultClassNames.week_number_header

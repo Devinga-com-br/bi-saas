@@ -146,7 +146,12 @@ export default function DashboardPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} />
+                  <Calendar 
+                    mode="single" 
+                    selected={dataInicio} 
+                    onSelect={setDataInicio}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>
@@ -170,7 +175,12 @@ export default function DashboardPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dataFim} onSelect={setDataFim} />
+                  <Calendar 
+                    mode="single" 
+                    selected={dataFim} 
+                    onSelect={setDataFim}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>
