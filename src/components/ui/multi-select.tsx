@@ -35,6 +35,7 @@ interface MultiSelectProps
   value: Option[]
   onValueChange: (value: Option[]) => void
   placeholder?: string
+  disabled?: boolean
 }
 
 export const MultiSelect = React.forwardRef<
@@ -48,6 +49,7 @@ export const MultiSelect = React.forwardRef<
     variant,
     placeholder = 'Selecione...',
     className,
+    disabled,
   },
   ref
 ) => {
@@ -85,7 +87,8 @@ export const MultiSelect = React.forwardRef<
       <div
         className={cn(
           'group rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-          className
+          className,
+          disabled && 'cursor-not-allowed opacity-50'
         )}
       >
         <div className="flex flex-wrap gap-1">
@@ -107,6 +110,7 @@ export const MultiSelect = React.forwardRef<
                   e.stopPropagation()
                 }}
                 onClick={() => handleDeselect(option)}
+                disabled={disabled}
               >
                 <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
               </button>
@@ -118,12 +122,13 @@ export const MultiSelect = React.forwardRef<
             value={inputValue}
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}
-            onFocus={() => setOpen(true)}
+            onFocus={() => !disabled && setOpen(true)}
+            disabled={disabled}
           />
         </div>
       </div>
       <div className="relative mt-2">
-        {open && filteredOptions.length > 0 ? (
+        {open && !disabled && filteredOptions.length > 0 ? (
           <div className="absolute top-0 z-10 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
             <CommandGroup className="h-full overflow-auto">
               {filteredOptions.map((option) => (
