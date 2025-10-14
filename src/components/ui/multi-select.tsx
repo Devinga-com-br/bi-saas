@@ -29,7 +29,7 @@ const multiSelectVariants = cva(
 )
 
 interface MultiSelectProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLDivElement>, 'value'>,
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'value'>,
     VariantProps<typeof multiSelectVariants> {
   options: Option[]
   value: Option[]
@@ -38,7 +38,7 @@ interface MultiSelectProps
 }
 
 export const MultiSelect = React.forwardRef<
-  HTMLButtonElement,
+  HTMLDivElement,
   MultiSelectProps
 >((
   {
@@ -47,8 +47,9 @@ export const MultiSelect = React.forwardRef<
     onValueChange,
     variant,
     placeholder = 'Selecione...',
-    className
-  }
+    className,
+  },
+  ref
 ) => {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')
@@ -80,7 +81,7 @@ export const MultiSelect = React.forwardRef<
   const filteredOptions = options.filter((option) => !selectedValues.has(option.value))
 
   return (
-    <CommandPrimitive onKeyDown={handleKeyDown} className="overflow-visible bg-transparent">
+    <CommandPrimitive ref={ref} onKeyDown={handleKeyDown} className="overflow-visible bg-transparent">
       <div
         className={cn(
           'group rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',

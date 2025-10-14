@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardMetric } from '@/components/dashboard/card-metric'
 import { ChartVendas } from '@/components/dashboard/chart-vendas'
 import { useTenantContext } from '@/contexts/tenant-context'
-import { format, startOfMonth } from 'date-fns'
+import { format, startOfMonth, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -47,14 +47,14 @@ export default function DashboardPage() {
 
   // Estados para os filtros
   const [dataInicio, setDataInicio] = useState<Date | undefined>(startOfMonth(new Date()))
-  const [dataFim, setDataFim] = useState<Date | undefined>(new Date())
+  const [dataFim, setDataFim] = useState<Date | undefined>(subDays(new Date(), 1))
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   
   // Estado para os parâmetros que serão enviados à API
   const [apiParams, setApiParams] = useState({
     schema: currentTenant?.supabase_schema,
     data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    data_fim: format(new Date(), 'yyyy-MM-dd'),
+    data_fim: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     filiais: 'all',
   })
 
@@ -91,7 +91,7 @@ export default function DashboardPage() {
   })
 
   const isDataLoading = isLoading || !currentTenant
-  const periodoAtual = `Dados de ${format(dataInicio || new Date(), "dd/MM/yyyy")} a ${format(dataFim || new Date(), "dd/MM/yyyy", { locale: ptBR })}`
+  const periodoAtual = `Dados de ${format(dataInicio || startOfMonth(new Date()), "dd/MM/yyyy")} a ${format(dataFim || subDays(new Date(), 1), "dd/MM/yyyy", { locale: ptBR })}`
 
   return (
     <div className="space-y-6">
