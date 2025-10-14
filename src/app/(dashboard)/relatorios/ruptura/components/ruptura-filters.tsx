@@ -74,8 +74,10 @@ export function RupturaFilters({ filters, onChange }: RupturaFiltersProps) {
             <SelectContent>
               <SelectItem value="all">Todas as Filiais</SelectItem>
               {branches?.map(branch => (
-                <SelectItem key={branch.id} value={branch.id}>
-                  {branch.name}
+                <SelectItem key={branch.branch_code} value={branch.branch_code}>
+                  {branch.store_code
+                    ? `Filial ${branch.branch_code} - ${branch.store_code}`
+                    : `Filial ${branch.branch_code}`}
                 </SelectItem>
               ))}
             </SelectContent>
