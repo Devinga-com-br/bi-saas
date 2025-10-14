@@ -17,7 +17,6 @@ import {
   Tooltip,
   Legend,
   Filler,
-  ChartOptions,
 } from 'chart.js'
 
 // Registrar todos os elementos necessários do Chart.js

@@ -134,5 +134,6 @@ export interface Database {
         }
       }
     }
+    Functions: Record<string, never>
   }
 }
