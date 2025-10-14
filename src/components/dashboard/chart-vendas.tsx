@@ -1,13 +1,14 @@
 
 'use client'
 
-import { Bar } from 'react-chartjs-2'
-import { barChartOptions, createBarDataset, chartColors, formatValueShort } from '@/lib/chart-config'
+import { Chart } from 'react-chartjs-2'
+import { barChartOptions, createBarDataset, createLineDataset, chartColors, formatValueShort, formatCurrency } from '@/lib/chart-config'
 import { useTheme } from '@/contexts/theme-context'
 
 interface SalesChartData {
   mes: string
   total_vendas: number
+  total_vendas_ano_anterior: number
 }
 
 interface ChartVendasProps {
@@ -28,14 +29,33 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
     )
   }
 
+  // Cor azul para a linha do ano anterior
+  const blueColor = 'rgba(59, 130, 246, 1)' // Azul vibrante
+
   const chartData = {
     labels: data.map((d) => d.mes),
     datasets: [
-      createBarDataset(
-        'Vendas do Ano Atual',
-        data.map((d) => d.total_vendas),
-        chartColors.primary
-      ),
+      {
+        ...createLineDataset(
+          'Vendas do Ano Anterior',
+          data.map((d) => d.total_vendas_ano_anterior),
+          blueColor
+        ),
+        type: 'line' as const,
+        yAxisID: 'y',
+        order: 1, // Ordem menor = desenha por cima
+        datalabels: {
+          display: false,
+        },
+      },
+      {
+        ...createBarDataset(
+          'Vendas do Ano Atual',
+          data.map((d) => d.total_vendas),
+          chartColors.primary
+        ),
+        order: 2, // Ordem maior = desenha por baixo
+      },
     ],
   }
 
@@ -54,7 +74,11 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
           weight: 'bold' as const,
           family: "'Inter', sans-serif",
         },
-        formatter: (value: number) => formatValueShort(value),
+        formatter: (value: number, context: { datasetIndex: number }) => {
+          // Apenas mostrar labels nas barras (dataset 0), não na linha
+          if (context.datasetIndex === 1) return null
+          return formatValueShort(value)
+        },
         padding: {
           top: 4,
           bottom: 4,
@@ -62,12 +86,21 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
           right: 6,
         },
       },
+      tooltip: {
+        ...barChartOptions.plugins.tooltip,
+        callbacks: {
+          label: function(context: { dataset: { label: string }, parsed: { y: number } }) {
+            // Mostrar valor completo sem abreviação no tooltip
+            return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`
+          },
+        },
+      },
     },
   }
 
   return (
     <div className="h-[350px] w-full">
-      <Bar data={chartData} options={customOptions} />
+      <Chart type="bar" data={chartData} options={customOptions} />
     </div>
   )
 }

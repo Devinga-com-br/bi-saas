@@ -1,3 +1,8 @@
+-- Migration: Adiciona comparação ano anterior no gráfico de vendas mensais
+-- 
+-- Esta migração atualiza a função get_sales_by_month_chart para retornar
+-- tanto as vendas do ano atual quanto do ano anterior, permitindo comparação
+-- mês a mês no gráfico.
 
 CREATE OR REPLACE FUNCTION get_sales_by_month_chart(schema_name TEXT)
 RETURNS json
@@ -48,3 +53,9 @@ BEGIN
   RETURN COALESCE(result, '[]'::json);
 END;
 $$;
+
+-- Comentário sobre o que foi alterado:
+-- 1. Adicionado campo total_vendas_ano_anterior no SELECT
+-- 2. Usamos CASE WHEN para separar vendas do ano atual e ano anterior
+-- 3. O LEFT JOIN agora inclui tanto ano atual quanto ano anterior
+-- 4. A comparação permite visualizar crescimento mês a mês
