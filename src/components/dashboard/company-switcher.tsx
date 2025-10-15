@@ -28,7 +28,7 @@ export function CompanySwitcher() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm">
+      <div className="flex items-center gap-2 px-2 py-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         <span className="text-muted-foreground">Carregando...</span>
       </div>
@@ -42,16 +42,11 @@ export function CompanySwitcher() {
   // Se não for superadmin, mostrar badge fixo
   if (!isSuperAdmin) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2">
-        <Building2 className="h-4 w-4 text-muted-foreground" />
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">{currentTenant.name}</span>
-          {currentTenant.cnpj && (
-            <span className="text-xs text-muted-foreground">
-              CNPJ: {currentTenant.cnpj}
-            </span>
-          )}
+      <div className="flex items-center gap-2 px-2 py-2">
+        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+          <Building2 className="h-4 w-4" />
         </div>
+        <span className="text-sm font-medium truncate flex-1">{currentTenant.name}</span>
       </div>
     )
   }
@@ -64,28 +59,23 @@ export function CompanySwitcher() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[280px] justify-between"
+          className="w-full justify-between h-auto py-2 px-2"
         >
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">{currentTenant.name}</span>
-              {currentTenant.cnpj && (
-                <span className="text-xs text-muted-foreground">
-                  {currentTenant.cnpj}
-                </span>
-              )}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shrink-0">
+              <Building2 className="h-4 w-4" />
             </div>
+            <span className="text-sm font-medium truncate">{currentTenant.name}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0 ml-2">
             <Badge variant="secondary" className="text-xs">
               {accessibleTenants.length}
             </Badge>
-            <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command>
           <CommandInput placeholder="Buscar empresa..." />
           <CommandList>
@@ -106,14 +96,7 @@ export function CompanySwitcher() {
                       currentTenant.id === tenant.id ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{tenant.name}</span>
-                    {tenant.cnpj && (
-                      <span className="text-xs text-muted-foreground">
-                        CNPJ: {tenant.cnpj}
-                      </span>
-                    )}
-                  </div>
+                  <span className="font-medium">{tenant.name}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -63,7 +63,7 @@
   --foreground: hsl(0 0% 95%);          /* #F2F2F2 - Branco suave */
   --card: hsl(0 0% 10%);                 /* #1A1A1A - Cards com leve elevação */
   --card-foreground: hsl(0 0% 95%);      /* #F2F2F2 */
-  --popover: hsl(0 0% 9%);               /* #181818 - Popover/Tooltip */
+  --popover: hsl(0 0% 12%);              /* #1F1F1F - Popover/Tooltip (mais claro) */
   --popover-foreground: hsl(0 0% 100%);  /* #FFFFFF */
 
   /* Primary - Verde Neon Suave (Accent) */
@@ -79,8 +79,8 @@
   --muted-foreground: hsl(0 0% 60%);     /* #999999 - Texto secundário */
 
   /* Accent - Verde Neon para destaques */
-  --accent: hsl(142 76% 45%);            /* #1EC56A - Verde accent */
-  --accent-foreground: hsl(0 0% 10%);    /* Texto escuro */
+  --accent: hsl(0 0% 18%);               /* #2E2E2E - Hover mais claro */
+  --accent-foreground: hsl(0 0% 95%);    /* Texto claro para melhor contraste */
 
   /* Destructive - Vermelho moderno */
   --destructive: hsl(0 84% 60%);         /* #F04438 - Vermelho */
@@ -103,8 +103,8 @@
   --sidebar-foreground: hsl(0 0% 95%);   /* #F2F2F2 */
   --sidebar-primary: hsl(142 76% 45%);   /* Verde neon */
   --sidebar-primary-foreground: hsl(0 0% 10%); /* Texto escuro */
-  --sidebar-accent: hsl(142 76% 45% / 0.1); /* Verde com 10% opacidade */
-  --sidebar-accent-foreground: hsl(142 76% 45%); /* Verde neon no texto */
+  --sidebar-accent: hsl(0 0% 18%);       /* #2E2E2E - Hover mais visível */
+  --sidebar-accent-foreground: hsl(0 0% 95%); /* Texto claro */
   --sidebar-border: hsl(0 0% 20%);       /* #333333 */
   --sidebar-ring: hsl(142 76% 45%);      /* Verde neon */
 }

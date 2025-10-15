@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -30,10 +29,12 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { Badge } from '@/components/ui/badge'
+import { CompanySwitcher } from './company-switcher'
 
 interface NavigationSubItem {
   name: string
@@ -106,6 +107,7 @@ const navigation: NavigationItem[] = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { userProfile, currentTenant } = useTenantContext()
+  const { state } = useSidebar()
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
@@ -159,6 +161,17 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Company Switcher - Only show when sidebar is expanded */}
+        {state === "expanded" && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <CompanySwitcher />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
         <SidebarGroup>
           <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarMenu>
@@ -235,26 +248,6 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="cursor-default hover:bg-transparent">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary/10">
-                <Building2 className="size-4 text-sidebar-primary" />
-              </div>
-              <div className="grid flex-1 text-left text-xs leading-tight">
-                <span className="truncate font-medium">
-                  {currentTenant?.name || 'Carregando...'}
-                </span>
-                <span className="truncate text-muted-foreground capitalize">
-                  {userProfile?.role || 'user'}
-                </span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   )
 }
