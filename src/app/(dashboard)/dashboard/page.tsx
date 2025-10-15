@@ -201,9 +201,27 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
         {isDataLoading ? (
           <>
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
+            {/* Skeleton para CardMetric */}
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-4 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-8 w-40" />
+                  <div className="flex items-center gap-4">
+                    <div className="space-y-1">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-12" />
+                    </div>
+                    <div className="space-y-1">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-12" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </>
         ) : data ? (
           <>
@@ -239,7 +257,24 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {isChartLoading ? (
-            <Skeleton className="h-[350px] w-full" />
+            <div className="h-[350px] w-full space-y-4">
+              {/* Skeleton do gráfico */}
+              <div className="flex items-end justify-between h-[300px] gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                  <Skeleton 
+                    key={i} 
+                    className="flex-1 rounded-t-md" 
+                    style={{ height: `${Math.random() * 60 + 40}%` }}
+                  />
+                ))}
+              </div>
+              {/* Labels dos meses */}
+              <div className="flex justify-between px-1">
+                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((mes) => (
+                  <Skeleton key={mes} className="h-3 w-6" />
+                ))}
+              </div>
+            </div>
           ) : chartData ? (
             <ChartVendas data={chartData} />
           ) : (

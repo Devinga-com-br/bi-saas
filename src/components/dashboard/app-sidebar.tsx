@@ -13,6 +13,7 @@ import {
   FileBarChart,
   Users,
   Building2,
+  LucideIcon,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -34,17 +35,29 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useTenantContext } from '@/contexts/tenant-context'
 import { Badge } from '@/components/ui/badge'
 
-const navigation = [
+interface NavigationSubItem {
+  name: string
+  href: string
+  icon: LucideIcon
+  requiresSuperAdmin?: boolean
+  requiresAdminOrAbove?: boolean
+}
+
+interface NavigationItem {
+  name: string
+  href: string
+  icon: LucideIcon
+  requiresSuperAdmin?: boolean
+  requiresAdminOrAbove?: boolean
+  badge?: string
+  items?: NavigationSubItem[]
+}
+
+const navigation: NavigationItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-  },
-  {
-    name: 'Empresas',
-    href: '/empresas',
-    icon: Building2,
-    requiresSuperAdmin: true,
   },
   {
     name: 'Usuários',
@@ -81,9 +94,10 @@ const navigation = [
         icon: Users,
       },
       {
-        name: 'Organização',
-        href: '/configuracoes/organizacao',
+        name: 'Empresas',
+        href: '/empresas',
         icon: Building2,
+        requiresSuperAdmin: true,
       },
     ],
   },
@@ -105,6 +119,23 @@ export function AppSidebar() {
       return false
     }
     return true
+  }).map(item => {
+    // Filter subitems based on role if the item has subitems
+    if (item.items) {
+      return {
+        ...item,
+        items: item.items.filter(subItem => {
+          if (subItem.requiresSuperAdmin && !isSuperAdmin) {
+            return false
+          }
+          if (subItem.requiresAdminOrAbove && !isAdminOrAbove) {
+            return false
+          }
+          return true
+        })
+      }
+    }
+    return item
   })
 
   return (
