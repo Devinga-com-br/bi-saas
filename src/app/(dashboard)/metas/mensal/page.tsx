@@ -15,7 +15,6 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
 
 interface Meta {
   id: number
@@ -273,10 +272,14 @@ export default function MetaMensalPage() {
               <DialogHeader>
                 <DialogTitle>Gerar Meta Mensal</DialogTitle>
                 <DialogDescription>
-                  Preencha os dados para gerar as metas do mês
+                  Preencha os dados para gerar as metas do mês. Se já existirem metas para o período, elas serão substituídas.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
+                <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-900 dark:text-blue-200">
+                  <p className="font-medium">ℹ️ Atenção:</p>
+                  <p className="mt-1">Ao gerar metas para um período já cadastrado, as metas anteriores serão substituídas pelos novos valores.</p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="form-mes">Mês</Label>
@@ -625,8 +628,14 @@ export default function MetaMensalPage() {
                               className="bg-background/50"
                             >
                               <TableCell></TableCell>
-                              <TableCell colSpan={3} className="pl-8 text-sm font-medium">
+                              <TableCell className="pl-8 text-sm font-medium">
                                 {getFilialName(meta.filial_id)}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {meta.dia_semana}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {format(new Date(meta.data_referencia), 'dd/MM/yyyy')}
                               </TableCell>
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(meta.valor_referencia)}

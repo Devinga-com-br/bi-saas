@@ -119,6 +119,13 @@ export interface Database {
           branch_code: string
           tenant_id: string
           store_code: string | null
+          descricao: string | null
+          cep: string | null
+          rua: string | null
+          numero: string | null
+          bairro: string | null
+          cidade: string | null
+          estado: string | null
           created_at: string
           updated_at: string
         }
@@ -126,11 +133,26 @@ export interface Database {
           branch_code: string
           tenant_id: string
           store_code?: string | null
+          descricao?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          bairro?: string | null
+          cidade?: string | null
+          estado?: string | null
         }
         Update: {
           branch_code?: string
           tenant_id?: string
           store_code?: string | null
+          descricao?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          bairro?: string | null
+          cidade?: string | null
+          estado?: string | null
+          updated_at?: string
         }
       }
     }
