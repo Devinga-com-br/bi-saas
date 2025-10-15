@@ -16,20 +16,22 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 interface CardMetricProps {
   title: string
   value: string
-  variationMonth?: string
+  previousValue?: string
+  variationPercent?: string
   variationYear?: string
-  isPositiveMonth?: boolean
+  isPositive?: boolean
 }
 
 export function CardMetric({
   title,
   value,
-  variationMonth,
+  previousValue,
+  variationPercent,
   variationYear,
-  isPositiveMonth,
+  isPositive,
 }: CardMetricProps) {
-  const variationColor = isPositiveMonth ? 'text-emerald-500' : 'text-red-500'
-  const VariationIcon = isPositiveMonth ? ArrowUp : ArrowDown
+  const variationColor = isPositive ? 'text-emerald-500' : 'text-red-500'
+  const VariationIcon = isPositive ? ArrowUp : ArrowDown
 
   return (
     <Card>
@@ -38,18 +40,16 @@ export function CardMetric({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        {variationMonth && (
+        {previousValue && variationPercent && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <p
-                  className={cn(
-                    'text-xs text-muted-foreground flex items-center cursor-help',
-                    variationColor
-                  )}
-                >
-                  <VariationIcon className="h-4 w-4 mr-1" />
-                  {variationMonth} vs. mês anterior
+                <p className="text-xs flex items-center cursor-help mt-1">
+                  <span className="text-muted-foreground">PA: {previousValue}</span>
+                  <span className="ml-1 text-muted-foreground">(</span>
+                  <VariationIcon className={cn("h-3.5 w-3.5 mx-0.5", variationColor)} />
+                  <span className={variationColor}>{variationPercent}</span>
+                  <span className="text-muted-foreground">)</span>
                 </p>
               </TooltipTrigger>
               <TooltipContent>

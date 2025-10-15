@@ -25,6 +25,10 @@ interface DashboardData {
   total_lucro: number
   ticket_medio: number
   margem_lucro: number
+  pa_vendas: number
+  pa_lucro: number
+  pa_ticket_medio: number
+  pa_margem_lucro: number
   variacao_vendas_mes: number
   variacao_lucro_mes: number
   variacao_ticket_mes: number
@@ -228,23 +232,26 @@ export default function DashboardPage() {
             <CardMetric
               title="Total de Vendas"
               value={formatCurrency(data.total_vendas)}
-              variationMonth={`${(data.variacao_vendas_mes || 0).toFixed(2)}%`}
-              variationYear={`${(data.variacao_vendas_ano || 0).toFixed(2)}%`}
-              isPositiveMonth={(data.variacao_vendas_mes || 0) >= 0}
+              previousValue={formatCurrency(data.pa_vendas)}
+              variationPercent={`${(data.variacao_vendas_mes || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_mes || 0).toFixed(2)}%`}
+              variationYear={`${(data.variacao_vendas_ano || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_ano || 0).toFixed(2)}%`}
+              isPositive={(data.variacao_vendas_mes || 0) >= 0}
             />
             <CardMetric
               title="Total de Lucro"
               value={formatCurrency(data.total_lucro)}
-              variationMonth={`${(data.variacao_lucro_mes || 0).toFixed(2)}%`}
-              variationYear={`${(data.variacao_lucro_ano || 0).toFixed(2)}%`}
-              isPositiveMonth={(data.variacao_lucro_mes || 0) >= 0}
+              previousValue={formatCurrency(data.pa_lucro)}
+              variationPercent={`${(data.variacao_lucro_mes || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_mes || 0).toFixed(2)}%`}
+              variationYear={`${(data.variacao_lucro_ano || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_ano || 0).toFixed(2)}%`}
+              isPositive={(data.variacao_lucro_mes || 0) >= 0}
             />
             <CardMetric
               title="Margem de Lucro"
               value={formatPercentage(data.margem_lucro)}
-              variationMonth={`${(data.variacao_margem_mes || 0).toFixed(2)}%`}
-              variationYear={`${(data.variacao_margem_ano || 0).toFixed(2)}%`}
-              isPositiveMonth={(data.variacao_margem_mes || 0) >= 0}
+              previousValue={formatPercentage(data.pa_margem_lucro)}
+              variationPercent={`${(data.variacao_margem_mes || 0) >= 0 ? '+' : ''}${(data.variacao_margem_mes || 0).toFixed(2)}p.p.`}
+              variationYear={`${(data.variacao_margem_ano || 0) >= 0 ? '+' : ''}${(data.variacao_margem_ano || 0).toFixed(2)}p.p.`}
+              isPositive={(data.variacao_margem_mes || 0) >= 0}
             />
           </>
         ) : null}
