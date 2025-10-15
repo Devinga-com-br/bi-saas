@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { logModuleAccess } from '@/lib/audit'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -73,7 +74,7 @@ interface ReportData {
 }
 
 export default function RupturaABCDPage() {
-  const { currentTenant } = useTenantContext()
+  const { currentTenant, userProfile } = useTenantContext()
   const { options: filiaisOptions } = useBranchesOptions({
     tenantId: currentTenant?.id,
     enabled: !!currentTenant,
@@ -145,6 +146,19 @@ export default function RupturaABCDPage() {
       setFilialSelecionada(filiaisOptions[0].value)
     }
   }, [filiaisOptions, filialSelecionada])
+
+  // Log module access
+  useEffect(() => {
+    if (currentTenant && userProfile) {
+      logModuleAccess({
+        module: 'relatorios',
+        subModule: 'ruptura-abcd',
+        tenantId: currentTenant.id,
+        userName: userProfile.full_name || userProfile.email,
+        userEmail: userProfile.email
+      })
+    }
+  }, [currentTenant, userProfile])
 
   // Carregar dados quando filial for definida
   useEffect(() => {

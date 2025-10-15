@@ -1,6 +1,24 @@
+'use client'
+
+import { useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useTenantContext } from '@/contexts/tenant-context'
+import { logModuleAccess } from '@/lib/audit'
 
 export default function ConfiguracoesPage() {
+  const { currentTenant, userProfile } = useTenantContext()
+
+  useEffect(() => {
+    if (currentTenant && userProfile) {
+      logModuleAccess({
+        module: 'configuracoes',
+        tenantId: currentTenant.id,
+        userName: userProfile.full_name || userProfile.email,
+        userEmail: userProfile.email
+      })
+    }
+  }, [currentTenant, userProfile])
+
   return (
     <div className="space-y-6">
       <div>

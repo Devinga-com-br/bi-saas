@@ -8,6 +8,7 @@ import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { UserPlus, Users, Shield, Pencil, Trash2, Building2 } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import type { UserProfile as UP } from '@/types'
+import { AuditWrapper } from '@/components/audit-wrapper'
 
 type UserProfile = UP & {
   tenants?: Database['public']['Tables']['tenants']['Row'] | null
@@ -105,28 +106,29 @@ export default async function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs items={[{ label: 'Usuários' }]} />
+    <AuditWrapper module="usuarios">
+      <div className="space-y-6">
+        {/* Breadcrumbs */}
+        <Breadcrumbs items={[{ label: 'Usuários' }]} />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-            <Users className="h-8 w-8 text-primary" />
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 ring-1 ring-primary/20">
+              <Users className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Usuários</h1>
+              <p className="text-muted-foreground mt-1.5">
+                Gerencie os usuários cadastrados no sistema
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Usuários</h1>
-            <p className="text-muted-foreground mt-1.5">
-              Gerencie os usuários cadastrados no sistema
-            </p>
-          </div>
-        </div>
-        <Button asChild>
-          <Link href="/usuarios/novo">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Novo Usuário
-          </Link>
+          <Button asChild>
+            <Link href="/usuarios/novo">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Novo Usuário
+            </Link>
         </Button>
       </div>
 
@@ -283,5 +285,6 @@ export default async function UsersPage() {
         </CardContent>
       </Card>
     </div>
+    </AuditWrapper>
   )
 }
