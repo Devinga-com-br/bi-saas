@@ -19,7 +19,7 @@ import {
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Search, ChevronDown, ChevronRight, Package, AlertTriangle } from 'lucide-react'
+import { Search, ChevronDown, ChevronRight, Package, AlertTriangle, FileDown } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -33,6 +33,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
+// Tipos para jspdf-autotable
+declare module 'jspdf' {
+  interface jsPDF {
+    lastAutoTable: {
+      finalY: number
+    }
+  }
+}
 
 interface Produto {
   produto_id: number
@@ -75,11 +84,6 @@ export default function RupturaABCDPage() {
   const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A'])
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
-
-  // Debug do page state
-  useEffect(() => {
-    console.log('📊 Page state mudou para:', page)
-  }, [page])
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -153,7 +157,6 @@ export default function RupturaABCDPage() {
   // Recarregar quando mudar a página (exceto primeira carga)
   useEffect(() => {
     if (currentTenant?.supabase_schema && filialSelecionada && data !== null) {
-      console.log('🔄 Mudança de página detectada:', page)
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,6 +165,132 @@ export default function RupturaABCDPage() {
   const handleAplicarFiltros = () => {
     setPage(1)
     fetchData()
+  }
+
+  const handleExportarPDF = async () => {
+    if (!currentTenant?.supabase_schema || !filialSelecionada) return
+
+    try {
+      setLoading(true)
+      
+      // Importação dinâmica para reduzir bundle inicial
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      // Buscar TODOS os dados sem paginação
+      const response = await fetch(
+        `/api/relatorios/ruptura-abcd?schema=${currentTenant.supabase_schema}&` +
+        `curvas=${curvasSelecionadas.join(',')}&` +
+        `apenas_ativos=true&apenas_ruptura=true&` +
+        `page=1&page_size=10000&` +
+        `filial_id=${filialSelecionada}`
+      )
+
+      if (!response.ok) throw new Error('Erro ao buscar dados para exportação')
+
+      const allData = await response.json()
+
+      // Criar PDF
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      // Configurar fonte para suportar caracteres especiais
+      doc.setFont('helvetica')
+
+      // Cabeçalho
+      const filialNome = filiaisOptions.find(f => f.value === filialSelecionada)?.label || 'N/A'
+      doc.setFontSize(16)
+      doc.text('Relatório de Ruptura por Curva ABCD', 105, 15, { align: 'center' })
+      
+      doc.setFontSize(10)
+      doc.text(`Filial: ${filialNome}`, 14, 25)
+      doc.text(`Curvas: ${curvasSelecionadas.join(', ')}`, 14, 30)
+      doc.text(`Total de produtos: ${allData.total_records || 0}`, 14, 35)
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40)
+
+      // Preparar dados da tabela
+      const tableData: (string | number | { content: string; colSpan: number; styles: { fillColor: number[]; fontStyle: string } })[][] = []
+      
+      allData.departamentos?.forEach((dept: { departamento_nome: string; produtos: Produto[] }) => {
+        // Linha do departamento
+        tableData.push([
+          { content: dept.departamento_nome, colSpan: 7, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' as const } }
+        ])
+        
+        // Produtos do departamento
+        dept.produtos.forEach(prod => {
+          tableData.push([
+            prod.produto_id.toString(),
+            prod.produto_descricao,
+            prod.curva_lucro || '-',
+            prod.curva_venda || '-',
+            formatNumber(prod.estoque_atual),
+            prod.filial_transfer_nome || '-',
+            prod.estoque_transfer ? formatNumber(prod.estoque_transfer) : '-',
+          ])
+        })
+      })
+
+      // Gerar tabela
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      autoTable(doc as any, {
+        head: [[
+          'Código',
+          'Descrição',
+          'Curva Lucro',
+          'Curva Venda',
+          'Estoque',
+          'Filial Transf.',
+          'Estoque Transf.'
+        ]],
+        body: tableData as any,
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+        startY: 45,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 20 }, // Código
+          1: { cellWidth: 60 }, // Descrição
+          2: { cellWidth: 20, halign: 'center' }, // Curva Lucro
+          3: { cellWidth: 20, halign: 'center' }, // Curva Venda
+          4: { cellWidth: 20, halign: 'right' }, // Estoque
+          5: { cellWidth: 25, halign: 'center' }, // Filial Transf
+          6: { cellWidth: 25, halign: 'right' }, // Estoque Transf
+        },
+        margin: { top: 45, left: 14, right: 14 },
+        didDrawPage: (data) => {
+          // Rodapé com número da página
+          const pageCount = doc.getNumberOfPages()
+          doc.setFontSize(8)
+          doc.text(
+            `Página ${data.pageNumber} de ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          )
+        },
+      })
+
+      // Salvar PDF
+      const fileName = `ruptura-abcd-${filialNome.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+
+    } catch (err) {
+      console.error('Erro ao exportar PDF:', err)
+      alert('Erro ao exportar PDF. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleToggleDept = (deptId: number) => {
@@ -186,11 +315,26 @@ export default function RupturaABCDPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Relatório de Ruptura por Curva ABCD</h1>
-        <p className="text-muted-foreground">
-          Análise de produtos com ruptura de estoque por curva de vendas
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Relatório de Ruptura por Curva ABCD</h1>
+          <p className="text-muted-foreground">
+            Análise de produtos com ruptura de estoque por curva de vendas
+          </p>
+        </div>
+        
+        {/* Botão de Exportar */}
+        {data && data.total_records > 0 && (
+          <Button
+            onClick={handleExportarPDF}
+            disabled={loading}
+            variant="outline"
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Exportar PDF
+          </Button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -448,10 +592,7 @@ export default function RupturaABCDPage() {
                           return (
                             <PaginationItem key={pageNum}>
                               <PaginationLink 
-                                onClick={() => {
-                                  console.log('📄 Click na página:', pageNum)
-                                  setPage(pageNum)
-                                }}
+                                onClick={() => setPage(pageNum)}
                                 isActive={pageNum === data.page}
                                 className="cursor-pointer"
                               >
