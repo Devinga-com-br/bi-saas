@@ -10,11 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 
 interface Meta {
   id: number
@@ -37,6 +38,20 @@ interface MetasReport {
   percentual_atingido: number
 }
 
+interface GroupedByDate {
+  [date: string]: {
+    data: string
+    dia_semana: string
+    metas: Meta[]
+    total_valor_referencia: number
+    total_meta: number
+    total_realizado: number
+    total_diferenca: number
+    media_meta_percentual: number
+    diferenca_percentual: number
+  }
+}
+
 export default function MetaMensalPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branches } = useBranches({ tenantId: currentTenant?.id })
@@ -47,6 +62,7 @@ export default function MetaMensalPage() {
   const [filialId, setFilialId] = useState<string>('all')
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<MetasReport | null>(null)
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
 
   // Estados do formulário de criação
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -88,17 +104,27 @@ export default function MetaMensalPage() {
       })
 
       if (filialId !== 'all') {
-        params.append('filialId', filialId)
+        params.append('filial_id', filialId)
       }
 
       const response = await fetch(`/api/metas/report?${params}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setReport(data)
-      } else {
-        alert(`Erro: ${data.error || 'Erro ao carregar relatório'}`)
+      
+      if (!response.ok) {
+        let errorMessage = 'Erro ao carregar relatório'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          const errorText = await response.text()
+          errorMessage = errorText || errorMessage
+        }
+        console.error('Error response:', errorMessage)
+        throw new Error(errorMessage)
       }
+      
+      const data = await response.json()
+      console.log('[METAS] Report data loaded:', data)
+      setReport(data)
     } catch (error) {
       console.error('Error loading report:', error)
       alert('Erro ao carregar relatório')
@@ -151,7 +177,7 @@ export default function MetaMensalPage() {
       loadReport()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, mes, ano, filialId])
+  }, [currentTenant?.supabase_schema])
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -163,6 +189,69 @@ export default function MetaMensalPage() {
   const formatPercentage = (value: number | null) => {
     if (value === null || value === undefined || isNaN(value)) return '0.00%'
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  }
+
+  const getFilialLabel = () => {
+    if (filialId === 'all') {
+      return 'Todas as Filiais'
+    }
+    const branch = branches.find(b => b.branch_code === filialId)
+    return branch ? `Filial ${branch.branch_code}` : `Filial ${filialId}`
+  }
+
+  const getFilialName = (filial_id: number) => {
+    const branch = branches.find(b => b.branch_code === filial_id.toString())
+    return branch ? `Filial ${branch.branch_code}` : `Filial ${filial_id}`
+  }
+
+  const toggleDateExpanded = (date: string) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [date]: !prev[date]
+    }))
+  }
+
+  const groupMetasByDate = (metas: Meta[]): GroupedByDate => {
+    const grouped: GroupedByDate = {}
+    
+    metas.forEach(meta => {
+      const dateKey = meta.data
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          data: meta.data,
+          dia_semana: meta.dia_semana,
+          metas: [],
+          total_valor_referencia: 0,
+          total_meta: 0,
+          total_realizado: 0,
+          total_diferenca: 0,
+          media_meta_percentual: 0,
+          diferenca_percentual: 0
+        }
+      }
+      
+      grouped[dateKey].metas.push(meta)
+      grouped[dateKey].total_valor_referencia += meta.valor_referencia || 0
+      grouped[dateKey].total_meta += meta.valor_meta || 0
+      grouped[dateKey].total_realizado += meta.valor_realizado || 0
+      grouped[dateKey].total_diferenca += meta.diferenca || 0
+    })
+    
+    // Calcular média e percentuais
+    Object.keys(grouped).forEach(dateKey => {
+      const group = grouped[dateKey]
+      const numFiliais = group.metas.length
+      
+      if (numFiliais > 0) {
+        group.media_meta_percentual = group.metas.reduce((sum, m) => sum + (m.meta_percentual || 0), 0) / numFiliais
+        
+        if (group.total_meta > 0) {
+          group.diferenca_percentual = ((group.total_realizado - group.total_meta) / group.total_meta) * 100
+        }
+      }
+    })
+    
+    return grouped
   }
 
   return (
@@ -268,66 +357,84 @@ export default function MetaMensalPage() {
       </div>
 
       {/* Filtros */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-end gap-4">
-            <div className="flex-1 space-y-2">
-              <Label>Mês</Label>
-              <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <SelectItem key={m} value={m.toString()}>
-                      {format(new Date(2024, m - 1, 1), 'MMMM', { locale: ptBR })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1 space-y-2">
-              <Label>Ano</Label>
-              <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map((y) => (
-                    <SelectItem key={y} value={y.toString()}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1 space-y-2">
-              <Label>Filial</Label>
-              <Select value={filialId} onValueChange={setFilialId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Filiais</SelectItem>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.branch_code} value={branch.branch_code}>
-                      Filial {branch.branch_code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={loadReport} disabled={loading}>
+      <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
+        {/* FILIAL */}
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <Label>Filial</Label>
+          <div className="h-10">
+            <Select value={filialId} onValueChange={setFilialId}>
+              <SelectTrigger className="w-full sm:w-[200px] h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Filiais</SelectItem>
+                {branches.map((branch) => (
+                  <SelectItem key={branch.branch_code} value={branch.branch_code}>
+                    Filial {branch.branch_code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* MÊS */}
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <Label>Mês</Label>
+          <div className="h-10">
+            <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
+              <SelectTrigger className="w-full sm:w-[160px] h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <SelectItem key={m} value={m.toString()}>
+                    {format(new Date(2024, m - 1, 1), 'MMMM', { locale: ptBR })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* ANO */}
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <Label>Ano</Label>
+          <div className="h-10">
+            <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
+              <SelectTrigger className="w-full sm:w-[120px] h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map((y) => (
+                  <SelectItem key={y} value={y.toString()}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* BOTÃO APLICAR */}
+        <div className="flex justify-end lg:justify-start w-full lg:w-auto">
+          <div className="h-10">
+            <Button onClick={loadReport} disabled={loading} className="w-full sm:w-auto min-w-[120px] h-10">
               Aplicar
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Cards resumo */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="relative">
+            <div className="absolute top-6 right-6">
+              <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                {getFilialLabel()}
+              </div>
+            </div>
             <CardTitle>Vendas do Período</CardTitle>
             <CardDescription>
               {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
@@ -361,7 +468,12 @@ export default function MetaMensalPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="relative">
+            <div className="absolute top-6 right-6">
+              <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                {getFilialLabel()}
+              </div>
+            </div>
             <CardTitle>Progresso da Meta</CardTitle>
             <CardDescription>Percentual atingido até o momento</CardDescription>
           </CardHeader>
@@ -405,7 +517,12 @@ export default function MetaMensalPage() {
 
       {/* Tabela de metas */}
       <Card>
-        <CardHeader>
+        <CardHeader className="relative">
+          <div className="absolute top-6 right-6">
+            <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+              {getFilialLabel()}
+            </div>
+          </div>
           <CardTitle>Metas Diárias</CardTitle>
           <CardDescription>Acompanhamento detalhado por dia</CardDescription>
         </CardHeader>
@@ -416,7 +533,134 @@ export default function MetaMensalPage() {
             <div className="text-center py-8 text-muted-foreground">
               Nenhuma meta cadastrada para este período
             </div>
+          ) : filialId === 'all' ? (
+            // Visualização agrupada por data quando "Todas as Filiais" está selecionado
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Dia da Semana</TableHead>
+                    <TableHead>Data Ref.</TableHead>
+                    <TableHead className="text-right">Venda Ref.</TableHead>
+                    <TableHead className="text-right">Meta %</TableHead>
+                    <TableHead className="text-right">Valor Meta</TableHead>
+                    <TableHead className="text-right">Realizado</TableHead>
+                    <TableHead className="text-right">Diferença</TableHead>
+                    <TableHead className="text-right">Dif. %</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Object.entries(
+                    groupMetasByDate(
+                      report?.metas
+                        .filter((meta) => {
+                          const metaDate = new Date(meta.data)
+                          return metaDate.getMonth() + 1 === mes && metaDate.getFullYear() === ano
+                        })
+                        .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()) || []
+                    )
+                  ).map(([dateKey, group]) => {
+                    const isExpanded = expandedDates[dateKey] !== false // Aberto por padrão
+                    const diferencaValor = group.total_diferenca || 0
+                    const diferencaPerc = group.diferenca_percentual || 0
+                    
+                    return (
+                      <>
+                        {/* Linha agregada principal */}
+                        <TableRow 
+                          key={dateKey} 
+                          className="bg-muted/50 hover:bg-muted/70 cursor-pointer font-medium"
+                          onClick={() => toggleDateExpanded(dateKey)}
+                        >
+                          <TableCell>
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            {format(new Date(group.data), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell className="font-semibold">{group.dia_semana}</TableCell>
+                          <TableCell className="font-semibold">
+                            {group.metas && group.metas.length > 0 
+                              ? format(new Date(group.metas[0].data_referencia), 'dd/MM/yyyy')
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(group.total_valor_referencia)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {group.media_meta_percentual.toFixed(2)}%
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(group.total_meta)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(group.total_realizado)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                              {formatCurrency(diferencaValor)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                              {formatPercentage(diferencaPerc)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Linhas detalhadas por filial */}
+                        {isExpanded && group.metas.map((meta) => {
+                          const metaDiferencaValor = meta.diferenca || 0
+                          const metaDiferencaPerc = meta.diferenca_percentual || 0
+                          
+                          return (
+                            <TableRow 
+                              key={`${dateKey}-${meta.filial_id}`}
+                              className="bg-background/50"
+                            >
+                              <TableCell></TableCell>
+                              <TableCell colSpan={3} className="pl-8 text-sm font-medium">
+                                {getFilialName(meta.filial_id)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(meta.valor_referencia)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {meta.meta_percentual.toFixed(2)}%
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(meta.valor_meta)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(meta.valor_realizado)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                <span className={metaDiferencaValor === 0 ? '' : metaDiferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                                  {formatCurrency(metaDiferencaValor)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                <span className={metaDiferencaPerc === 0 ? '' : metaDiferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                                  {formatPercentage(metaDiferencaPerc)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
+            // Visualização normal para filial específica
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -433,39 +677,50 @@ export default function MetaMensalPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {report?.metas.map((meta) => (
-                    <TableRow key={meta.id}>
-                      <TableCell>
-                        {format(new Date(meta.data), 'dd/MM/yyyy')}
-                      </TableCell>
-                      <TableCell>{meta.dia_semana}</TableCell>
-                      <TableCell>
-                        {format(new Date(meta.data_referencia), 'dd/MM/yyyy')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(meta.valor_referencia)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {meta.meta_percentual.toFixed(2)}%
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(meta.valor_meta)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(meta.valor_realizado)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={meta.diferenca >= 0 ? 'text-green-500' : 'text-red-500'}>
-                          {formatCurrency(meta.diferenca)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={(meta.diferenca_percentual || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
-                          {formatPercentage(meta.diferenca_percentual)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {report?.metas
+                    .filter((meta) => {
+                      const metaDate = new Date(meta.data)
+                      return metaDate.getMonth() + 1 === mes && metaDate.getFullYear() === ano
+                    })
+                    .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+                    .map((meta) => {
+                      const diferencaValor = meta.diferenca || 0
+                      const diferencaPerc = meta.diferenca_percentual || 0
+                      
+                      return (
+                        <TableRow key={meta.id}>
+                          <TableCell>
+                            {format(new Date(meta.data), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell>{meta.dia_semana}</TableCell>
+                          <TableCell>
+                            {format(new Date(meta.data_referencia), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(meta.valor_referencia)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {meta.meta_percentual.toFixed(2)}%
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(meta.valor_meta)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(meta.valor_realizado)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                              {formatCurrency(diferencaValor)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                              {formatPercentage(diferencaPerc)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                 </TableBody>
               </Table>
             </div>
