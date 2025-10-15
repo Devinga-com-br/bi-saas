@@ -23,12 +23,19 @@ Relatório performático para análise de produtos com ruptura de estoque (estoq
 Para cada produto:
 - **Código**: ID do produto
 - **Descrição**: Nome completo do produto
-- **Curva Lucro**: Classificação por lucro
-- **Curva Venda**: Classificação por volume de vendas (A, B, C, D)
+- **Curva Lucro**: Classificação por lucro (A, B, C, D) com cores
+- **Curva Venda**: Classificação por volume de vendas (A, B, C, D) com cores
 - **Estoque**: Quantidade em estoque (negativo em vermelho)
-- **Venda Média/Dia**: Média de vendas dos últimos 60 dias
-- **Dias de Estoque**: Previsão de duração do estoque
-- **Preço**: Preço de venda atual
+- **Fil. Transf.**: Filial com maior estoque disponível para transferência
+- **Est. Transf.**: Quantidade disponível na filial de transferência (em verde)
+
+### Inteligência de Transferência
+O relatório automaticamente identifica oportunidades de transferência:
+- Busca em todas as outras filiais produtos com estoque disponível
+- Mostra a filial com **maior estoque** do produto
+- Exibe `-` quando não há estoque em nenhuma outra filial
+- Considera apenas produtos **ativos** nas outras filiais
+- Destaca em **verde** o estoque disponível para transferência
 
 ## 🚀 Arquitetura
 

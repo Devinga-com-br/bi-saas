@@ -36,6 +36,9 @@ interface Produto {
   venda_media_diaria_60d: number
   dias_de_estoque: number | null
   preco_venda: number
+  filial_transfer_id: number | null
+  filial_transfer_nome: string | null
+  estoque_transfer: number | null
 }
 
 interface Departamento {
@@ -311,9 +314,11 @@ export default function RupturaABCDPage() {
                           <TableRow>
                             <TableHead className="w-[100px]">Código</TableHead>
                             <TableHead>Descrição</TableHead>
-                            <TableHead className="text-center w-[120px]">Curva Lucro</TableHead>
-                            <TableHead className="text-center w-[120px]">Curva Venda</TableHead>
-                            <TableHead className="text-right w-[120px]">Estoque</TableHead>
+                            <TableHead className="text-center w-[100px]">C. Lucro</TableHead>
+                            <TableHead className="text-center w-[100px]">C. Venda</TableHead>
+                            <TableHead className="text-right w-[100px]">Estoque</TableHead>
+                            <TableHead className="text-center w-[120px]">Fil. Transf.</TableHead>
+                            <TableHead className="text-right w-[100px]">Est. Transf.</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -369,6 +374,24 @@ export default function RupturaABCDPage() {
                                 }`}
                               >
                                 {formatNumber(produto.estoque_atual)}
+                              </TableCell>
+                              <TableCell className="text-center text-sm">
+                                {produto.filial_transfer_nome ? (
+                                  <span className="text-primary font-medium">
+                                    {produto.filial_transfer_nome}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {produto.estoque_transfer && produto.estoque_transfer > 0 ? (
+                                  <span className="text-green-600 dark:text-green-400 font-semibold">
+                                    {formatNumber(produto.estoque_transfer)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}

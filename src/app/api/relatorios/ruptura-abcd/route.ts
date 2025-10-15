@@ -91,6 +91,9 @@ export async function GET(req: Request) {
         venda_media_diaria_60d: number
         dias_de_estoque: number | null
         preco_venda: number
+        filial_transfer_id: number | null
+        filial_transfer_nome: string | null
+        estoque_transfer: number | null
       }>
     }> = {}
 
