@@ -14,6 +14,7 @@ import {
   Users,
   Building2,
   LucideIcon,
+  Package,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -70,8 +71,12 @@ const navigation: NavigationItem[] = [
     name: 'Relatórios',
     href: '/relatorios',
     icon: FileText,
-    badge: 'Em breve',
     items: [
+      {
+        name: 'Ruptura ABCD',
+        href: '/relatorios/ruptura-abcd',
+        icon: Package,
+      },
       {
         name: 'Visão Geral',
         href: '/relatorios/visao-geral',
@@ -106,7 +111,7 @@ const navigation: NavigationItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { userProfile, currentTenant } = useTenantContext()
+  const { userProfile } = useTenantContext()
   const { state } = useSidebar()
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
