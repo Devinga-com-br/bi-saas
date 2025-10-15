@@ -17,6 +17,8 @@ import {
   Tooltip,
   Legend,
   Filler,
+  LineController,
+  BarController,
 } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 
@@ -34,6 +36,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
+  LineController,
+  BarController,
   ChartDataLabels
 )
 
