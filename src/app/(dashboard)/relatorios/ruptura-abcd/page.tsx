@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -59,8 +60,8 @@ export default function RupturaABCDPage() {
   })
 
   // Estados dos filtros
-  const [filialSelecionada, setFilialSelecionada] = useState<{ value: string; label: string }[]>([])
-  const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A', 'B'])
+  const [filialSelecionada, setFilialSelecionada] = useState<string>('')
+  const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A'])
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
 
@@ -95,8 +96,8 @@ export default function RupturaABCDPage() {
         page_size: '50',
       })
 
-      if (filialSelecionada.length > 0) {
-        params.append('filial_id', filialSelecionada[0].value)
+      if (filialSelecionada) {
+        params.append('filial_id', filialSelecionada)
       }
 
       if (busca) {
@@ -118,17 +119,24 @@ export default function RupturaABCDPage() {
     }
   }
 
-  // Carregar apenas uma vez ao montar o componente
+  // Definir filial padrão quando as opções carregarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema) {
+    if (filiaisOptions.length > 0 && !filialSelecionada) {
+      setFilialSelecionada(filiaisOptions[0].value)
+    }
+  }, [filiaisOptions, filialSelecionada])
+
+  // Carregar dados quando filial for definida
+  useEffect(() => {
+    if (currentTenant?.supabase_schema && filialSelecionada) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [filialSelecionada, currentTenant])
 
   // Recarregar apenas quando mudar a página
   useEffect(() => {
-    if (currentTenant?.supabase_schema && page > 1) {
+    if (currentTenant?.supabase_schema && page > 1 && filialSelecionada) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,48 +183,58 @@ export default function RupturaABCDPage() {
           <CardDescription>Configure os filtros para o relatório</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-col lg:flex-row gap-4 items-end">
             {/* Filial */}
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1">
               <Label>Filial</Label>
-              <MultiSelect
-                options={filiaisOptions}
-                value={filialSelecionada}
-                onValueChange={setFilialSelecionada}
-                placeholder="Todas as filiais"
-              />
+              <Select value={filialSelecionada} onValueChange={setFilialSelecionada}>
+                <SelectTrigger className="w-full h-10">
+                  <SelectValue placeholder="Selecione a filial" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filiaisOptions.map((filial) => (
+                    <SelectItem key={filial.value} value={filial.value}>
+                      {filial.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Curvas */}
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1">
               <Label>Curvas ABCD</Label>
-              <MultiSelect
-                options={curvasOptions}
-                value={curvasSelecionadas.map(c => ({ value: c, label: `Curva ${c}` }))}
-                onValueChange={(selected) => setCurvasSelecionadas(selected.map(s => s.value))}
-                placeholder="Selecione curvas"
-              />
+              <div className="h-10">
+                <MultiSelect
+                  options={curvasOptions}
+                  value={curvasSelecionadas.map(c => ({ value: c, label: `Curva ${c}` }))}
+                  onValueChange={(selected) => setCurvasSelecionadas(selected.map(s => s.value))}
+                  placeholder=""
+                  className="w-full h-10"
+                />
+              </div>
             </div>
 
             {/* Busca */}
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1">
               <Label>Buscar Produto</Label>
-              <div className="relative">
+              <div className="relative h-10">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Nome do produto..."
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 w-full h-10"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="mt-4 flex justify-end">
-            <Button onClick={handleAplicarFiltros} disabled={loading}>
-              Aplicar Filtros
-            </Button>
+            {/* Botão Aplicar */}
+            <div className="h-10">
+              <Button onClick={handleAplicarFiltros} disabled={loading} className="w-full lg:w-auto min-w-[100px] h-10">
+                Aplicar
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
