@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
+import { createClient } from '@/lib/supabase/client'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -149,15 +150,21 @@ export default function RupturaABCDPage() {
 
   // Log module access
   useEffect(() => {
-    if (currentTenant && userProfile) {
-      logModuleAccess({
-        module: 'relatorios',
-        subModule: 'ruptura-abcd',
-        tenantId: currentTenant.id,
-        userName: userProfile.full_name || userProfile.email,
-        userEmail: userProfile.email
-      })
+    const logAccess = async () => {
+      if (currentTenant && userProfile) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        logModuleAccess({
+          module: 'relatorios',
+          subModule: 'ruptura-abcd',
+          tenantId: currentTenant.id,
+          userName: userProfile.full_name,
+          userEmail: user?.email || ''
+        })
+      }
     }
+    logAccess()
   }, [currentTenant, userProfile])
 
   // Carregar dados quando filial for definida

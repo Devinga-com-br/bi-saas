@@ -21,6 +21,7 @@ import { useBranchesOptions } from '@/hooks/use-branches'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
+import { createClient } from '@/lib/supabase/client'
 
 // Estrutura de dados da API
 interface DashboardData {
@@ -90,16 +91,22 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
-    if (currentTenant && userProfile) {
-      handleAplicarFiltros()
-      // Log module access
-      logModuleAccess({
-        module: 'dashboard',
-        tenantId: currentTenant.id,
-        userName: userProfile.full_name || userProfile.email,
-        userEmail: userProfile.email
-      })
+    const logAccess = async () => {
+      if (currentTenant && userProfile) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        handleAplicarFiltros()
+        // Log module access
+        logModuleAccess({
+          module: 'dashboard',
+          tenantId: currentTenant.id,
+          userName: userProfile.full_name,
+          userEmail: user?.email || ''
+        })
+      }
     }
+    logAccess()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant, userProfile])
 

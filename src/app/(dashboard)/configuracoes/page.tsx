@@ -4,19 +4,26 @@ import { useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { logModuleAccess } from '@/lib/audit'
+import { createClient } from '@/lib/supabase/client'
 
 export default function ConfiguracoesPage() {
   const { currentTenant, userProfile } = useTenantContext()
 
   useEffect(() => {
-    if (currentTenant && userProfile) {
-      logModuleAccess({
-        module: 'configuracoes',
-        tenantId: currentTenant.id,
-        userName: userProfile.full_name || userProfile.email,
-        userEmail: userProfile.email
-      })
+    const logAccess = async () => {
+      if (currentTenant && userProfile) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        logModuleAccess({
+          module: 'configuracoes',
+          tenantId: currentTenant.id,
+          userName: userProfile.full_name,
+          userEmail: user?.email || ''
+        })
+      }
     }
+    logAccess()
   }, [currentTenant, userProfile])
 
   return (
