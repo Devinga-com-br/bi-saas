@@ -8,6 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -67,6 +75,11 @@ export default function RupturaABCDPage() {
   const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A'])
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
+
+  // Debug do page state
+  useEffect(() => {
+    console.log('📊 Page state mudou para:', page)
+  }, [page])
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -137,9 +150,10 @@ export default function RupturaABCDPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filialSelecionada, currentTenant])
 
-  // Recarregar apenas quando mudar a página
+  // Recarregar quando mudar a página (exceto primeira carga)
   useEffect(() => {
-    if (currentTenant?.supabase_schema && page > 1 && filialSelecionada) {
+    if (currentTenant?.supabase_schema && filialSelecionada && data !== null) {
+      console.log('🔄 Mudança de página detectada:', page)
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -404,27 +418,58 @@ export default function RupturaABCDPage() {
 
               {/* Paginação */}
               {data.total_pages > 1 && (
-                <div className="flex items-center justify-between pt-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Página {data.page} de {data.total_pages}
+                    Página {data.page} de {data.total_pages} • {data.total_records} produtos
                   </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={data.page === 1 || loading}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.min(data.total_pages, p + 1))}
-                      disabled={data.page === data.total_pages || loading}
-                    >
-                      Próxima
-                    </Button>
+                  <div className="flex justify-end">
+                    <Pagination className="mx-0 w-auto">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            aria-disabled={data.page === 1 || loading}
+                            className={data.page === 1 || loading ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                        
+                        {/* Sempre mostrar primeiras páginas */}
+                        {[...Array(Math.min(data.total_pages, 5))].map((_, i) => {
+                          const pageNum = i + 1
+                          // Mostrar: 1, 2, 3 quando na página 1-3
+                          // Mostrar: página atual e vizinhas
+                          const showPage = 
+                            pageNum === 1 || 
+                            pageNum === data.total_pages ||
+                            Math.abs(pageNum - data.page) <= 1
+                          
+                          if (!showPage) return null
+                          
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink 
+                                onClick={() => {
+                                  console.log('📄 Click na página:', pageNum)
+                                  setPage(pageNum)
+                                }}
+                                isActive={pageNum === data.page}
+                                className="cursor-pointer"
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          )
+                        })}
+                        
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => setPage(p => Math.min(data.total_pages, p + 1))}
+                            aria-disabled={data.page === data.total_pages || loading}
+                            className={data.page === data.total_pages || loading ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 </div>
               )}
