@@ -269,86 +269,95 @@ export default function RupturaABCDPage() {
                   open={!collapsedDepts.has(dept.departamento_id)}
                   onOpenChange={() => handleToggleDept(dept.departamento_id)}
                 >
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {collapsedDepts.has(dept.departamento_id) ? (
-                              <ChevronRight className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                            <CardTitle className="text-lg">{dept.departamento_nome}</CardTitle>
-                          </div>
-                          <Badge variant="secondary">
-                            {dept.produtos.length} {dept.produtos.length === 1 ? 'produto' : 'produtos'}
-                          </Badge>
+                  <CollapsibleTrigger asChild>
+                    <div className="cursor-pointer hover:bg-accent/50 transition-colors border rounded-lg p-4 mb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {collapsedDepts.has(dept.departamento_id) ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                          <h3 className="text-lg font-semibold">{dept.departamento_nome}</h3>
                         </div>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0">
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Código</TableHead>
-                                <TableHead>Descrição</TableHead>
-                                <TableHead className="text-center">Curva Lucro</TableHead>
-                                <TableHead className="text-center">Curva Venda</TableHead>
-                                <TableHead className="text-right">Estoque</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {dept.produtos.map((produto, idx) => (
-                                <TableRow key={`${produto.produto_id}-${produto.filial_id || idx}`}>
-                                  <TableCell className="font-mono text-sm">
-                                    {produto.produto_id}
-                                  </TableCell>
-                                  <TableCell className="max-w-md">
-                                    <div className="truncate" title={produto.produto_descricao}>
-                                      {produto.produto_descricao}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Badge variant="outline">
-                                      {produto.curva_lucro || '-'}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Badge
-                                      className={
-                                        produto.curva_venda === 'A'
-                                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                                          : produto.curva_venda === 'B'
-                                          ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-                                          : ''
-                                      }
-                                      variant={
-                                        produto.curva_venda === 'A' || produto.curva_venda === 'B'
-                                          ? 'default'
-                                          : 'outline'
-                                      }
-                                    >
-                                      {produto.curva_venda}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell
-                                    className={`text-right font-semibold ${
-                                      produto.estoque_atual <= 0 ? 'text-destructive' : ''
-                                    }`}
-                                  >
-                                    {formatNumber(produto.estoque_atual)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
+                        <Badge variant="secondary">
+                          {dept.produtos.length} {dept.produtos.length === 1 ? 'produto' : 'produtos'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="rounded-md border mb-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[100px]">Código</TableHead>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead className="text-center w-[120px]">Curva Lucro</TableHead>
+                            <TableHead className="text-center w-[120px]">Curva Venda</TableHead>
+                            <TableHead className="text-right w-[120px]">Estoque</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dept.produtos.map((produto, idx) => (
+                            <TableRow key={`${produto.produto_id}-${produto.filial_id || idx}`}>
+                              <TableCell className="font-mono text-sm">
+                                {produto.produto_id}
+                              </TableCell>
+                              <TableCell>
+                                <div className="truncate" title={produto.produto_descricao}>
+                                  {produto.produto_descricao}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge
+                                  className={
+                                    produto.curva_lucro === 'A'
+                                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                                      : produto.curva_lucro === 'B'
+                                      ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                      : ''
+                                  }
+                                  variant={
+                                    produto.curva_lucro === 'A' || produto.curva_lucro === 'B'
+                                      ? 'default'
+                                      : 'outline'
+                                  }
+                                >
+                                  {produto.curva_lucro || '-'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge
+                                  className={
+                                    produto.curva_venda === 'A'
+                                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                                      : produto.curva_venda === 'B'
+                                      ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                      : ''
+                                  }
+                                  variant={
+                                    produto.curva_venda === 'A' || produto.curva_venda === 'B'
+                                      ? 'default'
+                                      : 'outline'
+                                  }
+                                >
+                                  {produto.curva_venda}
+                                </Badge>
+                              </TableCell>
+                              <TableCell
+                                className={`text-right font-semibold ${
+                                  produto.estoque_atual <= 0 ? 'text-destructive' : ''
+                                }`}
+                              >
+                                {formatNumber(produto.estoque_atual)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CollapsibleContent>
                 </Collapsible>
               ))}
 

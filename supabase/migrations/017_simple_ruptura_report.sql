@@ -80,10 +80,8 @@ BEGIN
     FROM filtered_produtos fp
     LEFT JOIN %I.departments_level_1 d ON fp.departamento_id = d.departamento_id
     ORDER BY 
-      COALESCE(d.descricao, 'SEM DEPARTAMENTO'),
-      fp.curva_abcd,
-      fp.estoque_atual,
-      fp.venda_media_diaria_60d DESC
+      COALESCE(d.descricao, 'ZZZZZ_SEM DEPARTAMENTO') ASC,
+      fp.descricao ASC
     LIMIT $7 OFFSET $8
   $sql$, p_schema, p_schema);
 

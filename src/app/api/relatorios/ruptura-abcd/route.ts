@@ -112,12 +112,24 @@ export async function GET(req: Request) {
       })
     }
 
+    // Ordenar departamentos alfabeticamente
+    const sortedDepartamentos = Object.values(groupedData).sort((a, b) => {
+      const nameA = a.departamento_nome.toUpperCase()
+      const nameB = b.departamento_nome.toUpperCase()
+      
+      // Colocar "SEM DEPARTAMENTO" no final
+      if (nameA.includes('SEM DEPARTAMENTO')) return 1
+      if (nameB.includes('SEM DEPARTAMENTO')) return -1
+      
+      return nameA.localeCompare(nameB, 'pt-BR')
+    })
+
     return NextResponse.json({
       total_records: totalRecords,
       page: pageNum,
       page_size: pageSizeNum,
       total_pages: Math.ceil(totalRecords / pageSizeNum),
-      departamentos: Object.values(groupedData),
+      departamentos: sortedDepartamentos,
     })
   } catch (e) {
     const error = e as Error
