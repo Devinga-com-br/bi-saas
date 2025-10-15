@@ -14,6 +14,7 @@ import {
   LucideIcon,
   Package,
   TrendingUp,
+  Target,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -69,7 +70,7 @@ const navigation: NavigationItem[] = [
   {
     name: 'Metas',
     href: '/metas',
-    icon: TrendingUp,
+    icon: Target,
     items: [
       {
         name: 'Meta Mensal',

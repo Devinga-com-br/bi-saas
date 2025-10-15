@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranches } from '@/hooks/use-branches'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
@@ -545,7 +545,6 @@ export default function MetaMensalPage() {
                     <TableHead className="w-10"></TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Dia da Semana</TableHead>
-                    <TableHead>Data Ref.</TableHead>
                     <TableHead className="text-right">Venda Ref.</TableHead>
                     <TableHead className="text-right">Meta %</TableHead>
                     <TableHead className="text-right">Valor Meta</TableHead>
@@ -559,8 +558,8 @@ export default function MetaMensalPage() {
                     groupMetasByDate(
                       report?.metas
                         .filter((meta) => {
-                          const metaDate = new Date(meta.data)
-                          return metaDate.getMonth() + 1 === mes && metaDate.getFullYear() === ano
+                          const [year, month] = meta.data.split('-').map(Number)
+                          return month === mes && year === ano
                         })
                         .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()) || []
                     )
@@ -570,10 +569,9 @@ export default function MetaMensalPage() {
                     const diferencaPerc = group.diferenca_percentual || 0
                     
                     return (
-                      <>
+                      <React.Fragment key={dateKey}>
                         {/* Linha agregada principal */}
                         <TableRow 
-                          key={dateKey} 
                           className="bg-muted/50 hover:bg-muted/70 cursor-pointer font-medium"
                           onClick={() => toggleDateExpanded(dateKey)}
                         >
@@ -585,13 +583,10 @@ export default function MetaMensalPage() {
                             )}
                           </TableCell>
                           <TableCell className="font-semibold">
-                            {format(new Date(group.data), 'dd/MM/yyyy')}
+                            {format(parseISO(group.data), 'dd/MM/yyyy')}
                           </TableCell>
-                          <TableCell className="font-semibold">{group.dia_semana}</TableCell>
                           <TableCell className="font-semibold">
-                            {group.metas && group.metas.length > 0 
-                              ? format(new Date(group.metas[0].data_referencia), 'dd/MM/yyyy')
-                              : '-'}
+                            {group.metas[0]?.dia_semana || '-'}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
                             {formatCurrency(group.total_valor_referencia)}
@@ -628,14 +623,11 @@ export default function MetaMensalPage() {
                               className="bg-background/50"
                             >
                               <TableCell></TableCell>
-                              <TableCell className="pl-8 text-sm font-medium">
-                                {getFilialName(meta.filial_id)}
+                              <TableCell className="pl-8 text-sm">
+                                <span className="font-medium">{getFilialName(meta.filial_id)}</span>
                               </TableCell>
-                              <TableCell className="text-sm">
-                                {meta.dia_semana}
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {format(new Date(meta.data_referencia), 'dd/MM/yyyy')}
+                              <TableCell className="text-sm text-muted-foreground">
+                                Ref: {meta.data_referencia ? format(parseISO(meta.data_referencia), 'dd/MM/yyyy') : '-'}
                               </TableCell>
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(meta.valor_referencia)}
@@ -662,7 +654,7 @@ export default function MetaMensalPage() {
                             </TableRow>
                           )
                         })}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </TableBody>
@@ -699,11 +691,11 @@ export default function MetaMensalPage() {
                       return (
                         <TableRow key={meta.id}>
                           <TableCell>
-                            {format(new Date(meta.data), 'dd/MM/yyyy')}
+                            {format(parseISO(meta.data), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell>{meta.dia_semana}</TableCell>
                           <TableCell>
-                            {format(new Date(meta.data_referencia), 'dd/MM/yyyy')}
+                            {meta.data_referencia ? format(parseISO(meta.data_referencia), 'dd/MM/yyyy') : '-'}
                           </TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(meta.valor_referencia)}
