@@ -4,7 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 
-export type AuditModule = 'dashboard' | 'usuarios' | 'relatorios' | 'configuracoes'
+export type AuditModule = 'dashboard' | 'usuarios' | 'relatorios' | 'configuracoes' | 'metas'
 
 interface AuditLogParams {
   module: AuditModule
@@ -31,24 +31,24 @@ export async function logModuleAccess({
   try {
     const supabase = createClient()
     
-    const params = {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.rpc as any)('insert_audit_log', {
       p_module: module,
       p_sub_module: subModule || null,
       p_tenant_id: tenantId || null,
       p_user_name: userName || null,
-      p_user_email: userEmail || null,
+      p_user_email: userEmail || user.email || null,
       p_action: action,
       p_metadata: metadata
-    }
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)('insert_audit_log', params)
-
-    if (error) {
-      console.error('[AUDIT] Error logging access:', error)
-    }
-  } catch (error) {
-    console.error('[AUDIT] Exception logging access:', error)
+    })
+  } catch {
+    // Silently fail - audit logs should not break the user experience
   }
 }
 

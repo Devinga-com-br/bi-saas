@@ -13,6 +13,7 @@ import {
   Building2,
   LucideIcon,
   Package,
+  TrendingUp,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -64,6 +65,18 @@ const navigation: NavigationItem[] = [
     href: '/usuarios',
     icon: Users,
     requiresAdminOrAbove: true,
+  },
+  {
+    name: 'Metas',
+    href: '/metas',
+    icon: TrendingUp,
+    items: [
+      {
+        name: 'Meta Mensal',
+        href: '/metas/mensal',
+        icon: TrendingUp,
+      },
+    ],
   },
   {
     name: 'Relatórios',
