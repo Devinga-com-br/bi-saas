@@ -74,16 +74,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Admin só pode criar filiais na própria empresa' }, { status: 403 })
     }
 
-    // Check if branch_code already exists
+    // Check if branch_code already exists for this tenant
     const { data: existingBranch } = await supabase
       .from('branches')
       .select('branch_code')
       .eq('branch_code', branch_code)
+      .eq('tenant_id', tenant_id)
       .single()
 
     if (existingBranch) {
       return NextResponse.json({
-        error: 'Este código de filial já está cadastrado'
+        error: 'Este código de filial já está cadastrado para esta empresa'
       }, { status: 400 })
     }
 
@@ -125,10 +126,10 @@ export async function DELETE(request: Request) {
   try {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
-    const branchCode = searchParams.get('branch_code')
+    const branchId = searchParams.get('id')
 
-    if (!branchCode) {
-      return NextResponse.json({ error: 'branch_code é obrigatório' }, { status: 400 })
+    if (!branchId) {
+      return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
     }
 
     // Check authentication
@@ -152,7 +153,7 @@ export async function DELETE(request: Request) {
     const { data: branch } = await supabase
       .from('branches')
       .select('tenant_id')
-      .eq('branch_code', branchCode)
+      .eq('id', branchId)
       .single()
 
     if (!branch) {
@@ -169,7 +170,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabase
       .from('branches')
       .delete()
-      .eq('branch_code', branchCode)
+      .eq('id', branchId)
 
     if (error) {
       console.error('Error deleting branch:', error)
@@ -188,10 +189,10 @@ export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
-    const branchCode = searchParams.get('branch_code')
+    const branchId = searchParams.get('id')
 
-    if (!branchCode) {
-      return NextResponse.json({ error: 'branch_code é obrigatório' }, { status: 400 })
+    if (!branchId) {
+      return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
     }
 
     // Check authentication
@@ -215,7 +216,7 @@ export async function PATCH(request: Request) {
     const { data: existingBranch } = await supabase
       .from('branches')
       .select('tenant_id')
-      .eq('branch_code', branchCode)
+      .eq('id', branchId)
       .single()
 
     if (!existingBranch) {
@@ -244,7 +245,7 @@ export async function PATCH(request: Request) {
       estado: estado || null,
       updated_at: new Date().toISOString(),
     })
-      .eq('branch_code', branchCode)
+      .eq('id', branchId)
       .select()
       .single()
     
