@@ -418,7 +418,6 @@ export default function MetaMensalPage() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
       </div>
 
       {/* Filtros */}
