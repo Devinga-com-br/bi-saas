@@ -365,104 +365,124 @@ export default function DashboardPage() {
                   <TableRow>
                     <TableHead className="w-[80px]">Filial</TableHead>
                     <TableHead className="text-right">Valor Vendido</TableHead>
-                    <TableHead className="text-right">Delta</TableHead>
                     <TableHead className="text-right">Ticket Médio</TableHead>
                     <TableHead className="text-right">Custo Total</TableHead>
-                    <TableHead className="text-right">Delta</TableHead>
                     <TableHead className="text-right">Total Lucro</TableHead>
-                    <TableHead className="text-right">Delta</TableHead>
                     <TableHead className="text-right">Margem</TableHead>
-                    <TableHead className="text-right">Delta</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vendasPorFilial.map((venda) => (
-                    <TableRow key={venda.filial_id}>
-                      <TableCell className="font-medium">{venda.filial_id}</TableCell>
-                      
-                      {/* Valor Vendido */}
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(venda.valor_total)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {venda.delta_valor_percent >= 0 ? (
-                            <ArrowUp className="h-3 w-3 text-green-600" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3 text-red-600" />
-                          )}
-                          <span className={venda.delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {venda.delta_valor_percent >= 0 ? '+' : ''}{venda.delta_valor_percent.toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          ({formatCurrency(venda.delta_valor)})
-                        </div>
-                      </TableCell>
-                      
-                      {/* Ticket Médio */}
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(venda.ticket_medio)}
-                      </TableCell>
-                      
-                      {/* Custo Total */}
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(venda.custo_total)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {venda.delta_custo_percent >= 0 ? (
-                            <ArrowUp className="h-3 w-3 text-red-600" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3 text-green-600" />
-                          )}
-                          <span className={venda.delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}>
-                            {venda.delta_custo_percent >= 0 ? '+' : ''}{venda.delta_custo_percent.toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          ({formatCurrency(venda.delta_custo)})
-                        </div>
-                      </TableCell>
-                      
-                      {/* Total Lucro */}
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(venda.total_lucro)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {venda.delta_lucro_percent >= 0 ? (
-                            <ArrowUp className="h-3 w-3 text-green-600" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3 text-red-600" />
-                          )}
-                          <span className={venda.delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {venda.delta_lucro_percent >= 0 ? '+' : ''}{venda.delta_lucro_percent.toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          ({formatCurrency(venda.delta_lucro)})
-                        </div>
-                      </TableCell>
-                      
-                      {/* Margem */}
-                      <TableCell className="text-right font-medium">
-                        {venda.margem_lucro.toFixed(2)}%
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {venda.delta_margem >= 0 ? (
-                            <ArrowUp className="h-3 w-3 text-green-600" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3 text-red-600" />
-                          )}
-                          <span className={venda.delta_margem >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {venda.delta_margem >= 0 ? '+' : ''}{venda.delta_margem.toFixed(2)}p.p.
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {vendasPorFilial.map((venda) => {
+                    const delta_ticket_percent = venda.pa_ticket_medio > 0 
+                      ? ((venda.ticket_medio - venda.pa_ticket_medio) / venda.pa_ticket_medio) * 100 
+                      : 0
+                    
+                    return (
+                      <TableRow key={venda.filial_id}>
+                        <TableCell className="font-medium">{venda.filial_id}</TableCell>
+                        
+                        {/* Valor Vendido */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(venda.valor_total)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {venda.delta_valor_percent >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {venda.delta_valor_percent >= 0 ? '+' : ''}{venda.delta_valor_percent.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(venda.pa_valor_total)}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Ticket Médio */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(venda.ticket_medio)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_ticket_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {delta_ticket_percent >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {delta_ticket_percent >= 0 ? '+' : ''}{delta_ticket_percent.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(venda.pa_ticket_medio)}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Custo Total */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(venda.custo_total)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {venda.delta_custo_percent >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {venda.delta_custo_percent >= 0 ? '+' : ''}{venda.delta_custo_percent.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(venda.pa_custo_total)}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Total Lucro */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(venda.total_lucro)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {venda.delta_lucro_percent >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {venda.delta_lucro_percent >= 0 ? '+' : ''}{venda.delta_lucro_percent.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(venda.pa_total_lucro)}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Margem */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {venda.margem_lucro.toFixed(2)}%
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {venda.delta_margem >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {venda.delta_margem >= 0 ? '+' : ''}{venda.delta_margem.toFixed(2)}p.p.
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {venda.pa_margem_lucro.toFixed(2)}%
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                   
                   {/* Linha de Totalização */}
                   {vendasPorFilial && vendasPorFilial.length > 0 && (() => {
@@ -487,7 +507,10 @@ export default function DashboardPage() {
                     })
 
                     const ticket_medio = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
+                    const pa_ticket_medio = totais.pa_total_transacoes > 0 ? totais.pa_valor_total / totais.pa_total_transacoes : 0
+                    const delta_ticket_percent = pa_ticket_medio > 0 ? ((ticket_medio - pa_ticket_medio) / pa_ticket_medio) * 100 : 0
                     const margem_lucro = totais.valor_total > 0 ? (totais.total_lucro / totais.valor_total) * 100 : 0
+                    const pa_margem_lucro = totais.pa_valor_total > 0 ? (totais.pa_total_lucro / totais.pa_valor_total) * 100 : 0
                     
                     const delta_valor = totais.valor_total - totais.pa_valor_total
                     const delta_valor_percent = totais.pa_valor_total > 0 ? (delta_valor / totais.pa_valor_total) * 100 : 0
@@ -495,7 +518,7 @@ export default function DashboardPage() {
                     const delta_custo_percent = totais.pa_custo_total > 0 ? (delta_custo / totais.pa_custo_total) * 100 : 0
                     const delta_lucro = totais.total_lucro - totais.pa_total_lucro
                     const delta_lucro_percent = totais.pa_total_lucro > 0 ? (delta_lucro / totais.pa_total_lucro) * 100 : 0
-                    const delta_margem = margem_lucro - (totais.pa_valor_total > 0 ? (totais.pa_total_lucro / totais.pa_valor_total) * 100 : 0)
+                    const delta_margem = margem_lucro - pa_margem_lucro
 
                     return (
                       <TableRow className="bg-muted/30 font-bold border-t-2">
@@ -503,83 +526,101 @@ export default function DashboardPage() {
                         
                         {/* Valor Vendido */}
                         <TableCell className="text-right">
-                          {formatCurrency(totais.valor_total)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div>
+                            {formatCurrency(totais.valor_total)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {delta_valor_percent >= 0 ? (
-                              <ArrowUp className="h-3 w-3 text-green-600" />
+                              <ArrowUp className="h-3 w-3" />
                             ) : (
-                              <ArrowDown className="h-3 w-3 text-red-600" />
+                              <ArrowDown className="h-3 w-3" />
                             )}
-                            <span className={delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span>
                               {delta_valor_percent >= 0 ? '+' : ''}{delta_valor_percent.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ({formatCurrency(delta_valor)})
+                            {formatCurrency(totais.pa_valor_total)}
                           </div>
                         </TableCell>
                         
                         {/* Ticket Médio */}
                         <TableCell className="text-right">
-                          {formatCurrency(ticket_medio)}
+                          <div>
+                            {formatCurrency(ticket_medio)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_ticket_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {delta_ticket_percent >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {delta_ticket_percent >= 0 ? '+' : ''}{delta_ticket_percent.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(pa_ticket_medio)}
+                          </div>
                         </TableCell>
                         
                         {/* Custo Total */}
                         <TableCell className="text-right">
-                          {formatCurrency(totais.custo_total)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div>
+                            {formatCurrency(totais.custo_total)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {delta_custo_percent >= 0 ? (
-                              <ArrowUp className="h-3 w-3 text-red-600" />
+                              <ArrowUp className="h-3 w-3" />
                             ) : (
-                              <ArrowDown className="h-3 w-3 text-green-600" />
+                              <ArrowDown className="h-3 w-3" />
                             )}
-                            <span className={delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}>
+                            <span>
                               {delta_custo_percent >= 0 ? '+' : ''}{delta_custo_percent.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ({formatCurrency(delta_custo)})
+                            {formatCurrency(totais.pa_custo_total)}
                           </div>
                         </TableCell>
                         
                         {/* Total Lucro */}
                         <TableCell className="text-right">
-                          {formatCurrency(totais.total_lucro)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div>
+                            {formatCurrency(totais.total_lucro)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {delta_lucro_percent >= 0 ? (
-                              <ArrowUp className="h-3 w-3 text-green-600" />
+                              <ArrowUp className="h-3 w-3" />
                             ) : (
-                              <ArrowDown className="h-3 w-3 text-red-600" />
+                              <ArrowDown className="h-3 w-3" />
                             )}
-                            <span className={delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span>
                               {delta_lucro_percent >= 0 ? '+' : ''}{delta_lucro_percent.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ({formatCurrency(delta_lucro)})
+                            {formatCurrency(totais.pa_total_lucro)}
                           </div>
                         </TableCell>
                         
                         {/* Margem */}
                         <TableCell className="text-right">
-                          {margem_lucro.toFixed(2)}%
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div>
+                            {margem_lucro.toFixed(2)}%
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {delta_margem >= 0 ? (
-                              <ArrowUp className="h-3 w-3 text-green-600" />
+                              <ArrowUp className="h-3 w-3" />
                             ) : (
-                              <ArrowDown className="h-3 w-3 text-red-600" />
+                              <ArrowDown className="h-3 w-3" />
                             )}
-                            <span className={delta_margem >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span>
                               {delta_margem >= 0 ? '+' : ''}{delta_margem.toFixed(2)}p.p.
                             </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {pa_margem_lucro.toFixed(2)}%
                           </div>
                         </TableCell>
                       </TableRow>

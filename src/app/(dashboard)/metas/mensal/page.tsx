@@ -626,7 +626,7 @@ export default function MetaMensalPage() {
                         .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()) || []
                     )
                   ).map(([dateKey, group]) => {
-                    const isExpanded = expandedDates[dateKey] !== false // Aberto por padrão
+                    const isExpanded = expandedDates[dateKey] === true // Fechado por padrão
                     const diferencaValor = group.total_diferenca || 0
                     const diferencaPerc = group.diferenca_percentual || 0
                     
