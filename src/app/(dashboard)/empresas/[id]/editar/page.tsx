@@ -10,8 +10,9 @@ import type { Tenant } from '@/types'
 export default async function EditarEmpresaPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const supabase = await createClient()
 
   // Check authentication
@@ -38,7 +39,7 @@ export default async function EditarEmpresaPage({
   const { data: company, error } = await supabase
     .from('tenants')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single() as { data: Tenant | null; error: Error | null }
 
   if (error || !company) {

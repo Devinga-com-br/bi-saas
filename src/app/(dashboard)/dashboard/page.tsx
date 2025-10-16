@@ -41,6 +41,9 @@ interface DashboardData {
   variacao_lucro_ano: number
   variacao_ticket_ano: number
   variacao_margem_ano: number
+  ytd_vendas: number
+  ytd_vendas_ano_anterior: number
+  ytd_variacao_percent: number
   grafico_vendas: Array<{
     mes: string
     ano_atual: number
@@ -250,11 +253,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Cards e Gráfico */}
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-4">
         {isDataLoading ? (
           <>
             {/* Skeleton para CardMetric */}
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <Card key={i}>
                 <CardHeader className="pb-2">
                   <Skeleton className="h-4 w-32" />
@@ -277,6 +280,14 @@ export default function DashboardPage() {
           </>
         ) : data ? (
           <>
+            <CardMetric
+              title="Total Vendas (Acum. Ano)"
+              value={formatCurrency(data.ytd_vendas)}
+              previousValue={formatCurrency(data.ytd_vendas_ano_anterior)}
+              variationPercent={`${(data.ytd_variacao_percent || 0) >= 0 ? '+' : ''}${(data.ytd_variacao_percent || 0).toFixed(2)}%`}
+              variationYear=""
+              isPositive={(data.ytd_variacao_percent || 0) >= 0}
+            />
             <CardMetric
               title="Total de Vendas"
               value={formatCurrency(data.total_vendas)}

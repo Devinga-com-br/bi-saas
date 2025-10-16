@@ -6,7 +6,8 @@ import type { Database } from '@/types/database.types'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 
-export default async function EditUserPage({ params }: { params: { id: string } }) {
+export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
 
   // Check if user is authenticated
@@ -35,7 +36,7 @@ export default async function EditUserPage({ params }: { params: { id: string } 
   const { data: userToEdit, error } = await supabase
     .from('user_profiles')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single() as { data: UserProfile | null; error: Error | null }
 
   if (error || !userToEdit) {
