@@ -31,11 +31,14 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Target, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranches } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { cn } from '@/lib/utils'
 
 interface Setor {
   id: number
@@ -81,8 +84,8 @@ export default function MetaSetorPage() {
     mes: new Date().getMonth() + 1,
     ano: new Date().getFullYear(),
     filial_ids: [] as string[],
-    data_referencia: '',
-    meta_percentual: 3,
+    data_referencia: undefined as Date | undefined,
+    meta_percentual: undefined as number | undefined,
   })
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 })
@@ -154,15 +157,21 @@ export default function MetaSetorPage() {
     }
   }, [currentTenant, selectedSetor, mes, ano, selectedFilial])
 
+  // Carregar setores apenas uma vez quando o tenant está disponível
   useEffect(() => {
-    loadSetores()
-  }, [currentTenant, loadSetores])
+    if (currentTenant) {
+      loadSetores()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant?.id])
 
+  // Carregar metas apenas quando filtros mudarem
   useEffect(() => {
     if (selectedSetor && mes && ano) {
       loadMetasPorSetor()
     }
-  }, [selectedSetor, mes, ano, selectedFilial, currentTenant, loadMetasPorSetor])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSetor, mes, ano, selectedFilial])
 
   const handleGerarMeta = async () => {
     if (!currentTenant) return
@@ -180,10 +189,8 @@ export default function MetaSetorPage() {
       alert('Informe a data de referência')
       return
     }
-    
-    // Validar formato da data
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(generateForm.data_referencia)) {
-      alert('Data de referência inválida. Use o formato YYYY-MM-DD (ex: 2025-09-15)')
+    if (!generateForm.meta_percentual || generateForm.meta_percentual <= 0) {
+      alert('Informe o percentual da meta')
       return
     }
 
@@ -211,7 +218,7 @@ export default function MetaSetorPage() {
                 filial_id,
                 mes: generateForm.mes,
                 ano: generateForm.ano,
-                data_referencia: generateForm.data_referencia,
+                data_referencia: format(generateForm.data_referencia, 'yyyy-MM-dd'),
                 meta_percentual: generateForm.meta_percentual,
               }),
             })
@@ -247,6 +254,15 @@ export default function MetaSetorPage() {
       alert(message)
 
       if (successCount > 0) {
+        // Limpar formulário após sucesso
+        setGenerateForm({
+          setor_ids: [],
+          mes: new Date().getMonth() + 1,
+          ano: new Date().getFullYear(),
+          filial_ids: [],
+          data_referencia: undefined,
+          meta_percentual: undefined,
+        })
         setDialogOpen(false)
         loadMetasPorSetor()
       }
@@ -490,32 +506,40 @@ export default function MetaSetorPage() {
 
               <div className="grid gap-2">
                 <Label>Data de Referência</Label>
-                <Input
-                  type="date"
-                  value={generateForm.data_referencia}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    // Validar formato de data (YYYY-MM-DD)
-                    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-                      console.warn('Data inválida:', value)
-                      return
-                    }
-                    setGenerateForm({ ...generateForm, data_referencia: value })
-                  }}
-                  placeholder="YYYY-MM-DD"
-                  max="2099-12-31"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !generateForm.data_referencia && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {generateForm.data_referencia ? format(generateForm.data_referencia, "dd/MM/yyyy") : <span>Selecione...</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar 
+                      mode="single" 
+                      selected={generateForm.data_referencia} 
+                      onSelect={(date) => setGenerateForm({ ...generateForm, data_referencia: date })}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="grid gap-2">
                 <Label>Meta (%)</Label>
                 <Input
                   type="number"
-                  value={generateForm.meta_percentual}
+                  placeholder="Ex: 8"
+                  value={generateForm.meta_percentual ?? ''}
                   onChange={(e) =>
                     setGenerateForm({
                       ...generateForm,
-                      meta_percentual: parseFloat(e.target.value),
+                      meta_percentual: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
                   step="0.01"
@@ -563,24 +587,8 @@ export default function MetaSetorPage() {
       {/* Filtros */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <Label>Setor</Label>
-              <Select value={selectedSetor} onValueChange={setSelectedSetor}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o setor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {setores.map((setor) => (
-                    <SelectItem key={setor.id} value={setor.id.toString()}>
-                      {setor.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex-1">
+          <div className="flex items-end gap-3">
+            <div className="w-48">
               <Label>Filial</Label>
               <Select value={selectedFilial} onValueChange={setSelectedFilial}>
                 <SelectTrigger>
@@ -613,7 +621,7 @@ export default function MetaSetorPage() {
               </Select>
             </div>
 
-            <div className="w-32">
+            <div className="w-28">
               <Label>Ano</Label>
               <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
                 <SelectTrigger>
@@ -628,6 +636,22 @@ export default function MetaSetorPage() {
                       </SelectItem>
                     )
                   })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-52">
+              <Label>Setor</Label>
+              <Select value={selectedSetor} onValueChange={setSelectedSetor}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o setor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {setores.map((setor) => (
+                    <SelectItem key={setor.id} value={setor.id.toString()}>
+                      {setor.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -10,11 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { cn } from '@/lib/utils'
 
 interface Meta {
   id: number
@@ -69,7 +72,7 @@ export default function MetaMensalPage() {
   const [formAno, setFormAno] = useState(currentDate.getFullYear())
   const [formFilialId, setFormFilialId] = useState<string>('')
   const [formMetaPercentual, setFormMetaPercentual] = useState('')
-  const [formDataReferencia, setFormDataReferencia] = useState('')
+  const [formDataReferencia, setFormDataReferencia] = useState<Date | undefined>()
   const [generating, setGenerating] = useState(false)
 
   // Log audit on mount
@@ -150,7 +153,7 @@ export default function MetaMensalPage() {
           mes: formMes,
           ano: formAno,
           metaPercentual: parseFloat(formMetaPercentual),
-          dataReferenciaInicial: formDataReferencia
+          dataReferenciaInicial: format(formDataReferencia, 'yyyy-MM-dd')
         })
       })
 
@@ -340,12 +343,28 @@ export default function MetaMensalPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="form-data-ref">Data de Referência Inicial</Label>
-                  <Input
-                    id="form-data-ref"
-                    type="date"
-                    value={formDataReferencia}
-                    onChange={(e) => setFormDataReferencia(e.target.value)}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formDataReferencia && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formDataReferencia ? format(formDataReferencia, "dd/MM/yyyy") : <span>Selecione...</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar 
+                        mode="single" 
+                        selected={formDataReferencia} 
+                        onSelect={setFormDataReferencia}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <Button 
                   onClick={handleGenerateMetas} 
