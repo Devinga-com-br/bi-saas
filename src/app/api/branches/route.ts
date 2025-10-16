@@ -248,7 +248,10 @@ export async function PATCH(request: Request) {
       .select()
       .single()
     
-    const { data: branch, error } = result
+    const { data: branch, error } = result as { 
+      data: Record<string, unknown> | null; 
+      error: { message: string } | null 
+    }
 
     if (error) {
       console.error('Error updating branch:', error)

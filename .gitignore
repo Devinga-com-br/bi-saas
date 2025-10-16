@@ -48,3 +48,40 @@ config/secrets/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# arquivos de desenvolvimento e debug
+.archive/
+**/evidencias/
+debug_*.sql
+TESTE_*.sql
+VERIFICAR_*.sql
+verificar_*.sql
+FIX_*.sql
+fix_*.sql
+SOLUCAO_*.sql
+PROVA_REAL_*.sql
+DIAGNOSTICO_*.sql
+CRIAR_*_EXEMPLO.sql
+CLONAR_*.sql
+EXECUTE_NO_*.sql
+APPLY_MIGRATION_*.sql
+
+# documentação de desenvolvimento
+*_UPDATE.md
+*_FIX_*.md
+*_INSTRUCTIONS.md
+*_SUMMARY.md
+*_CHECKLIST.md
+QUICKSTART_*.md
+PROJECT_STATUS.md
+TROUBLESHOOTING.md
+CLAUDE.md
+GEMINI.md
+LAYOUT_STRUCTURE.md
+REDESIGN_SUMMARY.md
+DATABASE_CONTEXT.md
+ARQUITETURA_*.md
+
+# manter apenas README.md principal
+!README.md
+!.github/copilot-instructions.md

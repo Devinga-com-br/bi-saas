@@ -77,6 +77,11 @@ const navigation: NavigationItem[] = [
         href: '/metas/mensal',
         icon: TrendingUp,
       },
+      {
+        name: 'Meta por Setor',
+        href: '/metas/setor',
+        icon: Target,
+      },
     ],
   },
   {
@@ -100,6 +105,12 @@ const navigation: NavigationItem[] = [
         name: 'Perfil',
         href: '/perfil',
         icon: Users,
+      },
+      {
+        name: 'Setores',
+        href: '/configuracoes/setores',
+        icon: Building2,
+        requiresAdminOrAbove: true,
       },
       {
         name: 'Empresas',
