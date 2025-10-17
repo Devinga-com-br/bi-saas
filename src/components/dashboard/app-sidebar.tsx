@@ -94,6 +94,11 @@ const navigation: NavigationItem[] = [
         href: '/relatorios/ruptura-abcd',
         icon: Package,
       },
+      {
+        name: 'Venda por Curva',
+        href: '/relatorios/venda-curva',
+        icon: TrendingUp,
+      },
     ],
   },
   {
