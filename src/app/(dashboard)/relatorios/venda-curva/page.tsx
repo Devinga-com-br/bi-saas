@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { Search, ChevronDown, ChevronRight, TrendingUp, DollarSign } from 'lucide-react'
+import { ChevronDown, ChevronRight, TrendingUp, DollarSign, FileDown } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,6 +32,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
+
+// Tipos para jspdf-autotable
+declare module 'jspdf' {
+  interface jsPDF {
+    lastAutoTable: {
+      finalY: number
+    }
+  }
+}
 
 interface Produto {
   codigo: number
@@ -173,6 +182,191 @@ export default function VendaCurvaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mes, ano, filialId, page])
 
+  // Exportar PDF
+  const handleExportarPDF = async () => {
+    if (!currentTenant?.supabase_schema || !filialId) return
+
+    try {
+      setLoading(true)
+
+      // Importação dinâmica para reduzir bundle inicial
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      // Buscar TODOS os dados sem paginação
+      const params = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        mes,
+        ano,
+        filial_id: filialId,
+        page: '1',
+        page_size: '10000'
+      })
+
+      const response = await fetch(`/api/relatorios/venda-curva?${params}`)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+        throw new Error(errorData.error || 'Erro ao buscar dados para exportação')
+      }
+
+      const allData = await response.json()
+
+      // Criar PDF em orientação paisagem
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      // Configurar fonte
+      doc.setFont('helvetica')
+
+      // Cabeçalho
+      const filialNome = filiaisOptions.find(f => f.value === filialId)?.label || `Filial ${filialId}`
+      const mesNome = meses.find(m => m.value === mes)?.label || mes
+      
+      doc.setFontSize(16)
+      doc.text('Relatório de Venda por Curva ABC', doc.internal.pageSize.width / 2, 15, { align: 'center' })
+      
+      doc.setFontSize(10)
+      doc.text(`Filial: ${filialNome}`, 14, 25)
+      doc.text(`Período: ${mesNome}/${ano}`, 14, 30)
+      doc.text(`Total de departamentos: ${allData.hierarquia?.length || 0}`, 14, 35)
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40)
+
+      // Preparar dados da tabela - estrutura hierárquica achatada
+      const tableData: (string | number | { content: string; colSpan: number; styles: { fillColor: number[]; fontStyle: string; textColor?: number[] } })[][] = []
+
+      allData.hierarquia?.forEach((dept3: DeptNivel3) => {
+        // Departamento Nível 3 (header principal)
+        tableData.push([
+          {
+            content: `${dept3.dept_nivel3} - Vendas: ${formatCurrency(dept3.total_vendas)} | Lucro: ${formatCurrency(dept3.total_lucro)} | Margem: ${dept3.margem.toFixed(2)}%`,
+            colSpan: 9,
+            styles: {
+              fillColor: [59, 130, 246],
+              fontStyle: 'bold',
+              textColor: [255, 255, 255]
+            }
+          }
+        ])
+
+        dept3.nivel2?.forEach((dept2: DeptNivel2) => {
+          // Departamento Nível 2 (sub-header)
+          tableData.push([
+            {
+              content: `  ${dept2.dept_nivel2} - Vendas: ${formatCurrency(dept2.total_vendas)} | Lucro: ${formatCurrency(dept2.total_lucro)} | Margem: ${dept2.margem.toFixed(2)}%`,
+              colSpan: 9,
+              styles: {
+                fillColor: [200, 220, 240],
+                fontStyle: 'bold'
+              }
+            }
+          ])
+
+          dept2.nivel1?.forEach((dept1: DeptNivel1) => {
+            // Departamento Nível 1 (grupo)
+            tableData.push([
+              {
+                content: `    ${dept1.dept_nivel1} - Vendas: ${formatCurrency(dept1.total_vendas)} | Lucro: ${formatCurrency(dept1.total_lucro)} | Margem: ${dept1.margem.toFixed(2)}%`,
+                colSpan: 9,
+                styles: {
+                  fillColor: [240, 240, 240],
+                  fontStyle: 'bold'
+                }
+              }
+            ])
+
+            // Produtos do departamento nível 1
+            dept1.produtos?.forEach((produto: Produto) => {
+              tableData.push([
+                produto.codigo.toString(),
+                produto.descricao.substring(0, 40), // Limitar tamanho
+                produto.qtde.toFixed(2),
+                formatCurrency(produto.valor_vendas),
+                produto.curva_venda,
+                formatCurrency(produto.valor_lucro),
+                produto.percentual_lucro.toFixed(2) + '%',
+                produto.curva_lucro,
+                produto.filial_id.toString()
+              ])
+            })
+          })
+        })
+      })
+
+      // Cabeçalhos da tabela
+      const headers = [
+        'Código',
+        'Descrição',
+        'Qtde',
+        'Valor Vendas',
+        'Curva Venda',
+        'Valor Lucro',
+        '% Lucro',
+        'Curva Lucro',
+        'Filial'
+      ]
+
+      // Estilos de coluna
+      const columnStyles: Record<number, { cellWidth?: number; halign?: 'center' | 'right' | 'left' }> = {
+        0: { cellWidth: 20 }, // Código
+        1: { cellWidth: 70 }, // Descrição
+        2: { cellWidth: 20, halign: 'right' }, // Qtde
+        3: { cellWidth: 30, halign: 'right' }, // Valor Vendas
+        4: { cellWidth: 20, halign: 'center' }, // Curva Venda
+        5: { cellWidth: 30, halign: 'right' }, // Valor Lucro
+        6: { cellWidth: 20, halign: 'right' }, // % Lucro
+        7: { cellWidth: 20, halign: 'center' }, // Curva Lucro
+        8: { cellWidth: 15, halign: 'center' }, // Filial
+      }
+
+      // Gerar tabela
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      autoTable(doc as any, {
+        head: [headers],
+        body: tableData as any,
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+        startY: 45,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 8,
+        },
+        columnStyles,
+        margin: { top: 45, left: 10, right: 10 },
+        didDrawPage: (data) => {
+          // Rodapé com número da página
+          const pageCount = doc.getNumberOfPages()
+          doc.setFontSize(8)
+          doc.text(
+            `Página ${data.pageNumber} de ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          )
+        },
+      })
+
+      // Salvar PDF
+      const fileName = `venda-curva-${filialNome.replace(/\s+/g, '-')}-${mesNome}-${ano}-${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+
+    } catch (err) {
+      console.error('Erro ao exportar PDF:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao exportar PDF'
+      alert(`Erro ao exportar PDF: ${errorMessage}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Funções de toggle
   const toggleDept1 = (id: string) => {
     setExpandedDept1(prev => ({ ...prev, [id]: !prev[id] }))
@@ -283,6 +477,19 @@ export default function VendaCurvaPage() {
             Análise de vendas agrupada por departamentos e curva ABC
           </p>
         </div>
+        
+        {/* Botão de Exportar */}
+        {data && data.hierarquia && data.hierarquia.length > 0 && (
+          <Button
+            onClick={handleExportarPDF}
+            disabled={loading}
+            variant="outline"
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Exportar PDF
+          </Button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -292,61 +499,71 @@ export default function VendaCurvaPage() {
           <CardDescription>Selecione o período e filial para análise</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="mes">Mês</Label>
-              <Select value={mes} onValueChange={(value) => { setMes(value); setPage(1) }}>
-                <SelectTrigger id="mes">
-                  <SelectValue placeholder="Selecione o mês" />
-                </SelectTrigger>
-                <SelectContent>
-                  {meses.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ano">Ano</Label>
-              <Select value={ano} onValueChange={(value) => { setAno(value); setPage(1) }}>
-                <SelectTrigger id="ano">
-                  <SelectValue placeholder="Selecione o ano" />
-                </SelectTrigger>
-                <SelectContent>
-                  {anos.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+            {/* Filial */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
               <Label htmlFor="filial">Filial</Label>
-              <Select value={filialId} onValueChange={(value) => { setFilialId(value); setPage(1) }}>
-                <SelectTrigger id="filial">
-                  <SelectValue placeholder="Selecione a filial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filiaisOptions.map((filial) => (
-                    <SelectItem key={filial.value} value={filial.value}>
-                      {filial.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="h-10">
+                <Select value={filialId} onValueChange={(value) => { setFilialId(value); setPage(1) }}>
+                  <SelectTrigger id="filial" className="w-full sm:w-[200px] h-10">
+                    <SelectValue placeholder="Selecione a filial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filiaisOptions.map((filial) => (
+                      <SelectItem key={filial.value} value={filial.value}>
+                        {filial.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>&nbsp;</Label>
-              <Button onClick={fetchData} disabled={loading} className="w-full">
-                <Search className="mr-2 h-4 w-4" />
-                {loading ? 'Buscando...' : 'Buscar'}
-              </Button>
+            {/* Mês */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label htmlFor="mes">Mês</Label>
+              <div className="h-10">
+                <Select value={mes} onValueChange={(value) => { setMes(value); setPage(1) }}>
+                  <SelectTrigger id="mes" className="w-full sm:w-[160px] h-10">
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meses.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Ano */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label htmlFor="ano">Ano</Label>
+              <div className="h-10">
+                <Select value={ano} onValueChange={(value) => { setAno(value); setPage(1) }}>
+                  <SelectTrigger id="ano" className="w-full sm:w-[120px] h-10">
+                    <SelectValue placeholder="Selecione o ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {anos.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Botão Aplicar */}
+            <div className="flex justify-end lg:justify-start w-full lg:w-auto">
+              <div className="h-10">
+                <Button onClick={fetchData} disabled={loading} className="w-full sm:w-auto min-w-[120px] h-10">
+                  {loading ? 'Buscando...' : 'Aplicar'}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -116,7 +116,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Página inválida' }, { status: 400 })
     }
 
-    if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
+    if (isNaN(pageSize) || pageSize < 1 || pageSize > 10000) {
       return NextResponse.json({ error: 'Tamanho de página inválido' }, { status: 400 })
     }
 
