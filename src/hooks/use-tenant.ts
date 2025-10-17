@@ -15,13 +15,9 @@ export function useTenant() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          console.log('useTenant: Nenhum usuário autenticado')
           setLoading(false)
           return
         }
-
-        console.log('useTenant: Buscando perfil para user:', user.id)
-        console.log('useTenant: Email do usuário logado:', user.email)
 
         // Primeiro buscar o perfil do usuário
         const { data: userProfile, error: profileError } = (await supabase
@@ -31,8 +27,22 @@ export function useTenant() {
           .single()) as { data: UserProfile | null; error: Error | null }
 
         if (profileError || !userProfile) {
-          console.error('useTenant: Erro ao buscar perfil:', profileError)
+          // Se o perfil não existe, fazer logout (pode ser email alterado ou RLS bloqueado)
+          console.log('useTenant: Perfil não encontrado ou acesso negado - fazendo logout')
+          
+          // Limpar completamente a sessão
+          await supabase.auth.signOut()
+          
+          // Limpar localStorage
+          localStorage.clear()
+          
+          // Forçar redirecionamento imediato
           setLoading(false)
+          
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+            // Usar replace para evitar histórico
+            window.location.replace('/login?error=Acesso negado. Faça login novamente.')
+          }
           return
         }
 

@@ -9,6 +9,11 @@ Este diretório contém documentação técnica complementar do projeto BI SaaS.
   - Exemplos de uso e respostas esperadas
   - Fluxos sugeridos para WhatsApp e outras integrações
 
+- **EMAIL_UPDATE_FEATURE.md** - Documentação da funcionalidade de alteração de email
+  - Fluxo de alteração de email do usuário
+  - Validações e segurança
+  - Guia de testes e troubleshooting
+
 ## Como Usar
 
 ### Para Desenvolvedores

@@ -1,6 +1,23 @@
 import { LoginForm } from '@/components/auth/login-form'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Suspense } from 'react'
+
+function LoginFormWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-gray-200 rounded" />
+          <div className="h-10 bg-gray-200 rounded" />
+          <div className="h-12 bg-gray-200 rounded" />
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  )
+}
 
 export default function LoginPage() {
   return (
@@ -52,7 +69,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <LoginForm />
+            <LoginFormWrapper />
 
             <div className="text-center text-sm">
               <span className="text-gray-500">Não tem uma conta? </span>

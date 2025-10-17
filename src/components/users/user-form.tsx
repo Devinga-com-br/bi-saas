@@ -29,6 +29,7 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
 
   // Form fields
   const [email, setEmail] = useState('')
+  const [originalEmail, setOriginalEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [role, setRole] = useState<string>(user?.role || 'user')
@@ -68,6 +69,26 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
 
     loadTenants()
   }, [currentUserRole, currentUserTenantId, supabase])
+
+  // Load user email when editing
+  useEffect(() => {
+    async function loadUserEmail() {
+      if (user) {
+        try {
+          const response = await fetch(`/api/users/get-email?userId=${user.id}`)
+          if (response.ok) {
+            const data = await response.json()
+            setEmail(data.email || '')
+            setOriginalEmail(data.email || '')
+          }
+        } catch (error) {
+          console.error('Error loading user email:', error)
+        }
+      }
+    }
+
+    loadUserEmail()
+  }, [user])
 
   // Get available roles based on current user role
   const getAvailableRoles = () => {
@@ -148,6 +169,46 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           return
         }
 
+        if (!email.trim()) {
+          setError('Email é obrigatório')
+          setLoading(false)
+          return
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+          setError('Email inválido')
+          setLoading(false)
+          return
+        }
+
+        // Check if email changed
+        const emailChanged = originalEmail !== email.trim()
+
+        // Update email if changed (using admin API)
+        if (emailChanged) {
+          const emailResponse = await fetch('/api/users/update-email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              newEmail: email.trim(),
+            }),
+          })
+
+          const emailResult = await emailResponse.json()
+
+          if (!emailResponse.ok) {
+            setError(emailResult.error || 'Erro ao atualizar email')
+            setLoading(false)
+            return
+          }
+        }
+
+        // Update other user profile fields
         const updateData: Record<string, string | boolean | null> = {
           full_name: fullName.trim(),
           role,
@@ -215,6 +276,40 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
               A senha deve ter no mínimo 6 caracteres
             </p>
           </div>
+        </>
+      )}
+
+      {user && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email *</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="usuario@exemplo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              Alterar o email do usuário (não requer confirmação)
+            </p>
+          </div>
+          
+          {email && originalEmail && email !== originalEmail && (
+            <Alert>
+              <AlertDescription>
+                <p className="font-medium mb-2">⚠️ Importante sobre alteração de email:</p>
+                <ul className="text-sm space-y-1 list-disc list-inside">
+                  <li>O usuário será desconectado automaticamente</li>
+                  <li>O email antigo <strong>não funcionará mais</strong> para login</li>
+                  <li>Apenas o novo email poderá ser usado para acessar o sistema</li>
+                  <li>A alteração é <strong>imediata</strong> (sem confirmação por email)</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
         </>
       )}
 

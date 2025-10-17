@@ -44,8 +44,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         .single() as { data: UserProfile | null; error: Error | null }
 
       if (profileError || !profile) {
-        console.error('Error loading profile:', profileError)
+        // Se o perfil não existe, fazer logout (pode ser email alterado ou RLS bloqueado)
+        console.log('Perfil não encontrado ou acesso negado - fazendo logout')
+        
+        // Limpar completamente a sessão
+        await supabase.auth.signOut()
+        
+        // Limpar localStorage
+        localStorage.clear()
+        
+        // Forçar redirecionamento imediato
         setLoading(false)
+        
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          // Usar replace para evitar histórico
+          window.location.replace('/login?error=Acesso negado. Faça login novamente.')
+        }
         return
       }
 
@@ -53,7 +67,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       // If user is superadmin, get ALL active tenants
       if (profile.role === 'superadmin') {
-        console.log('TenantContext: Superadmin detectado - buscando todos os tenants')
 
         const { data: allTenants, error: tenantsError } = await supabase
           .from('tenants')
@@ -64,7 +77,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (tenantsError) {
           console.error('TenantContext: Erro ao buscar tenants:', tenantsError)
         } else if (allTenants) {
-          console.log(`TenantContext: ${allTenants.length} tenants encontrados`)
           setAccessibleTenants(allTenants)
 
           // Set current tenant from localStorage or first accessible tenant
@@ -72,17 +84,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           const savedTenant = allTenants.find(t => t.id === savedTenantId)
 
           if (savedTenant) {
-            console.log('TenantContext: Restaurando tenant do localStorage:', savedTenant.name)
             setCurrentTenant(savedTenant)
           } else if (allTenants.length > 0) {
-            console.log('TenantContext: Usando primeiro tenant:', allTenants[0].name)
             setCurrentTenant(allTenants[0])
             localStorage.setItem(CURRENT_TENANT_KEY, allTenants[0].id)
           }
         }
       } else {
         // Regular user - get their own tenant
-        console.log('TenantContext: Usuário normal - buscando tenant próprio')
 
         if (!profile.tenant_id) {
           console.error('TenantContext: Usuário não-superadmin sem tenant_id')
@@ -99,7 +108,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (tenantError) {
           console.error('TenantContext: Erro ao buscar tenant:', tenantError)
         } else if (tenant) {
-          console.log('TenantContext: Tenant encontrado:', tenant.name)
           setCurrentTenant(tenant)
           setAccessibleTenants([tenant])
         }
