@@ -195,6 +195,7 @@ bi-saas/
 - **[CHARTS_GUIDE.md](CHARTS_GUIDE.md)** - Guia completo de Chart.js
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Resolução de problemas
 - **[PROJECT_STATUS.md](PROJECT_STATUS.md)** - Status atual do projeto
+- **[docs/N8N_QUERIES.md](docs/N8N_QUERIES.md)** - Queries SQL para integração N8N
 
 ### Para IA (Claude)
 - **[CLAUDE.md](CLAUDE.md)** - Guia principal do projeto
@@ -203,6 +204,12 @@ bi-saas/
   - Multi-tenancy model
   - UI components
   - Charts & Data Visualization
+
+### Para Integrações
+- **[docs/](docs/)** - Documentação de integrações e automações
+  - Queries N8N para WhatsApp
+  - APIs e webhooks
+  - Exemplos de uso
 
 ---
 
