@@ -76,6 +76,7 @@ export async function GET(req: Request) {
     console.log('[API/RELATORIOS/RUPTURA-ABCD] RPC Params:', JSON.stringify(rpcParams, null, 2))
 
     // Chamar a função RPC
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase.rpc('get_ruptura_abcd_report', rpcParams as any) as { data: any[] | null; error: any }
 
     if (error) {
