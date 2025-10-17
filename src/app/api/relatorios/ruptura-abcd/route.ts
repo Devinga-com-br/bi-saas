@@ -51,11 +51,19 @@ export async function GET(req: Request) {
     const curvasArray = curvas.split(',').map(c => c.trim())
     const pageNum = parseInt(page, 10)
     const pageSizeNum = parseInt(page_size, 10)
+    
+    // Converter filial_id para número ou null
+    let filialIdNum: number | null = null
+    if (filial_id && filial_id !== 'all') {
+      const parsed = parseInt(filial_id, 10)
+      if (!isNaN(parsed)) {
+        filialIdNum = parsed
+      }
+    }
 
-    // Chamar a função RPC
-    const { data, error } = await supabase.rpc('get_ruptura_abcd_report', {
+    const rpcParams = {
       p_schema: requestedSchema,
-      p_filial_id: filial_id ? parseInt(filial_id, 10) : null,
+      p_filial_id: filialIdNum,
       p_curvas: curvasArray,
       p_apenas_ativos: apenas_ativos === 'true',
       p_apenas_ruptura: apenas_ruptura === 'true',
@@ -63,8 +71,12 @@ export async function GET(req: Request) {
       p_busca: busca || null,
       p_page: pageNum,
       p_page_size: pageSizeNum,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any) as { data: any[] | null; error: any }
+    }
+
+    console.log('[API/RELATORIOS/RUPTURA-ABCD] RPC Params:', JSON.stringify(rpcParams, null, 2))
+
+    // Chamar a função RPC
+    const { data, error } = await supabase.rpc('get_ruptura_abcd_report', rpcParams as any) as { data: any[] | null; error: any }
 
     if (error) {
       console.error('[API/RELATORIOS/RUPTURA-ABCD] RPC Error:', error)
@@ -84,6 +96,7 @@ export async function GET(req: Request) {
         departamento_nome: string
         produto_id: number
         filial_id: number
+        filial_nome: string
         produto_descricao: string
         curva_lucro: string | null
         curva_venda: string

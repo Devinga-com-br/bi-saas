@@ -48,6 +48,7 @@ declare module 'jspdf' {
 interface Produto {
   produto_id: number
   filial_id: number
+  filial_nome?: string
   produto_descricao: string
   curva_lucro: string | null
   curva_venda: string
@@ -86,6 +87,9 @@ export default function RupturaABCDPage() {
   const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A'])
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
+  
+  // Helper para verificar se "Todas as Filiais" está selecionada
+  const todasFiliais = filialSelecionada === 'all'
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -118,7 +122,7 @@ export default function RupturaABCDPage() {
         page_size: '50',
       })
 
-      if (filialSelecionada) {
+      if (filialSelecionada && filialSelecionada !== 'all') {
         params.append('filial_id', filialSelecionada)
       }
 
@@ -189,7 +193,7 @@ export default function RupturaABCDPage() {
   }
 
   const handleExportarPDF = async () => {
-    if (!currentTenant?.supabase_schema || !filialSelecionada) return
+    if (!currentTenant?.supabase_schema) return
 
     try {
       setLoading(true)
@@ -199,13 +203,20 @@ export default function RupturaABCDPage() {
       const autoTable = (await import('jspdf-autotable')).default
 
       // Buscar TODOS os dados sem paginação
-      const response = await fetch(
-        `/api/relatorios/ruptura-abcd?schema=${currentTenant.supabase_schema}&` +
-        `curvas=${curvasSelecionadas.join(',')}&` +
-        `apenas_ativos=true&apenas_ruptura=true&` +
-        `page=1&page_size=10000&` +
-        `filial_id=${filialSelecionada}`
-      )
+      const params = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        curvas: curvasSelecionadas.join(','),
+        apenas_ativos: 'true',
+        apenas_ruptura: 'true',
+        page: '1',
+        page_size: '10000'
+      })
+      
+      if (filialSelecionada && filialSelecionada !== 'all') {
+        params.append('filial_id', filialSelecionada)
+      }
+      
+      const response = await fetch(`/api/relatorios/ruptura-abcd?${params}`)
 
       if (!response.ok) throw new Error('Erro ao buscar dados para exportação')
 
@@ -213,7 +224,7 @@ export default function RupturaABCDPage() {
 
       // Criar PDF
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: todasFiliais ? 'landscape' : 'portrait',
         unit: 'mm',
         format: 'a4',
       })
@@ -222,9 +233,11 @@ export default function RupturaABCDPage() {
       doc.setFont('helvetica')
 
       // Cabeçalho
-      const filialNome = filiaisOptions.find(f => f.value === filialSelecionada)?.label || 'N/A'
+      const filialNome = todasFiliais 
+        ? 'Todas as Filiais' 
+        : filiaisOptions.find(f => f.value === filialSelecionada)?.label || 'N/A'
       doc.setFontSize(16)
-      doc.text('Relatório de Ruptura por Curva ABCD', 105, 15, { align: 'center' })
+      doc.text('Relatório de Ruptura por Curva ABCD', doc.internal.pageSize.width / 2, 15, { align: 'center' })
       
       doc.setFontSize(10)
       doc.text(`Filial: ${filialNome}`, 14, 25)
@@ -238,35 +251,63 @@ export default function RupturaABCDPage() {
       allData.departamentos?.forEach((dept: { departamento_nome: string; produtos: Produto[] }) => {
         // Linha do departamento
         tableData.push([
-          { content: dept.departamento_nome, colSpan: 7, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' as const } }
+          { content: dept.departamento_nome, colSpan: todasFiliais ? 8 : 7, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' as const } }
         ])
         
         // Produtos do departamento
         dept.produtos.forEach(prod => {
-          tableData.push([
+          const row: (string | number)[] = [
             prod.produto_id.toString(),
+          ]
+          
+          if (todasFiliais) {
+            row.push(prod.filial_nome || `Filial ${prod.filial_id}`)
+          }
+          
+          row.push(
             prod.produto_descricao,
             prod.curva_lucro || '-',
             prod.curva_venda || '-',
             formatNumber(prod.estoque_atual),
             prod.filial_transfer_nome || '-',
             prod.estoque_transfer ? formatNumber(prod.estoque_transfer) : '-',
-          ])
+          )
+          
+          tableData.push(row)
         })
       })
+
+      // Definir cabeçalho da tabela
+      const headers = ['Código']
+      if (todasFiliais) headers.push('Filial')
+      headers.push('Descrição', 'C. Lucro', 'C. Venda', 'Estoque', 'Fil. Transf.', 'Est. Transf.')
+
+      // Definir estilos de coluna baseado em se tem coluna de filial ou não
+      const columnStyles: Record<number, { cellWidth?: number; halign?: 'center' | 'right' | 'left' }> = {}
+      
+      if (todasFiliais) {
+        columnStyles[0] = { cellWidth: 20 } // Código
+        columnStyles[1] = { cellWidth: 25 } // Filial
+        columnStyles[2] = { cellWidth: 90 } // Descrição
+        columnStyles[3] = { cellWidth: 20, halign: 'center' } // C. Lucro
+        columnStyles[4] = { cellWidth: 20, halign: 'center' } // C. Venda
+        columnStyles[5] = { cellWidth: 20, halign: 'right' } // Estoque
+        columnStyles[6] = { cellWidth: 25, halign: 'center' } // Fil. Transf
+        columnStyles[7] = { cellWidth: 25, halign: 'right' } // Est. Transf
+      } else {
+        columnStyles[0] = { cellWidth: 20 } // Código
+        columnStyles[1] = { cellWidth: 60 } // Descrição
+        columnStyles[2] = { cellWidth: 20, halign: 'center' } // C. Lucro
+        columnStyles[3] = { cellWidth: 20, halign: 'center' } // C. Venda
+        columnStyles[4] = { cellWidth: 20, halign: 'right' } // Estoque
+        columnStyles[5] = { cellWidth: 25, halign: 'center' } // Fil. Transf
+        columnStyles[6] = { cellWidth: 25, halign: 'right' } // Est. Transf
+      }
 
       // Gerar tabela
       /* eslint-disable @typescript-eslint/no-explicit-any */
       autoTable(doc as any, {
-        head: [[
-          'Código',
-          'Descrição',
-          'Curva Lucro',
-          'Curva Venda',
-          'Estoque',
-          'Filial Transf.',
-          'Estoque Transf.'
-        ]],
+        head: [headers],
         body: tableData as any,
         /* eslint-enable @typescript-eslint/no-explicit-any */
         startY: 45,
@@ -279,15 +320,7 @@ export default function RupturaABCDPage() {
           textColor: 255,
           fontStyle: 'bold',
         },
-        columnStyles: {
-          0: { cellWidth: 20 }, // Código
-          1: { cellWidth: 60 }, // Descrição
-          2: { cellWidth: 20, halign: 'center' }, // Curva Lucro
-          3: { cellWidth: 20, halign: 'center' }, // Curva Venda
-          4: { cellWidth: 20, halign: 'right' }, // Estoque
-          5: { cellWidth: 25, halign: 'center' }, // Filial Transf
-          6: { cellWidth: 25, halign: 'right' }, // Estoque Transf
-        },
+        columnStyles,
         margin: { top: 45, left: 14, right: 14 },
         didDrawPage: (data) => {
           // Rodapé com número da página
@@ -374,6 +407,7 @@ export default function RupturaABCDPage() {
                   <SelectValue placeholder="Selecione a filial" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">Todas as Filiais</SelectItem>
                   {filiaisOptions.map((filial) => (
                     <SelectItem key={filial.value} value={filial.value}>
                       {filial.label}
@@ -492,6 +526,7 @@ export default function RupturaABCDPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-[100px]">Código</TableHead>
+                            {todasFiliais && <TableHead className="w-[120px]">Filial</TableHead>}
                             <TableHead>Descrição</TableHead>
                             <TableHead className="text-center w-[100px]">C. Lucro</TableHead>
                             <TableHead className="text-center w-[100px]">C. Venda</TableHead>
@@ -506,6 +541,13 @@ export default function RupturaABCDPage() {
                               <TableCell className="font-mono text-sm">
                                 {produto.produto_id}
                               </TableCell>
+                              {todasFiliais && (
+                                <TableCell className="text-sm">
+                                  <span className="font-medium text-primary">
+                                    {produto.filial_nome || `Filial ${produto.filial_id}`}
+                                  </span>
+                                </TableCell>
+                              )}
                               <TableCell>
                                 <div className="truncate" title={produto.produto_descricao}>
                                   {produto.produto_descricao}
