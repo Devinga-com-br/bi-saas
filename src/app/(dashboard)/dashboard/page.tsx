@@ -93,13 +93,13 @@ export default function DashboardPage() {
     filiais: 'all',
   })
 
+  // Log de acesso ao módulo
   useEffect(() => {
     const logAccess = async () => {
       if (currentTenant && userProfile) {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         
-        handleAplicarFiltros()
         // Log module access
         logModuleAccess({
           module: 'dashboard',
@@ -110,21 +110,23 @@ export default function DashboardPage() {
       }
     }
     logAccess()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant, userProfile])
 
-  const handleAplicarFiltros = () => {
+  // Aplicar filtros automaticamente quando mudarem
+  useEffect(() => {
+    if (!currentTenant?.supabase_schema || !dataInicio || !dataFim) return
+
     const filiaisParam = filiaisSelecionadas.length === 0 
       ? 'all' 
       : filiaisSelecionadas.map(f => f.value).join(',');
 
     setApiParams({
-      schema: currentTenant?.supabase_schema,
-      data_inicio: format(dataInicio!, 'yyyy-MM-dd'),
-      data_fim: format(dataFim!, 'yyyy-MM-dd'),
+      schema: currentTenant.supabase_schema,
+      data_inicio: format(dataInicio, 'yyyy-MM-dd'),
+      data_fim: format(dataFim, 'yyyy-MM-dd'),
       filiais: filiaisParam,
     })
-  }
+  }, [currentTenant?.supabase_schema, dataInicio, dataFim, filiaisSelecionadas])
 
   const apiUrl = apiParams.schema
     ? `/api/dashboard?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
@@ -238,15 +240,6 @@ export default function DashboardPage() {
                   />
                 </PopoverContent>
               </Popover>
-            </div>
-          </div>
-
-          {/* BOTÃO APLICAR */}
-          <div className="flex justify-end lg:justify-start w-full lg:w-auto">
-            <div className="h-10">
-              <Button onClick={handleAplicarFiltros} disabled={isLoading} className="w-full sm:w-auto min-w-[120px] h-10">
-                Aplicar
-              </Button>
             </div>
           </div>
         </div>
