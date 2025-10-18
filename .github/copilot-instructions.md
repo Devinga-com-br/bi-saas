@@ -1,15 +1,28 @@
 # Guia de Desenvolvimento - BI SaaS
 
+**Última Atualização:** 2025-10-17
+
 ## Visão Geral da Arquitetura
 
-Este é um sistema SaaS de Business Intelligence multi-tenant construído com Next.js 15 (App Router), React 19, TypeScript e Supabase. A aplicação implementa uma arquitetura multi-tenant com isolamento de dados a nível de banco de dados.
+Este é um sistema SaaS de Business Intelligence multi-tenant construído com Next.js 15 (App Router), React 19, TypeScript e Supabase. A aplicação implementa uma arquitetura multi-tenant com isolamento de dados a nível de **schemas PostgreSQL**.
 
-### Modelo Multi-Tenant
+### Modelo Multi-Tenant (IMPORTANTE!)
 
-- **Tenants (Empresas)**
-  - Tabela principal: `tenants`
-  - Campo chave: `tenant_id` (referenciado em outras tabelas)
-  - Row Level Security (RLS) aplicado via `tenant_id`
+- **Isolamento por Schema PostgreSQL**
+  - Cada tenant tem seu próprio schema no banco de dados
+  - Exemplos: `okilao`, `saoluiz`, `paraiso`, `lucia`
+  - Schema `public` contém apenas tabelas de configuração (tenants, user_profiles)
+  
+- **Tabela de Tenants**
+  - Localização: `public.tenants`
+  - Campo crítico: `supabase_schema` (nome do schema do tenant)
+  - Cada tenant tem dados isolados em seu próprio schema
+
+- **⚠️ CONFIGURAÇÃO CRÍTICA: Exposed Schemas**
+  - Todo novo schema deve ser adicionado aos "Exposed schemas" no Supabase Dashboard
+  - Caminho: Settings → API → Exposed schemas
+  - Erro comum: `PGRST106` quando schema não está exposto
+  - Documentação: `docs/SUPABASE_SCHEMA_CONFIGURATION.md`
 
 ### Fluxo de Autenticação
 
@@ -99,24 +112,66 @@ Este é um sistema SaaS de Business Intelligence multi-tenant construído com Ne
    - Localização: `/src/app/(dashboard)/relatorios/*`
    - Dados via Supabase RPC: `get_*_report`
    - Paginação e filtros implementados no backend
+   - Relatórios disponíveis:
+     - Ruptura ABCD: `/relatorios/ruptura-abcd`
+     - Venda por Curva: `/relatorios/venda-curva`
 
-2. **Padrão de Filtros**
+2. **Padrão OBRIGATÓRIO de Filtros** (Ver: `docs/FILTER_PATTERN_STANDARD.md`)
    ```typescript
-   // Componente de filtros padrão
-   interface ReportFilters {
-     filialId?: string
-     mes: number // Default: mês atual - 1
-     ano: number // Default: ano atual
-     page: number
-     pageSize: number
-   }
+   // Layout padrão de filtros
+   <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+     {/* Filial */}
+     <div className="flex flex-col gap-2 w-full sm:w-auto">
+       <Label>Filial</Label>
+       <div className="h-10">
+         <Select className="w-full sm:w-[200px] h-10">...</Select>
+       </div>
+     </div>
+     
+     {/* Mês */}
+     <div className="flex flex-col gap-2 w-full sm:w-auto">
+       <Label>Mês</Label>
+       <div className="h-10">
+         <Select className="w-full sm:w-[160px] h-10">...</Select>
+       </div>
+     </div>
+     
+     {/* Ano */}
+     <div className="flex flex-col gap-2 w-full sm:w-auto">
+       <Label>Ano</Label>
+       <div className="h-10">
+         <Select className="w-full sm:w-[120px] h-10">...</Select>
+       </div>
+     </div>
+     
+     {/* Botão */}
+     <div className="flex justify-end lg:justify-start w-full lg:w-auto">
+       <div className="h-10">
+         <Button className="w-full sm:w-auto min-w-[120px] h-10">
+           Aplicar
+         </Button>
+       </div>
+     </div>
+   </div>
    ```
+   
+   **Regras de Filtros:**
+   - Ordem SEMPRE: Filial → Mês → Ano → Filtros Específicos → Botão
+   - Altura fixa: `h-10` (40px) em TODOS os campos
+   - Larguras padronizadas: Filial (200px), Mês (160px), Ano (120px)
+   - Layout responsivo: `flex-col` mobile, `flex-row` desktop
 
-3. **Chamada RPC com Filtros**
+3. **Exportação de PDF**
+   - Implementado em: Ruptura ABCD, Venda por Curva
+   - Importação dinâmica: `jspdf` e `jspdf-autotable`
+   - Busca todos os dados: `page_size: 10000`
+   - Padrão de implementação em: `docs/PDF_EXPORT_VENDA_CURVA.md`
+
+4. **Chamada RPC com Filtros**
    ```typescript
    // API Route com paginação e filtros
    const { data, error } = await supabase.rpc('get_report_data', {
-     p_schema: currentTenant.supabase_schema,
+     p_schema: currentTenant.supabase_schema, // SEMPRE usar schema do tenant
      p_filial_id: filters.filialId,
      p_mes: filters.mes,
      p_ano: filters.ano,
@@ -172,3 +227,60 @@ Este é um sistema SaaS de Business Intelligence multi-tenant construído com Ne
      )
    }
    ```
+
+### Módulos Especiais
+
+1. **Metas Mensais** (`/metas/mensal`)
+   - Permite criar e acompanhar metas por filial
+   - Função RPC: `generate_metas_mensais`
+   - Atualização automática de valores realizados
+   - Visualização agregada quando "Todas as Filiais" selecionado
+
+2. **Setores** (`/configuracoes/setores`)
+   - Gerenciamento de setores e departamentos
+   - Hierarquia de 3 níveis de departamentos
+   - Usado em metas por setor
+
+### Troubleshooting Comum
+
+1. **Erro PGRST106 - Schema não exposto**
+   - Causa: Schema não está nos "Exposed schemas" do Supabase
+   - Solução: Settings → API → Adicionar schema à lista
+   - Ver: `FIX_SCHEMA_LUCIA_ERROR.md`
+
+2. **Erro na exportação de PDF**
+   - Verificar limite de `page_size` na API (deve ser ≤ 10000)
+   - Ver: `docs/FIX_PDF_EXPORT_ERROR.md`
+
+3. **Filtros com aparência inconsistente**
+   - Usar padrão documentado em `docs/FILTER_PATTERN_STANDARD.md`
+   - Altura fixa `h-10` em todos os campos
+   - Ordem: Filial → Mês → Ano → Específicos → Botão
+
+### Documentação Importante
+
+- `docs/FILTER_PATTERN_STANDARD.md` - Padrão de filtros UI
+- `docs/SUPABASE_SCHEMA_CONFIGURATION.md` - Configuração de schemas
+- `docs/PDF_EXPORT_VENDA_CURVA.md` - Implementação de PDF
+- `FIX_SCHEMA_LUCIA_ERROR.md` - Solução rápida erro PGRST106
+- `FILTER_STANDARDIZATION_COMPLETE.md` - Padronização completa
+
+### Checklist para Novos Tenants
+
+- [ ] Criar schema no PostgreSQL: `CREATE SCHEMA nome_tenant;`
+- [ ] Executar migrations no novo schema
+- [ ] Criar tabelas necessárias
+- [ ] Criar funções RPC (get_venda_curva_report, etc)
+- [ ] Inserir na tabela `public.tenants`
+- [ ] **⚠️ CRÍTICO: Adicionar schema aos "Exposed schemas" no Supabase Dashboard**
+- [ ] Configurar permissões (GRANT)
+- [ ] Importar dados iniciais
+- [ ] Testar acesso via API
+- [ ] Criar usuários do tenant
+
+### Performance e Limites
+
+- **Page Size Máximo:** 10.000 registros (APIs de relatório)
+- **Exportação PDF:** Usa importação dinâmica para reduzir bundle
+- **Cache:** Next.js faz cache automático de páginas estáticas
+- **RPC Functions:** Timeout padrão de 30 segundos
