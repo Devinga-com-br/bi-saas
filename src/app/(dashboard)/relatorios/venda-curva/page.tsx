@@ -138,6 +138,22 @@ export default function VendaCurvaPage() {
     }
   }, [userProfile, currentTenant])
 
+  // Aplicar filtros automaticamente quando mudarem
+  useEffect(() => {
+    if (currentTenant?.supabase_schema && filialId && mes && ano) {
+      fetchData()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mes, ano, filialId])
+
+  // Carregar dados quando a página mudar
+  useEffect(() => {
+    if (currentTenant?.supabase_schema && filialId && page > 1) {
+      fetchData()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
+
   // Buscar dados
   const fetchData = async () => {
     if (!currentTenant?.supabase_schema) return
@@ -176,11 +192,6 @@ export default function VendaCurvaPage() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, ano, filialId, page])
 
   // Exportar PDF
   const handleExportarPDF = async () => {
@@ -554,15 +565,6 @@ export default function VendaCurvaPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            {/* Botão Aplicar */}
-            <div className="flex justify-end lg:justify-start w-full lg:w-auto">
-              <div className="h-10">
-                <Button onClick={fetchData} disabled={loading} className="w-full sm:w-auto min-w-[120px] h-10">
-                  {loading ? 'Buscando...' : 'Aplicar'}
-                </Button>
               </div>
             </div>
           </div>

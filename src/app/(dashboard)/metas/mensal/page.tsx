@@ -136,6 +136,14 @@ export default function MetaMensalPage() {
     }
   }
 
+  // Aplicar filtros automaticamente quando mudarem
+  useEffect(() => {
+    if (currentTenant?.supabase_schema && mes && ano) {
+      loadReport()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant?.supabase_schema, mes, ano, filialId])
+
   const handleGenerateMetas = async () =>  {
     if (!currentTenant?.supabase_schema) return
     if (!formFilialId || !formMetaPercentual || !formDataReferencia) {
@@ -478,15 +486,6 @@ export default function MetaMensalPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        {/* BOTÃO APLICAR */}
-        <div className="flex justify-end lg:justify-start w-full lg:w-auto">
-          <div className="h-10">
-            <Button onClick={loadReport} disabled={loading} className="w-full sm:w-auto min-w-[120px] h-10">
-              Aplicar
-            </Button>
           </div>
         </div>
       </div>

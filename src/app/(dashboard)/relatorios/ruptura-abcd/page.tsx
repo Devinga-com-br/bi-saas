@@ -171,26 +171,22 @@ export default function RupturaABCDPage() {
     logAccess()
   }, [currentTenant, userProfile])
 
-  // Carregar dados quando filial for definida
+  // Aplicar filtros automaticamente quando mudarem
   useEffect(() => {
     if (currentTenant?.supabase_schema && filialSelecionada) {
+      setPage(1) // Reset para página 1
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filialSelecionada, currentTenant])
+  }, [filialSelecionada, curvasSelecionadas, busca, currentTenant?.supabase_schema])
 
-  // Recarregar quando mudar a página (exceto primeira carga)
+  // Carregar dados quando a página mudar
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialSelecionada && data !== null) {
+    if (currentTenant?.supabase_schema && filialSelecionada && page > 1) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
-
-  const handleAplicarFiltros = () => {
-    setPage(1)
-    fetchData()
-  }
 
   const handleExportarPDF = async () => {
     if (!currentTenant?.supabase_schema) return
@@ -443,13 +439,6 @@ export default function RupturaABCDPage() {
                   className="pl-8 w-full h-10"
                 />
               </div>
-            </div>
-
-            {/* Botão Aplicar */}
-            <div className="h-10">
-              <Button onClick={handleAplicarFiltros} disabled={loading} className="w-full lg:w-auto min-w-[100px] h-10">
-                Aplicar
-              </Button>
             </div>
           </div>
         </CardContent>
