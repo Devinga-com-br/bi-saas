@@ -15,6 +15,7 @@ import {
   Package,
   TrendingUp,
   Target,
+  DollarSign,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -60,6 +61,11 @@ const navigation: NavigationItem[] = [
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    name: 'Despesas',
+    href: '/despesas',
+    icon: DollarSign,
   },
   {
     name: 'Usuários',
