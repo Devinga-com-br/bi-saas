@@ -351,6 +351,19 @@ export default function DespesasPage() {
     return `${percentage.toFixed(2).replace('.', ',')}%`
   }
 
+  // Calcula a diferença percentual de uma filial em relação à média (Total)
+  const calculateDifference = (valorFilial: number, valorTotal: number, qtdFiliais: number) => {
+    if (qtdFiliais === 0 || valorTotal === 0) return { diff: 0, isPositive: false }
+    
+    const media = valorTotal / qtdFiliais
+    const diff = ((valorFilial - media) / media) * 100
+    
+    return {
+      diff: Math.abs(diff),
+      isPositive: valorFilial > media
+    }
+  }
+
   if (!currentTenant) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -602,10 +615,9 @@ export default function DespesasPage() {
                             </div>
                           </td>
                           {data.filiais.map((filialId, idx) => {
-                            const totalFilial = data.departamentos.reduce((sum, d) => {
-                              return sum + (d.valores_filiais[filialId] || 0)
-                            }, 0)
                             const valorFilial = getTotalFilial(dept.valores_filiais, filialId)
+                            const totalGeral = getTotalGeral(dept.valores_filiais)
+                            const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
                             
                             return (
                               <td 
@@ -616,13 +628,23 @@ export default function DespesasPage() {
                                     : 'bg-background'
                                 }`}
                               >
-                                <div className="flex flex-col items-end">
+                                <div className="flex flex-col items-end gap-0.5">
                                   <div className="text-sm font-medium text-right">
                                     {formatCurrency(valorFilial)}
                                   </div>
-                                  <div className="text-[10px] text-muted-foreground">
-                                    {calculatePercentage(valorFilial, totalFilial)}
-                                  </div>
+                                  {valorFilial > 0 ? (
+                                    <div 
+                                      className={`text-[10px] font-medium ${
+                                        isPositive ? 'text-red-500' : 'text-green-500'
+                                      }`}
+                                    >
+                                      {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
+                                    </div>
+                                  ) : (
+                                    <div className="text-[10px] text-muted-foreground">
+                                      -
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             )
@@ -659,10 +681,9 @@ export default function DespesasPage() {
                                   </div>
                                 </td>
                                 {data.filiais.map((filialId, idx) => {
-                                  const totalFilial = data.departamentos.reduce((sum, d) => {
-                                    return sum + (d.valores_filiais[filialId] || 0)
-                                  }, 0)
                                   const valorFilial = getTotalFilial(tipo.valores_filiais, filialId)
+                                  const totalGeral = getTotalGeral(tipo.valores_filiais)
+                                  const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
                                   
                                   return (
                                     <td 
@@ -673,13 +694,23 @@ export default function DespesasPage() {
                                           : 'bg-background'
                                       }`}
                                     >
-                                      <div className="flex flex-col items-end">
+                                      <div className="flex flex-col items-end gap-0.5">
                                         <div className="text-sm text-right">
                                           {formatCurrency(valorFilial)}
                                         </div>
-                                        <div className="text-[10px] text-muted-foreground">
-                                          {calculatePercentage(valorFilial, totalFilial)}
-                                        </div>
+                                        {valorFilial > 0 ? (
+                                          <div 
+                                            className={`text-[10px] font-medium ${
+                                              isPositive ? 'text-red-500' : 'text-green-500'
+                                            }`}
+                                          >
+                                            {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
+                                          </div>
+                                        ) : (
+                                          <div className="text-[10px] text-muted-foreground">
+                                            -
+                                          </div>
+                                        )}
                                       </div>
                                     </td>
                                   )
@@ -710,10 +741,9 @@ export default function DespesasPage() {
                                     </div>
                                   </td>
                                   {data.filiais.map((filialId, colIdx) => {
-                                    const totalFilial = data.departamentos.reduce((sum, d) => {
-                                      return sum + (d.valores_filiais[filialId] || 0)
-                                    }, 0)
                                     const valorFilial = getTotalFilial(desp.valores_filiais, filialId)
+                                    const totalGeral = getTotalGeral(desp.valores_filiais)
+                                    const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
                                     
                                     return (
                                       <td 
@@ -724,13 +754,17 @@ export default function DespesasPage() {
                                             : 'bg-background'
                                         }`}
                                       >
-                                        <div className="flex flex-col items-end">
+                                        <div className="flex flex-col items-end gap-0.5">
                                           <div className="text-xs text-right">
                                             {valorFilial > 0 ? formatCurrency(valorFilial) : '-'}
                                           </div>
                                           {valorFilial > 0 && (
-                                            <div className="text-[10px] text-muted-foreground">
-                                              {calculatePercentage(valorFilial, totalFilial)}
+                                            <div 
+                                              className={`text-[9px] font-medium ${
+                                                isPositive ? 'text-red-500' : 'text-green-500'
+                                              }`}
+                                            >
+                                              {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
                                             </div>
                                           )}
                                         </div>
