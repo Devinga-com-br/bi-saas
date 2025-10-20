@@ -126,10 +126,10 @@ export async function DELETE(request: Request) {
   try {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
-    const branchId = searchParams.get('id')
+    const branchCode = searchParams.get('branch_code')
 
-    if (!branchId) {
-      return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+    if (!branchCode) {
+      return NextResponse.json({ error: 'branch_code é obrigatório' }, { status: 400 })
     }
 
     // Check authentication
@@ -153,7 +153,7 @@ export async function DELETE(request: Request) {
     const { data: branch } = await supabase
       .from('branches')
       .select('tenant_id')
-      .eq('id', branchId)
+      .eq('branch_code', branchCode)
       .single()
 
     if (!branch) {
@@ -170,7 +170,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabase
       .from('branches')
       .delete()
-      .eq('id', branchId)
+      .eq('branch_code', branchCode)
 
     if (error) {
       console.error('Error deleting branch:', error)
@@ -189,10 +189,10 @@ export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
-    const branchId = searchParams.get('id')
+    const branchCode = searchParams.get('branch_code')
 
-    if (!branchId) {
-      return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+    if (!branchCode) {
+      return NextResponse.json({ error: 'branch_code é obrigatório' }, { status: 400 })
     }
 
     // Check authentication
@@ -216,7 +216,7 @@ export async function PATCH(request: Request) {
     const { data: existingBranch } = await supabase
       .from('branches')
       .select('tenant_id')
-      .eq('id', branchId)
+      .eq('branch_code', branchCode)
       .single()
 
     if (!existingBranch) {
@@ -245,7 +245,7 @@ export async function PATCH(request: Request) {
       estado: estado || null,
       updated_at: new Date().toISOString(),
     })
-      .eq('id', branchId)
+      .eq('branch_code', branchCode)
       .select()
       .single()
     

@@ -58,12 +58,18 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
   const loadBranches = useCallback(async () => {
     try {
       setLoading(true)
+      console.log('[BranchManager] Loading branches for tenant:', tenantId)
       const response = await fetch(`/api/branches?tenant_id=${tenantId}`)
       const data = await response.json()
 
+      console.log('[BranchManager] Response status:', response.status)
+      console.log('[BranchManager] Response data:', data)
+
       if (response.ok) {
         setBranches(data.branches || [])
+        console.log('[BranchManager] Loaded branches:', data.branches?.length || 0)
       } else {
+        console.error('[BranchManager] Error loading branches:', data.error)
         toast({
           title: 'Erro ao carregar filiais',
           description: data.error || 'Erro desconhecido',
@@ -71,7 +77,7 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
         })
       }
     } catch (error) {
-      console.error('Error loading branches:', error)
+      console.error('[BranchManager] Error loading branches:', error)
       toast({
         title: 'Erro ao carregar filiais',
         description: 'Erro de conexão',
