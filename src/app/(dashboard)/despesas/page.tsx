@@ -5,13 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, FileDown, Calendar as CalendarIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
-import { format, subDays, startOfMonth } from 'date-fns'
+import { format } from 'date-fns'
+import { PeriodFilter } from '@/components/despesas/period-filter'
 
 // Interfaces para dados estruturados por filial
 interface DespesaPorFilial {
@@ -65,8 +65,8 @@ export default function DespesasPage() {
 
   // Estados dos filtros
   const [filialsSelecionadas, setFilialsSelecionadas] = useState<number[]>([])
-  const [dataInicial, setDataInicial] = useState<Date | undefined>(startOfMonth(new Date()))
-  const [dataFinal, setDataFinal] = useState<Date | undefined>(subDays(new Date(), 1))
+  const [dataInicial, setDataInicial] = useState<Date | undefined>(undefined)
+  const [dataFinal, setDataFinal] = useState<Date | undefined>(undefined)
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -116,6 +116,11 @@ export default function DespesasPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.supabase_schema, filialsSelecionadas, dataInicial, dataFinal])
+
+  const handlePeriodChange = (start: Date, end: Date) => {
+    setDataInicial(start)
+    setDataFinal(end)
+  }
 
   const fetchData = async () => {
     if (!currentTenant?.supabase_schema || filialsSelecionadas.length === 0 || !dataInicial || !dataFinal) {
@@ -442,46 +447,10 @@ export default function DespesasPage() {
               </Popover>
             </div>
 
-            {/* Data Inicial */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label>Data Inicial</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="h-10 w-full sm:w-[180px] border rounded-md px-3 text-left text-sm flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    {dataInicial ? format(dataInicial, 'dd/MM/yyyy') : 'Selecione'}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dataInicial}
-                    onSelect={setDataInicial}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Data Final */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label>Data Final</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="h-10 w-full sm:w-[180px] border rounded-md px-3 text-left text-sm flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    {dataFinal ? format(dataFinal, 'dd/MM/yyyy') : 'Selecione'}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dataFinal}
-                    onSelect={setDataFinal}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+            {/* Filtro de Período Inteligente */}
+            <div className="flex flex-col gap-2">
+              <Label>Período</Label>
+              <PeriodFilter onPeriodChange={handlePeriodChange} />
             </div>
           </div>
         </CardContent>

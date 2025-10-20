@@ -9,19 +9,15 @@ import { ChartVendas } from '@/components/dashboard/chart-vendas'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { format, startOfMonth, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarIcon } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import { formatCurrency, formatPercentage } from '@/lib/chart-config'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
+import { PeriodFilter } from '@/components/despesas/period-filter'
 
 // Estrutura de dados da API
 interface DashboardData {
@@ -81,8 +77,8 @@ export default function DashboardPage() {
   const { currentTenant, userProfile } = useTenantContext()
 
   // Estados para os filtros
-  const [dataInicio, setDataInicio] = useState<Date | undefined>(startOfMonth(new Date()))
-  const [dataFim, setDataFim] = useState<Date | undefined>(subDays(new Date(), 1))
+  const [dataInicio, setDataInicio] = useState<Date>(startOfMonth(new Date()))
+  const [dataFim, setDataFim] = useState<Date>(subDays(new Date(), 1))
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   
   // Estado para os parâmetros que serão enviados à API
@@ -92,6 +88,12 @@ export default function DashboardPage() {
     data_fim: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     filiais: 'all',
   })
+
+  // Handler para mudança de período
+  const handlePeriodChange = (start: Date, end: Date) => {
+    setDataInicio(start)
+    setDataFim(end)
+  }
 
   // Log de acesso ao módulo
   useEffect(() => {
@@ -155,7 +157,7 @@ export default function DashboardPage() {
   })
 
   const isDataLoading = isLoading || !currentTenant
-  const periodoAtual = `Dados de ${format(dataInicio || startOfMonth(new Date()), "dd/MM/yyyy")} a ${format(dataFim || subDays(new Date(), 1), "dd/MM/yyyy", { locale: ptBR })}`
+  const periodoAtual = `Dados de ${format(dataInicio, "dd/MM/yyyy")} a ${format(dataFim, "dd/MM/yyyy", { locale: ptBR })}`
 
   return (
     <div className="space-y-6">
@@ -185,61 +187,11 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* DATA INICIAL */}
+          {/* PERÍODO */}
           <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Data Inicial</Label>
+            <Label>Período</Label>
             <div className="h-10">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full sm:w-[200px] h-10 justify-start text-left font-normal",
-                      !dataInicio && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataInicio ? format(dataInicio, "dd/MM/yyyy") : <span>Selecione...</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar 
-                    mode="single" 
-                    selected={dataInicio} 
-                    onSelect={setDataInicio}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* DATA FINAL */}
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Data Final</Label>
-            <div className="h-10">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full sm:w-[200px] h-10 justify-start text-left font-normal",
-                      !dataFim && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataFim ? format(dataFim, "dd/MM/yyyy") : <span>Selecione...</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar 
-                    mode="single" 
-                    selected={dataFim} 
-                    onSelect={setDataFim}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <PeriodFilter onPeriodChange={handlePeriodChange} />
             </div>
           </div>
         </div>
