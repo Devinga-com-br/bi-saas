@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import type { Database } from '@/types/database.types'
+import { BranchSelector } from '@/components/users/branch-selector'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 type Tenant = Database['public']['Tables']['tenants']['Row']
@@ -35,6 +36,8 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
   const [role, setRole] = useState<string>(user?.role || 'user')
   const [tenantId, setTenantId] = useState(user?.tenant_id || currentUserTenantId || '')
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
+  const [authorizedBranches, setAuthorizedBranches] = useState<string[]>([])
+  const [loadingBranches, setLoadingBranches] = useState(false)
 
   // Quando role é superadmin, tenant_id deve ser null
   const shouldShowTenantField = role !== 'superadmin'
@@ -89,6 +92,31 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
 
     loadUserEmail()
   }, [user])
+
+  // Load authorized branches when editing
+  useEffect(() => {
+    async function loadAuthorizedBranches() {
+      if (user) {
+        setLoadingBranches(true)
+        try {
+          const { data, error } = await supabase
+            .from('user_authorized_branches')
+            .select('branch_id')
+            .eq('user_id', user.id) as { data: { branch_id: string }[] | null; error: Error | null }
+
+          if (!error && data) {
+            setAuthorizedBranches(data.map(item => item.branch_id))
+          }
+        } catch (error) {
+          console.error('Error loading authorized branches:', error)
+        } finally {
+          setLoadingBranches(false)
+        }
+      }
+    }
+
+    loadAuthorizedBranches()
+  }, [user, supabase])
 
   // Get available roles based on current user role
   const getAvailableRoles = () => {
@@ -148,6 +176,7 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
             role,
             tenant_id: role === 'superadmin' ? null : tenantId,
             is_active: isActive,
+            authorized_branches: authorizedBranches,
           }),
         })
 
@@ -226,6 +255,38 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           setError(updateError.message)
           setLoading(false)
           return
+        }
+
+        // Update authorized branches
+        // First, delete all existing authorized branches
+        const { error: deleteError } = await supabase
+          .from('user_authorized_branches')
+          .delete()
+          .eq('user_id', user.id)
+
+        if (deleteError) {
+          setError('Erro ao atualizar filiais autorizadas')
+          setLoading(false)
+          return
+        }
+
+        // Then, insert new authorized branches (if any)
+        if (authorizedBranches.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: insertError } = await (supabase as any)
+            .from('user_authorized_branches')
+            .insert(
+              authorizedBranches.map(branchId => ({
+                user_id: user.id,
+                branch_id: branchId,
+              }))
+            )
+
+          if (insertError) {
+            setError('Erro ao salvar filiais autorizadas')
+            setLoading(false)
+            return
+          }
         }
 
         router.push('/usuarios')
@@ -394,6 +455,15 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           </SelectContent>
         </Select>
       </div>
+
+      {shouldShowTenantField && tenantId && (
+        <BranchSelector
+          tenantId={tenantId}
+          value={authorizedBranches}
+          onChange={setAuthorizedBranches}
+          disabled={loading || loadingBranches}
+        />
+      )}
 
       <div className="flex gap-4">
         <Button type="submit" disabled={loading}>

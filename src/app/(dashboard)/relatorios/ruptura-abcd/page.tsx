@@ -403,7 +403,6 @@ export default function RupturaABCDPage() {
                   <SelectValue placeholder="Selecione a filial" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas as Filiais</SelectItem>
                   {filiaisOptions.map((filial) => (
                     <SelectItem key={filial.value} value={filial.value}>
                       {filial.label}

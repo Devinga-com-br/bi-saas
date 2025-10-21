@@ -1,9 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
     const body = await request.json()
 
     const {
@@ -11,7 +18,7 @@ export async function POST(request: NextRequest) {
       setor_id,
       mes,
       ano,
-      filial_id,
+      filial_id: requestedFilialId,
       data_referencia,
       meta_percentual,
     } = body
@@ -23,12 +30,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filial to use
+    let finalFilialId: number | null = null
+
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      if (requestedFilialId && requestedFilialId !== 'all') {
+        const parsed = parseInt(requestedFilialId, 10)
+        if (!isNaN(parsed)) {
+          finalFilialId = parsed
+        }
+      }
+    } else {
+      // User has restrictions
+      if (!requestedFilialId || requestedFilialId === 'all') {
+        // Request for all - use first authorized branch
+        if (authorizedBranches.length > 0) {
+          const parsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(parsed)) {
+            finalFilialId = parsed
+          }
+        }
+      } else {
+        // Specific filial requested - check if authorized
+        const parsed = parseInt(requestedFilialId, 10)
+        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
+          finalFilialId = parsed
+        } else if (authorizedBranches.length > 0) {
+          // Not authorized - use first authorized
+          const firstParsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(firstParsed)) {
+            finalFilialId = firstParsed
+          }
+        }
+      }
+    }
+
     console.log('[API/METAS/SETOR/GENERATE] Request params:', {
       schema,
       setor_id,
       mes,
       ano,
-      filial_id,
+      requestedFilialId,
+      finalFilialId,
       data_referencia,
       meta_percentual,
     })
@@ -39,7 +86,7 @@ export async function POST(request: NextRequest) {
       p_setor_id: parseInt(setor_id),
       p_mes: parseInt(mes),
       p_ano: parseInt(ano),
-      p_filial_id: filial_id && filial_id !== 'all' ? parseInt(filial_id) : null,
+      p_filial_id: finalFilialId,
       p_data_referencia_inicial: data_referencia,
       p_meta_percentual: parseFloat(meta_percentual),
     })

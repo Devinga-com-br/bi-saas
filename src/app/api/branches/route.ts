@@ -19,12 +19,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
+    // Get user's authorized branches
+    const { data: authorizedBranches } = await supabase
+      .from('user_authorized_branches')
+      .select('branch_id')
+      .eq('user_id', user.id) as { data: { branch_id: string }[] | null }
+
     // Get branches
-    const { data: branches, error } = await supabase
+    let query = supabase
       .from('branches')
       .select('*')
       .eq('tenant_id', tenantId)
       .order('branch_code', { ascending: true })
+
+    // If user has authorized branches restrictions, filter by them
+    if (authorizedBranches && authorizedBranches.length > 0) {
+      const authorizedBranchIds = authorizedBranches.map(ab => ab.branch_id)
+      query = query.in('id', authorizedBranchIds)
+    }
+
+    const { data: branches, error } = await query
 
     if (error) {
       console.error('Error fetching branches:', error)

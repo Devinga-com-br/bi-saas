@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -14,25 +15,79 @@ export async function GET(request: NextRequest) {
     // Obter parâmetros da query
     const searchParams = request.nextUrl.searchParams
     const schema = searchParams.get('schema')
-    const filialId = searchParams.get('filial_id')
+    const requestedFilialId = searchParams.get('filial_id')
     const dataInicial = searchParams.get('data_inicial')
     const dataFinal = searchParams.get('data_final')
 
     // Validações
-    if (!schema || !filialId || !dataInicial || !dataFinal) {
+    if (!schema || !dataInicial || !dataFinal) {
       return NextResponse.json(
-        { error: 'Parâmetros obrigatórios: schema, filial_id, data_inicial, data_final' },
+        { error: 'Parâmetros obrigatórios: schema, data_inicial, data_final' },
         { status: 400 }
       )
     }
 
-    console.log('[API Despesas] Params:', { schema, filialId, dataInicial, dataFinal })
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filial to use
+    let finalFilialId: number | null = null
+
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      if (requestedFilialId && requestedFilialId !== 'all') {
+        const parsed = parseInt(requestedFilialId, 10)
+        if (!isNaN(parsed)) {
+          finalFilialId = parsed
+        }
+      }
+    } else {
+      // User has restrictions
+      if (!requestedFilialId || requestedFilialId === 'all') {
+        // Request for all - use first authorized branch
+        if (authorizedBranches.length > 0) {
+          const parsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(parsed)) {
+            finalFilialId = parsed
+          }
+        }
+      } else {
+        // Specific filial requested - check if authorized
+        const parsed = parseInt(requestedFilialId, 10)
+        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
+          finalFilialId = parsed
+        } else if (authorizedBranches.length > 0) {
+          // Not authorized - use first authorized
+          const firstParsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(firstParsed)) {
+            finalFilialId = firstParsed
+          }
+        }
+      }
+    }
+
+    console.log('[API Despesas] Params:', {
+      schema,
+      requestedFilialId,
+      finalFilialId,
+      dataInicial,
+      dataFinal,
+      authorizedBranches
+    })
+
+    // Validação adicional
+    if (finalFilialId === null) {
+      return NextResponse.json(
+        { error: 'filial_id é obrigatório ou usuário sem acesso a filiais' },
+        { status: 400 }
+      )
+    }
 
     // Usar RPC para executar query com schema dinâmico
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: resultData, error: rpcError } = await (supabase.rpc as any)('get_despesas_hierarquia', {
       p_schema: schema,
-      p_filial_id: parseInt(filialId),
+      p_filial_id: finalFilialId,
       p_data_inicial: dataInicial,
       p_data_final: dataFinal,
       p_tipo_data: 'data_emissao'

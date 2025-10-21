@@ -1,29 +1,100 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { schema, filialId, mes, ano, metaPercentual, dataReferenciaInicial } = body
+    const { schema, filialId: requestedFilialId, mes, ano, metaPercentual, dataReferenciaInicial } = body
 
-    if (!schema || !filialId || !mes || !ano || metaPercentual === undefined || !dataReferenciaInicial) {
+    if (!schema || !mes || !ano || metaPercentual === undefined || !dataReferenciaInicial) {
       return NextResponse.json(
         { error: 'Parâmetros inválidos' },
         { status: 400 }
       )
     }
 
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filial to use
+    let finalFilialId: number | string
+
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      if (!requestedFilialId) {
+        return NextResponse.json(
+          { error: 'filialId é obrigatório' },
+          { status: 400 }
+        )
+      }
+      finalFilialId = requestedFilialId
+    } else {
+      // User has restrictions
+      if (!requestedFilialId || requestedFilialId === 'all') {
+        // Request for all - use first authorized branch
+        if (authorizedBranches.length > 0) {
+          const parsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(parsed)) {
+            finalFilialId = parsed
+          } else {
+            return NextResponse.json(
+              { error: 'Nenhuma filial autorizada válida encontrada' },
+              { status: 400 }
+            )
+          }
+        } else {
+          return NextResponse.json(
+            { error: 'Usuário não tem acesso a nenhuma filial' },
+            { status: 403 }
+          )
+        }
+      } else {
+        // Specific filial requested - check if authorized
+        const parsed = parseInt(requestedFilialId, 10)
+        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
+          finalFilialId = parsed
+        } else if (authorizedBranches.length > 0) {
+          // Not authorized - use first authorized
+          const firstParsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(firstParsed)) {
+            finalFilialId = firstParsed
+          } else {
+            return NextResponse.json(
+              { error: 'Nenhuma filial autorizada válida encontrada' },
+              { status: 400 }
+            )
+          }
+        } else {
+          return NextResponse.json(
+            { error: 'Usuário não tem acesso a nenhuma filial' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
+    console.log('[API/METAS/GENERATE] Params:', {
+      schema,
+      requestedFilialId,
+      finalFilialId,
+      mes,
+      ano,
+      metaPercentual,
+      dataReferenciaInicial
+    })
+
     // @ts-expect-error - Function will exist after migration is applied
     const { data, error } = await supabase.rpc('generate_metas_mensais', {
       p_schema: schema,
-      p_filial_id: filialId,
+      p_filial_id: finalFilialId,
       p_mes: mes,
       p_ano: ano,
       p_meta_percentual: metaPercentual,

@@ -136,9 +136,9 @@ export default function DashboardPage() {
 
   const { data, error, isLoading } = useSWR<DashboardData>(apiUrl, fetcher, { refreshInterval: 0 });
 
-  // Buscar dados para o gráfico de vendas
-  const chartApiUrl = currentTenant?.supabase_schema
-    ? `/api/charts/sales-by-month?schema=${currentTenant.supabase_schema}`
+  // Buscar dados para o gráfico de vendas (com filtro de filiais)
+  const chartApiUrl = apiParams.schema
+    ? `/api/charts/sales-by-month?schema=${apiParams.schema}&filiais=${apiParams.filiais}`
     : null
   const { data: chartData, isLoading: isChartLoading } = useSWR(chartApiUrl, fetcher, { refreshInterval: 0 });
 

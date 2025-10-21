@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 // Types
 interface Produto {
@@ -94,13 +95,45 @@ export async function GET(request: Request) {
     // Get parameters
     const mes = parseInt(searchParams.get('mes') || String(new Date().getMonth()))
     const ano = parseInt(searchParams.get('ano') || String(new Date().getFullYear()))
-    const filialId = searchParams.get('filial_id') || null
+    const requestedFilialId = searchParams.get('filial_id') || null
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('page_size') || '50')
 
     // Validate filial_id is required
-    if (!filialId) {
+    if (!requestedFilialId) {
       return NextResponse.json({ error: 'Filial é obrigatória' }, { status: 400 })
+    }
+
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filial to use based on authorization
+    let finalFilialId: number | null = null
+
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      if (requestedFilialId && requestedFilialId !== 'all') {
+        finalFilialId = parseInt(requestedFilialId, 10)
+      } else {
+        // If 'all' requested but no restrictions, still need to pick one for this report
+        // This shouldn't happen in normal flow, but handle gracefully
+        return NextResponse.json({ error: 'Filial específica é obrigatória para este relatório' }, { status: 400 })
+      }
+    } else {
+      // User has restrictions - check if requested filial is authorized
+      if (!requestedFilialId || requestedFilialId === 'all') {
+        // User requested all but has restrictions - use first authorized branch
+        finalFilialId = parseInt(authorizedBranches[0], 10)
+      } else if (authorizedBranches.includes(requestedFilialId)) {
+        // Requested filial is authorized
+        finalFilialId = parseInt(requestedFilialId, 10)
+      } else {
+        // User requested a filial they don't have access to
+        return NextResponse.json({
+          error: 'Você não tem permissão para acessar esta filial',
+          authorized_filiais: authorizedBranches
+        }, { status: 403 })
+      }
     }
 
     // Validate parameters
@@ -124,9 +157,11 @@ export async function GET(request: Request) {
       p_schema: schema,
       p_mes: mes,
       p_ano: ano,
-      p_filial_id: parseInt(filialId),
+      p_filial_id: finalFilialId,
       p_page: page,
       p_page_size: pageSize,
+      requestedFilialId,
+      authorizedBranches,
     })
 
     // Call the RPC function - retorna dados flat
@@ -135,7 +170,7 @@ export async function GET(request: Request) {
       p_schema: schema,
       p_mes: mes,
       p_ano: ano,
-      p_filial_id: parseInt(filialId),
+      p_filial_id: finalFilialId,
       p_page: page,
       p_page_size: pageSize,
     })

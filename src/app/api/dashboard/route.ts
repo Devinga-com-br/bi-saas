@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { UserProfile } from '@/types'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 // Valida os novos parâmetros de filtro
 const querySchema = z.object({
@@ -68,12 +69,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filiais to use based on authorization
+    let finalFiliais: string[] | null = null
+
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      finalFiliais = (filiais && filiais !== 'all') ? filiais.split(',') : null
+    } else if (!filiais || filiais === 'all') {
+      // User requested all but has restrictions - use authorized branches
+      finalFiliais = authorizedBranches
+    } else {
+      // User requested specific filiais - filter by authorized
+      const requestedFiliais = filiais.split(',')
+      const allowedFiliais = requestedFiliais.filter(f => authorizedBranches.includes(f))
+
+      // If none of requested filiais are authorized, use all authorized
+      finalFiliais = allowedFiliais.length > 0 ? allowedFiliais : authorizedBranches
+    }
+
     // Prepara os parâmetros para a função RPC
     const rpcParams = {
       schema_name: requestedSchema,
       p_data_inicio: data_inicio,
       p_data_fim: data_fim,
-      p_filiais_ids: (filiais && filiais !== 'all') ? filiais.split(',') : null
+      p_filiais_ids: finalFiliais
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

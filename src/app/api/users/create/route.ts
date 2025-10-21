@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { email, password, full_name, role, tenant_id, is_active } = body
+    const { email, password, full_name, role, tenant_id, is_active, authorized_branches } = body
 
     // Validate required fields
     if (!email || !password || !full_name || !role) {
@@ -140,6 +140,23 @@ export async function POST(request: Request) {
         // Try to delete the auth user if profile creation fails
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
         return NextResponse.json({ error: profileError.message }, { status: 400 })
+      }
+    }
+
+    // Insert authorized branches if provided
+    if (authorized_branches && Array.isArray(authorized_branches) && authorized_branches.length > 0) {
+      const branchRecords = authorized_branches.map((branchId: string) => ({
+        user_id: authData.user.id,
+        branch_id: branchId,
+      }))
+
+      const { error: branchError } = await supabaseAdmin
+        .from('user_authorized_branches')
+        .insert(branchRecords)
+
+      if (branchError) {
+        console.error('Error inserting authorized branches:', branchError)
+        // Don't fail the entire request, just log the error
       }
     }
 

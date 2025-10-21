@@ -19,7 +19,8 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  if (!data || data.length === 0) {
+  // Validate data is an array
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return (
       <div className="h-[350px] w-full flex items-center justify-center">
         <p className="text-muted-foreground">

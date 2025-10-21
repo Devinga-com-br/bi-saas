@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
 // Schema de validação
 const querySchema = z.object({
@@ -51,13 +52,43 @@ export async function GET(req: Request) {
     const curvasArray = curvas.split(',').map(c => c.trim())
     const pageNum = parseInt(page, 10)
     const pageSizeNum = parseInt(page_size, 10)
-    
-    // Converter filial_id para número ou null
+
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Converter filial_id para número ou null, respeitando autorizações
     let filialIdNum: number | null = null
-    if (filial_id && filial_id !== 'all') {
-      const parsed = parseInt(filial_id, 10)
-      if (!isNaN(parsed)) {
-        filialIdNum = parsed
+    if (authorizedBranches === null) {
+      // User has no restrictions - use requested value
+      if (filial_id && filial_id !== 'all') {
+        const parsed = parseInt(filial_id, 10)
+        if (!isNaN(parsed)) {
+          filialIdNum = parsed
+        }
+      }
+    } else {
+      // User has restrictions - filter by authorized branches
+      if (!filial_id || filial_id === 'all') {
+        // Request for all - use first authorized branch (RPC expects single value)
+        // Frontend should handle multiple authorized branches
+        if (authorizedBranches.length > 0) {
+          const parsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(parsed)) {
+            filialIdNum = parsed
+          }
+        }
+      } else {
+        // Specific filial requested - check if authorized
+        const parsed = parseInt(filial_id, 10)
+        if (!isNaN(parsed) && authorizedBranches.includes(filial_id)) {
+          filialIdNum = parsed
+        } else if (authorizedBranches.length > 0) {
+          // Requested filial not authorized - use first authorized
+          const firstParsed = parseInt(authorizedBranches[0], 10)
+          if (!isNaN(firstParsed)) {
+            filialIdNum = firstParsed
+          }
+        }
       }
     }
 

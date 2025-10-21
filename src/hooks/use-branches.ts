@@ -1,6 +1,7 @@
 import useSWR from 'swr'
 
 interface Branch {
+  id: string
   branch_code: string
   tenant_id: string
   store_code?: string
@@ -44,21 +45,30 @@ export function useBranches({ tenantId, enabled = true }: UseBranchesOptions = {
   }
 }
 
-// Hook para transformar filiais em opções do MultiSelect
-export function useBranchesOptions({ tenantId, enabled = true }: UseBranchesOptions = {}) {
+// Hook para transformar filiais em opções do MultiSelect ou Select
+interface UseBranchesOptionsConfig extends UseBranchesOptions {
+  includeAll?: boolean
+}
+
+export function useBranchesOptions({ tenantId, enabled = true, includeAll = true }: UseBranchesOptionsConfig = {}) {
   const { branches, isLoading, error } = useBranches({ tenantId, enabled })
 
-  const options = branches.map(branch => ({
+  const branchOptions = branches.map(branch => ({
     value: branch.branch_code,
-    label: branch.store_code 
+    label: branch.store_code
       ? `Filial ${branch.branch_code} - ${branch.store_code}`
       : `Filial ${branch.branch_code}`,
   }))
 
+  const options = includeAll
+    ? [{ value: 'all', label: 'Todas as Filiais' }, ...branchOptions]
+    : branchOptions
+
   return {
-    options,
+    branchOptions, // Without "Todas as Filiais"
+    options,       // With "Todas as Filiais" (if includeAll is true)
     isLoading,
     error,
-    isEmpty: options.length === 0,
+    isEmpty: branchOptions.length === 0,
   }
 }
