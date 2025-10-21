@@ -9,13 +9,14 @@ import {
   FileText,
   Settings,
   ChevronRight,
-  Users,
   Building2,
   LucideIcon,
   Package,
   TrendingUp,
   Target,
   DollarSign,
+  UserCog,
+  UserCircle,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -68,12 +69,6 @@ const navigation: NavigationItem[] = [
     icon: DollarSign,
   },
   {
-    name: 'Usuários',
-    href: '/usuarios',
-    icon: Users,
-    requiresAdminOrAbove: true,
-  },
-  {
     name: 'Metas',
     href: '/metas',
     icon: Target,
@@ -115,7 +110,13 @@ const navigation: NavigationItem[] = [
       {
         name: 'Perfil',
         href: '/perfil',
-        icon: Users,
+        icon: UserCircle,
+      },
+      {
+        name: 'Usuários',
+        href: '/usuarios',
+        icon: UserCog,
+        requiresAdminOrAbove: true,
       },
       {
         name: 'Setores',
