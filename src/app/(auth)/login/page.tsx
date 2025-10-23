@@ -1,16 +1,16 @@
 import { LoginForm } from '@/components/auth/login-form'
 import Link from 'next/link'
-import Image from 'next/image'
 import { Suspense } from 'react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 function LoginFormWrapper() {
   return (
     <Suspense fallback={
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="animate-pulse space-y-4">
           <div className="h-10 bg-gray-200 rounded" />
           <div className="h-10 bg-gray-200 rounded" />
-          <div className="h-12 bg-gray-200 rounded" />
+          <div className="h-11 bg-gray-200 rounded" />
         </div>
       </div>
     }>
@@ -21,67 +21,33 @@ function LoginFormWrapper() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex">
-      {/* Coluna da Esquerda - Visual e Branding (Cinza Escuro) */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 bg-gray-900">
-        {/* Logo */}
-        <div className="mb-12">
-          <Image
-            src="/logo-devinga.png"
-            alt="Devinga Logo"
-            width={200}
-            height={80}
-            className="h-20 w-auto"
-          />
-        </div>
-        
-        {/* Ilustração */}
-        <div className="max-w-md">
-          <Image
-            src="/undraw_data-reports_l2u3.svg"
-            alt="Data Reports Illustration"
-            width={400}
-            height={300}
-            className="w-full h-auto"
-          />
-        </div>
-      </div>
-
-      {/* Coluna da Direita - Formulário (Cinza Claro) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-100">
-        <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden mb-8 text-center">
-            <Image
-              src="/logo_devinga_mobile.png"
-              alt="Devinga Logo"
-              width={150}
-              height={60}
-              className="h-15 w-auto mx-auto"
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-md">
+        <Card className="w-full shadow-md rounded-xl bg-white">
+          <CardHeader className="flex flex-col items-center pt-8 pb-4">
+            <img 
+              src="/logo_devinga_mobile.png" 
+              alt="DevIngá" 
+              className="h-10 w-auto"
             />
-          </div>
+          </CardHeader>
 
-          <div className="space-y-6">
-            <div className="text-center lg:text-left">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Entrar</h1>
-              <p className="text-gray-600">
-                Digite seu email e senha para acessar o sistema
-              </p>
-            </div>
-
+          <CardContent>
             <LoginFormWrapper />
+          </CardContent>
+        </Card>
 
-            <div className="text-center text-sm">
-              <span className="text-gray-500">Não tem uma conta? </span>
-              <Link 
-                href="/cadastro" 
-                className="text-[#1cca5b] hover:text-[#1cca5b]/80 font-medium transition-colors"
-              >
-                Criar conta
-              </Link>
-            </div>
-          </div>
-        </div>
+        <p className="text-center text-sm text-gray-600 mt-6">
+          Não possui uma conta?{' '}
+          <a 
+            href="https://wa.me/5544997223315" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            Solicite aqui.
+          </a>
+        </p>
       </div>
     </div>
   )
