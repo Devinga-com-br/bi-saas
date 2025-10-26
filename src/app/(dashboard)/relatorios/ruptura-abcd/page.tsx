@@ -83,13 +83,14 @@ export default function RupturaABCDPage() {
   })
 
   // Estados dos filtros
-  const [filialSelecionada, setFilialSelecionada] = useState<string>('')
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [curvasSelecionadas, setCurvasSelecionadas] = useState<string[]>(['A'])
+  const [tipoBusca, setTipoBusca] = useState<'produto' | 'segmento'>('produto')
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
-  
+
   // Helper para verificar se "Todas as Filiais" está selecionada
-  const todasFiliais = filialSelecionada === 'all'
+  const todasFiliais = filiaisSelecionadas.length === 0 || filiaisSelecionadas.length > 1
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -122,12 +123,15 @@ export default function RupturaABCDPage() {
         page_size: '50',
       })
 
-      if (filialSelecionada && filialSelecionada !== 'all') {
-        params.append('filial_id', filialSelecionada)
+      // Adicionar filiais selecionadas (se houver)
+      if (filiaisSelecionadas.length > 0) {
+        const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
+        params.append('filial_id', filialIds)
       }
 
       if (busca) {
         params.append('busca', busca)
+        params.append('tipo_busca', tipoBusca)
       }
 
       const response = await fetch(`/api/relatorios/ruptura-abcd?${params}`)
@@ -145,12 +149,7 @@ export default function RupturaABCDPage() {
     }
   }
 
-  // Definir filial padrão quando as opções carregarem
-  useEffect(() => {
-    if (filiaisOptions.length > 0 && !filialSelecionada) {
-      setFilialSelecionada(filiaisOptions[0].value)
-    }
-  }, [filiaisOptions, filialSelecionada])
+  // Não precisa mais definir filial padrão - MultiSelect permite vazio (todas as filiais)
 
   // Log module access
   useEffect(() => {
@@ -173,16 +172,16 @@ export default function RupturaABCDPage() {
 
   // Aplicar filtros automaticamente quando mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialSelecionada) {
+    if (currentTenant?.supabase_schema) {
       setPage(1) // Reset para página 1
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filialSelecionada, curvasSelecionadas, busca, currentTenant?.supabase_schema])
+  }, [filiaisSelecionadas, curvasSelecionadas, tipoBusca, busca, currentTenant?.supabase_schema])
 
   // Carregar dados quando a página mudar
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialSelecionada && page > 1) {
+    if (currentTenant?.supabase_schema && page > 1) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,10 +207,12 @@ export default function RupturaABCDPage() {
         page_size: '10000'
       })
       
-      if (filialSelecionada && filialSelecionada !== 'all') {
-        params.append('filial_id', filialSelecionada)
+      // Adicionar filiais selecionadas (se houver)
+      if (filiaisSelecionadas.length > 0) {
+        const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
+        params.append('filial_id', filialIds)
       }
-      
+
       const response = await fetch(`/api/relatorios/ruptura-abcd?${params}`)
 
       if (!response.ok) throw new Error('Erro ao buscar dados para exportação')
@@ -229,9 +230,11 @@ export default function RupturaABCDPage() {
       doc.setFont('helvetica')
 
       // Cabeçalho
-      const filialNome = todasFiliais 
-        ? 'Todas as Filiais' 
-        : filiaisOptions.find(f => f.value === filialSelecionada)?.label || 'N/A'
+      const filialNome = filiaisSelecionadas.length === 0
+        ? 'Todas as Filiais'
+        : filiaisSelecionadas.length === 1
+        ? filiaisSelecionadas[0].label
+        : `${filiaisSelecionadas.length} Filiais`
       doc.setFontSize(16)
       doc.text('Relatório de Ruptura por Curva ABCD', doc.internal.pageSize.width / 2, 15, { align: 'center' })
       
@@ -394,49 +397,68 @@ export default function RupturaABCDPage() {
           <CardDescription>Configure os filtros para o relatório</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col lg:flex-row gap-4 items-end">
-            {/* Filial */}
-            <div className="space-y-2 flex-1">
-              <Label>Filial</Label>
-              <Select value={filialSelecionada} onValueChange={setFilialSelecionada}>
-                <SelectTrigger className="w-full h-10">
-                  <SelectValue placeholder="Selecione a filial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filiaisOptions.map((filial) => (
-                    <SelectItem key={filial.value} value={filial.value}>
-                      {filial.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-4">
+            {/* Primeira linha: Filiais e Curvas */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:gap-4">
+              {/* Filiais */}
+              <div className="flex flex-col gap-2 flex-1">
+                <Label>Filiais</Label>
+                <div className="h-10">
+                  <MultiSelect
+                    options={filiaisOptions}
+                    value={filiaisSelecionadas}
+                    onValueChange={setFiliaisSelecionadas}
+                    placeholder="Selecione..."
+                    className="w-full h-10"
+                  />
+                </div>
+              </div>
 
-            {/* Curvas */}
-            <div className="space-y-2 flex-1">
-              <Label>Curvas ABCD</Label>
-              <div className="h-10">
-                <MultiSelect
-                  options={curvasOptions}
-                  value={curvasSelecionadas.map(c => ({ value: c, label: `Curva ${c}` }))}
-                  onValueChange={(selected) => setCurvasSelecionadas(selected.map(s => s.value))}
-                  placeholder=""
-                  className="w-full h-10"
-                />
+              {/* Curvas */}
+              <div className="flex flex-col gap-2 flex-1">
+                <Label>Curvas ABCD</Label>
+                <div className="h-10">
+                  <MultiSelect
+                    options={curvasOptions}
+                    value={curvasSelecionadas.map(c => ({ value: c, label: `Curva ${c}` }))}
+                    onValueChange={(selected) => setCurvasSelecionadas(selected.map(s => s.value))}
+                    placeholder=""
+                    className="w-full h-10"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Busca */}
-            <div className="space-y-2 flex-1">
-              <Label>Buscar Produto</Label>
-              <div className="relative h-10">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Nome do produto..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="pl-8 w-full h-10"
-                />
+            {/* Segunda linha: Tipo de Busca e Campo de Busca */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:gap-4">
+              {/* Tipo de Busca */}
+              <div className="flex flex-col gap-2 w-full lg:w-[200px]">
+                <Label>Buscar por</Label>
+                <div className="h-10">
+                  <Select value={tipoBusca} onValueChange={(value: 'produto' | 'segmento') => setTipoBusca(value)}>
+                    <SelectTrigger className="w-full h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="produto">Produto</SelectItem>
+                      <SelectItem value="segmento">Segmento (Departamento)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Campo de Busca */}
+              <div className="flex flex-col gap-2 flex-1">
+                <Label>{tipoBusca === 'produto' ? 'Nome do Produto' : 'Nome do Segmento'}</Label>
+                <div className="relative h-10">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={tipoBusca === 'produto' ? 'Digite o nome do produto...' : 'Digite o nome do segmento...'}
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    className="pl-8 w-full h-10"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -446,15 +468,15 @@ export default function RupturaABCDPage() {
       {/* Resultado */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <CardTitle>Produtos em Ruptura</CardTitle>
+              <CardTitle className="text-xl sm:text-2xl">Produtos em Ruptura</CardTitle>
               <CardDescription>
                 {data ? `${data.total_records} produtos encontrados` : 'Carregando...'}
               </CardDescription>
             </div>
             {data && data.total_records > 0 && (
-              <Badge variant="destructive" className="gap-1">
+              <Badge variant="destructive" className="gap-1 flex-shrink-0">
                 <AlertTriangle className="h-3 w-3" />
                 {data.total_records} rupturas
               </Badge>

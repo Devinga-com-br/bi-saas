@@ -3,6 +3,26 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
+// Interface para os dados retornados do RPC
+interface RupturaItem {
+  total_records: number
+  departamento_id: number
+  departamento_nome: string
+  produto_id: number
+  filial_id: number
+  filial_nome: string
+  produto_descricao: string
+  curva_lucro: string | null
+  curva_venda: string
+  estoque_atual: number
+  venda_media_diaria_60d: number
+  dias_de_estoque: number | null
+  preco_venda: number
+  filial_transfer_id: number | null
+  filial_transfer_nome: string | null
+  estoque_transfer: number | null
+}
+
 // Schema de validação
 const querySchema = z.object({
   schema: z.string().min(1),
@@ -12,6 +32,7 @@ const querySchema = z.object({
   apenas_ruptura: z.string().optional().default('true'),
   departamento_id: z.string().optional(),
   busca: z.string().optional(),
+  tipo_busca: z.enum(['produto', 'segmento']).optional().default('produto'),
   page: z.string().optional().default('1'),
   page_size: z.string().optional().default('50'),
 })
@@ -44,6 +65,7 @@ export async function GET(req: Request) {
       apenas_ruptura,
       departamento_id,
       busca,
+      tipo_busca,
       page,
       page_size,
     } = validation.data
@@ -118,6 +140,18 @@ export async function GET(req: Request) {
       )
     }
 
+    // Filtrar dados baseado no tipo de busca
+    let filteredData: RupturaItem[] = (data || []) as RupturaItem[]
+
+    if (busca && tipo_busca === 'segmento' && filteredData.length > 0) {
+      // Quando buscar por segmento, filtrar por departamento_nome
+      const buscaLower = busca.toLowerCase()
+      filteredData = filteredData.filter((item: RupturaItem) =>
+        item.departamento_nome?.toLowerCase().includes(buscaLower)
+      )
+    }
+    // Nota: quando tipo_busca === 'produto', o RPC já filtra por p_busca no produto_descricao
+
     // Agrupar dados por departamento
     const groupedData: Record<string, {
       departamento_id: number
@@ -144,10 +178,15 @@ export async function GET(req: Request) {
 
     let totalRecords = 0
 
-    if (data && data.length > 0) {
-      totalRecords = data[0].total_records || 0
+    if (filteredData && filteredData.length > 0) {
+      // Quando filtrar por segmento, recalcular total_records baseado nos dados filtrados
+      if (busca && tipo_busca === 'segmento') {
+        totalRecords = filteredData.length
+      } else {
+        totalRecords = filteredData[0].total_records || 0
+      }
 
-      data.forEach((item) => {
+      filteredData.forEach((item: RupturaItem) => {
         const deptKey = `${item.departamento_id}`
         if (!groupedData[deptKey]) {
           groupedData[deptKey] = {

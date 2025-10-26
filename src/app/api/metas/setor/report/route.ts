@@ -29,38 +29,52 @@ export async function GET(request: NextRequest) {
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
 
-    // Determine which filial to use
-    let finalFilialId: number | null = null
+    // Determine which filiais to use (can be null for all, or array of IDs)
+    let finalFilialIds: number[] | null = null
 
     if (authorizedBranches === null) {
-      // User has no restrictions - use requested value
-      if (requestedFilialId && requestedFilialId !== 'all') {
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed)) {
-          finalFilialId = parsed
+      // User has no restrictions
+      if (requestedFilialId) {
+        // Parse comma-separated IDs or single ID
+        const ids = requestedFilialId.split(',')
+          .map(id => parseInt(id.trim(), 10))
+          .filter(id => !isNaN(id))
+
+        if (ids.length > 0) {
+          finalFilialIds = ids
         }
+        // If no valid IDs parsed, finalFilialIds stays null (meaning all)
       }
+      // If requestedFilialId is null/empty, finalFilialIds stays null (meaning all)
     } else {
-      // User has restrictions
-      if (!requestedFilialId || requestedFilialId === 'all') {
-        // Request for all - use first authorized branch
-        if (authorizedBranches.length > 0) {
-          const parsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(parsed)) {
-            finalFilialId = parsed
-          }
-        }
+      // User has restrictions - use authorized branches
+      if (authorizedBranches.length === 0) {
+        return NextResponse.json(
+          { error: 'Usuário não possui acesso a nenhuma filial' },
+          { status: 403 }
+        )
+      }
+
+      if (!requestedFilialId) {
+        // No filial requested - use all authorized
+        finalFilialIds = authorizedBranches
+          .map(id => parseInt(id, 10))
+          .filter(id => !isNaN(id))
       } else {
-        // Specific filial requested - check if authorized
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
-          finalFilialId = parsed
-        } else if (authorizedBranches.length > 0) {
-          // Not authorized - use first authorized
-          const firstParsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(firstParsed)) {
-            finalFilialId = firstParsed
-          }
+        // Specific filials requested - filter by authorized
+        const requestedIds = requestedFilialId.split(',')
+          .map(id => id.trim())
+          .filter(id => authorizedBranches.includes(id))
+          .map(id => parseInt(id, 10))
+          .filter(id => !isNaN(id))
+
+        if (requestedIds.length > 0) {
+          finalFilialIds = requestedIds
+        } else {
+          // None of requested are authorized - use all authorized
+          finalFilialIds = authorizedBranches
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id))
         }
       }
     }
@@ -71,25 +85,106 @@ export async function GET(request: NextRequest) {
       mes,
       ano,
       requestedFilialId,
-      finalFilialId,
+      finalFilialIds,
     })
 
-    // @ts-expect-error RPC function type not generated yet
-    const { data, error }: { data: unknown; error: unknown } = await supabase.rpc('get_metas_setor_report', {
-      p_schema: schema,
-      p_setor_id: parseInt(setorId),
-      p_mes: parseInt(mes),
-      p_ano: parseInt(ano),
-      p_filial_id: finalFilialId,
-    })
+    // Call RPC for each filial and aggregate results
+    if (finalFilialIds === null) {
+      // Get all filials for this tenant
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .single()
 
-    if (error) {
-      console.error('[API/METAS/SETOR/REPORT] Error:', error)
-      return NextResponse.json({ error: String(error) }, { status: 500 })
+      const tenantId = (userProfile as unknown as { tenant_id?: string })?.tenant_id
+
+      if (tenantId) {
+        const { data: allBranches } = await supabase
+          .from('branches')
+          .select('branch_code')
+          .eq('tenant_id', tenantId)
+
+        if (allBranches && allBranches.length > 0) {
+          finalFilialIds = allBranches
+            .map(b => parseInt((b as { branch_code: string }).branch_code, 10))
+            .filter(id => !isNaN(id))
+        } else {
+          finalFilialIds = []
+        }
+      } else {
+        finalFilialIds = []
+      }
     }
 
-    console.log('[API/METAS/SETOR/REPORT] Success, data length:', Array.isArray(data) ? data.length : 0)
-    return NextResponse.json(data || [])
+    // Fetch data for all filials in parallel
+    const promises = finalFilialIds.map(async (filialId) => {
+      // @ts-expect-error RPC function type not generated yet
+      const { data, error } = await supabase.rpc('get_metas_setor_report', {
+        p_schema: schema,
+        p_setor_id: parseInt(setorId),
+        p_mes: parseInt(mes),
+        p_ano: parseInt(ano),
+        p_filial_id: filialId,
+      })
+
+      if (error) {
+        console.error(`[API/METAS/SETOR/REPORT] Error for filial ${filialId}:`, error)
+        return []
+      }
+
+      return data || []
+    })
+
+    const results = await Promise.all(promises)
+    const allData = results.flat()
+
+    // Group data by date
+    interface MetaFilial {
+      filial_id: number
+      data_referencia: string
+      dia_semana_ref: string
+      valor_referencia: number
+      meta_percentual: number
+      valor_meta: number
+      valor_realizado: number
+      diferenca: number
+      diferenca_percentual: number
+    }
+
+    interface MetaPorData {
+      data: string
+      dia_semana: string
+      filiais: MetaFilial[]
+    }
+
+    const groupedByDate = new Map<string, MetaPorData>()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allData.forEach((item: any) => {
+      if (!item.data) return
+
+      if (!groupedByDate.has(item.data)) {
+        groupedByDate.set(item.data, {
+          data: item.data,
+          dia_semana: item.dia_semana || '',
+          filiais: []
+        })
+      }
+
+      const group = groupedByDate.get(item.data)!
+
+      // If item.filiais exists (single filial query result), use it
+      if (Array.isArray(item.filiais)) {
+        group.filiais.push(...item.filiais)
+      }
+    })
+
+    const aggregatedData = Array.from(groupedByDate.values())
+      .sort((a, b) => a.data.localeCompare(b.data))
+
+    console.log('[API/METAS/SETOR/REPORT] Success, dates:', aggregatedData.length, 'total filials:', aggregatedData.reduce((sum, d) => sum + d.filiais.length, 0))
+    return NextResponse.json(aggregatedData)
   } catch (error) {
     console.error('[API/METAS/SETOR/REPORT] Exception:', error)
     return NextResponse.json(

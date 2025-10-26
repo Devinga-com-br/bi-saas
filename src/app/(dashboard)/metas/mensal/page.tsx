@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useTenantContext } from '@/contexts/tenant-context'
-import { useBranches } from '@/hooks/use-branches'
+import { useBranchesOptions } from '@/hooks/use-branches'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
+import { MultiSelect } from '@/components/ui/multi-select'
 
 interface Meta {
   id: number
@@ -56,12 +57,15 @@ interface GroupedByDate {
 
 export default function MetaMensalPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { branches } = useBranches({ tenantId: currentTenant?.id })
+  const { options: todasAsFiliais, isLoading: isLoadingBranches, branchOptions: branches } = useBranchesOptions({
+    tenantId: currentTenant?.id,
+    enabled: !!currentTenant
+  })
 
   const currentDate = new Date()
   const [mes, setMes] = useState(currentDate.getMonth() + 1)
   const [ano, setAno] = useState(currentDate.getFullYear())
-  const [filialId, setFilialId] = useState<string>('all')
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<MetasReport | null>(null)
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
@@ -106,12 +110,15 @@ export default function MetaMensalPage() {
         ano: ano.toString()
       })
 
-      if (filialId !== 'all') {
-        params.append('filial_id', filialId)
+      // Se nenhuma filial selecionada, buscar todas
+      // Se tiver filiais selecionadas, buscar apenas as selecionadas
+      if (filiaisSelecionadas.length > 0) {
+        const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
+        params.append('filial_id', filialIds)
       }
 
       const response = await fetch(`/api/metas/report?${params}`)
-      
+
       if (!response.ok) {
         let errorMessage = 'Erro ao carregar relatório'
         try {
@@ -124,7 +131,7 @@ export default function MetaMensalPage() {
         console.error('Error response:', errorMessage)
         throw new Error(errorMessage)
       }
-      
+
       const data = await response.json()
       console.log('[METAS] Report data loaded:', data)
       setReport(data)
@@ -142,7 +149,7 @@ export default function MetaMensalPage() {
       loadReport()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, mes, ano, filialId])
+  }, [currentTenant?.supabase_schema, mes, ano, filiaisSelecionadas])
 
   const handleGenerateMetas = async () =>  {
     if (!currentTenant?.supabase_schema) return
@@ -195,7 +202,7 @@ export default function MetaMensalPage() {
           schema: currentTenant.supabase_schema,
           mes,
           ano,
-          filial_id: filialId !== 'all' ? parseInt(filialId) : null
+          filial_id: filiaisSelecionadas.length > 0 ? filiaisSelecionadas.map(f => f.value).join(',') : null
         })
       })
 
@@ -235,16 +242,18 @@ export default function MetaMensalPage() {
   }
 
   const getFilialLabel = () => {
-    if (filialId === 'all') {
+    if (filiaisSelecionadas.length === 0) {
       return 'Todas as Filiais'
     }
-    const branch = branches.find(b => b.branch_code === filialId)
-    return branch ? `Filial ${branch.branch_code}` : `Filial ${filialId}`
+    if (filiaisSelecionadas.length === 1) {
+      return filiaisSelecionadas[0].label
+    }
+    return `${filiaisSelecionadas.length} Filiais`
   }
 
   const getFilialName = (filial_id: number) => {
-    const branch = branches.find(b => b.branch_code === filial_id.toString())
-    return branch ? `Filial ${branch.branch_code}` : `Filial ${filial_id}`
+    const branch = todasAsFiliais.find(f => f.value === filial_id.toString())
+    return branch ? branch.label : `Filial ${filial_id}`
   }
 
   const toggleDateExpanded = (date: string) => {
@@ -373,8 +382,8 @@ export default function MetaMensalPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {branches.map((branch) => (
-                        <SelectItem key={branch.branch_code} value={branch.branch_code}>
-                          Filial {branch.branch_code}
+                        <SelectItem key={branch.value} value={branch.value}>
+                          {branch.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -431,23 +440,18 @@ export default function MetaMensalPage() {
 
       {/* Filtros */}
       <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
-        {/* FILIAL */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Filial</Label>
+        {/* FILIAIS */}
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <Label>Filiais</Label>
           <div className="h-10">
-            <Select value={filialId} onValueChange={setFilialId}>
-              <SelectTrigger className="w-full sm:w-[200px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Filiais</SelectItem>
-                {branches.map((branch) => (
-                  <SelectItem key={branch.branch_code} value={branch.branch_code}>
-                    Filial {branch.branch_code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={todasAsFiliais}
+              value={filiaisSelecionadas}
+              onValueChange={setFiliaisSelecionadas}
+              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+              disabled={isLoadingBranches}
+              className="w-full h-10"
+            />
           </div>
         </div>
 
@@ -597,8 +601,8 @@ export default function MetaMensalPage() {
             <div className="text-center py-8 text-muted-foreground">
               Nenhuma meta cadastrada para este período
             </div>
-          ) : filialId === 'all' ? (
-            // Visualização agrupada por data quando "Todas as Filiais" está selecionado
+          ) : filiaisSelecionadas.length !== 1 ? (
+            // Visualização agrupada por data quando múltiplas ou nenhuma filial está selecionada
             <div className="rounded-md border">
               <Table>
                 <TableHeader>

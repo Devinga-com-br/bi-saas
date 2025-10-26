@@ -35,35 +35,62 @@ export async function GET(request: NextRequest) {
 
     if (authorizedBranches === null) {
       // User has no restrictions - use requested value
-      if (requestedFilialId && requestedFilialId !== 'all') {
+      if (!requestedFilialId) {
+        return NextResponse.json(
+          { error: 'filial_id é obrigatório' },
+          { status: 400 }
+        )
+      }
+
+      if (requestedFilialId !== 'all') {
         const parsed = parseInt(requestedFilialId, 10)
         if (!isNaN(parsed)) {
           finalFilialId = parsed
+        } else {
+          return NextResponse.json(
+            { error: 'filial_id inválido' },
+            { status: 400 }
+          )
         }
+      } else {
+        return NextResponse.json(
+          { error: 'filial_id específico é obrigatório para esta API' },
+          { status: 400 }
+        )
       }
     } else {
       // User has restrictions
-      if (!requestedFilialId || requestedFilialId === 'all') {
-        // Request for all - use first authorized branch
-        if (authorizedBranches.length > 0) {
-          const parsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(parsed)) {
-            finalFilialId = parsed
-          }
-        }
-      } else {
-        // Specific filial requested - check if authorized
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
-          finalFilialId = parsed
-        } else if (authorizedBranches.length > 0) {
-          // Not authorized - use first authorized
-          const firstParsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(firstParsed)) {
-            finalFilialId = firstParsed
-          }
-        }
+      if (authorizedBranches.length === 0) {
+        return NextResponse.json(
+          { error: 'Usuário não possui acesso a nenhuma filial' },
+          { status: 403 }
+        )
       }
+
+      if (!requestedFilialId || requestedFilialId === 'all') {
+        return NextResponse.json(
+          { error: 'filial_id específico é obrigatório para esta API' },
+          { status: 400 }
+        )
+      }
+
+      // Specific filial requested - check if authorized
+      const parsed = parseInt(requestedFilialId, 10)
+      if (isNaN(parsed)) {
+        return NextResponse.json(
+          { error: 'filial_id inválido' },
+          { status: 400 }
+        )
+      }
+
+      if (!authorizedBranches.includes(requestedFilialId)) {
+        return NextResponse.json(
+          { error: 'Usuário não possui acesso à filial solicitada' },
+          { status: 403 }
+        )
+      }
+
+      finalFilialId = parsed
     }
 
     console.log('[API Despesas] Params:', {
@@ -74,14 +101,6 @@ export async function GET(request: NextRequest) {
       dataFinal,
       authorizedBranches
     })
-
-    // Validação adicional
-    if (finalFilialId === null) {
-      return NextResponse.json(
-        { error: 'filial_id é obrigatório ou usuário sem acesso a filiais' },
-        { status: 400 }
-      )
-    }
 
     // Usar RPC para executar query com schema dinâmico
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -107,33 +107,32 @@ export async function GET(request: Request) {
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
 
-    // Determine which filial to use based on authorization
-    let finalFilialId: number | null = null
+    // Determine which filials to use based on authorization
+    let finalFilialIds: number[] = []
 
     if (authorizedBranches === null) {
-      // User has no restrictions - use requested value
-      if (requestedFilialId && requestedFilialId !== 'all') {
-        finalFilialId = parseInt(requestedFilialId, 10)
-      } else {
-        // If 'all' requested but no restrictions, still need to pick one for this report
-        // This shouldn't happen in normal flow, but handle gracefully
+      // User has no restrictions - use requested values
+      const ids = requestedFilialId.split(',')
+        .map(id => parseInt(id.trim(), 10))
+        .filter(id => !isNaN(id))
+
+      if (ids.length === 0) {
         return NextResponse.json({ error: 'Filial específica é obrigatória para este relatório' }, { status: 400 })
       }
+      finalFilialIds = ids
     } else {
-      // User has restrictions - check if requested filial is authorized
-      if (!requestedFilialId || requestedFilialId === 'all') {
-        // User requested all but has restrictions - use first authorized branch
-        finalFilialId = parseInt(authorizedBranches[0], 10)
-      } else if (authorizedBranches.includes(requestedFilialId)) {
-        // Requested filial is authorized
-        finalFilialId = parseInt(requestedFilialId, 10)
-      } else {
-        // User requested a filial they don't have access to
+      // User has restrictions - filter requested filials by authorized branches
+      const requestedIds = requestedFilialId.split(',').map(id => id.trim())
+      const authorizedIds = requestedIds.filter(id => authorizedBranches.includes(id))
+
+      if (authorizedIds.length === 0) {
         return NextResponse.json({
-          error: 'Você não tem permissão para acessar esta filial',
+          error: 'Você não tem permissão para acessar as filiais solicitadas',
           authorized_filiais: authorizedBranches
         }, { status: 403 })
       }
+
+      finalFilialIds = authorizedIds.map(id => parseInt(id, 10))
     }
 
     // Validate parameters
@@ -157,38 +156,40 @@ export async function GET(request: Request) {
       p_schema: schema,
       p_mes: mes,
       p_ano: ano,
-      p_filial_id: finalFilialId,
+      p_filial_ids: finalFilialIds,
       p_page: page,
       p_page_size: pageSize,
       requestedFilialId,
       authorizedBranches,
     })
 
-    // Call the RPC function - retorna dados flat
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('get_venda_curva_report', {
-      p_schema: schema,
-      p_mes: mes,
-      p_ano: ano,
-      p_filial_id: finalFilialId,
-      p_page: page,
-      p_page_size: pageSize,
+    // Call RPC function for each filial in parallel
+    const promises = finalFilialIds.map(async (filialId) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_venda_curva_report', {
+        p_schema: schema,
+        p_mes: mes,
+        p_ano: ano,
+        p_filial_id: filialId,
+        p_page: page,
+        p_page_size: pageSize,
+      })
+
+      if (error) {
+        console.error('[Venda Curva] Error fetching report for filial', filialId, ':', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        throw new Error(`Erro ao buscar dados da filial ${filialId}: ${error.message}`)
+      }
+
+      return (data || []) as RowData[]
     })
 
-    if (error) {
-      console.error('[Venda Curva] Error fetching report:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      })
-      return NextResponse.json(
-        { error: 'Erro ao buscar relatório: ' + error.message },
-        { status: 500 }
-      )
-    }
-
-    const dataArray = (data || []) as RowData[]
+    const results = await Promise.all(promises)
+    const dataArray = results.flat()
 
     if (dataArray.length === 0) {
       console.log('[Venda Curva] No data received')
@@ -201,7 +202,7 @@ export async function GET(request: Request) {
       })
     }
 
-    console.log('[Venda Curva] Received', dataArray.length, 'rows')
+    console.log('[Venda Curva] Received', dataArray.length, 'rows total from', finalFilialIds.length, 'filiais')
 
     // Organize data hierarchically
     const hierarquiaObj = organizeHierarchyFlat(dataArray)

@@ -33,6 +33,8 @@ export function useBranches({ tenantId, enabled = true }: UseBranchesOptions = {
     {
       refreshInterval: 0, // Não atualizar automaticamente
       revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 2000, // Cache por apenas 2 segundos
     }
   )
 

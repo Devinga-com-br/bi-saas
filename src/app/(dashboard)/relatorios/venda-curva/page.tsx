@@ -1,5 +1,6 @@
 'use client'
 
+// Relatório de Venda por Curva ABC - MultiSelect de filiais sem opção "Todas"
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ import {
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { ChevronDown, ChevronRight, TrendingUp, DollarSign, FileDown } from 'lucide-react'
+import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Collapsible,
   CollapsibleContent,
@@ -91,8 +93,10 @@ interface ReportData {
 
 export default function VendaCurvaPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { options: filiaisOptions } = useBranchesOptions({
+  const { branchOptions: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
+    enabled: !!currentTenant,
+    includeAll: false,
   })
 
   // Estados
@@ -102,11 +106,12 @@ export default function VendaCurvaPage() {
 
   // Filtros
   const currentDate = new Date()
-  const [mes, setMes] = useState((currentDate.getMonth()).toString()) // Mês anterior
+  const [mes, setMes] = useState((currentDate.getMonth() + 1).toString()) // Mês atual (getMonth retorna 0-11)
   const [ano, setAno] = useState(currentDate.getFullYear().toString())
-  const [filialId, setFilialId] = useState<string>('')
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [page, setPage] = useState(1)
   const pageSize = 50
+  const [defaultFilialSet, setDefaultFilialSet] = useState(false)
 
   // Estados de expansão
   const [expandedDept1, setExpandedDept1] = useState<Record<string, boolean>>({})
@@ -115,16 +120,17 @@ export default function VendaCurvaPage() {
 
   // Definir filial padrão quando opções estiverem disponíveis
   useEffect(() => {
-    if (filiaisOptions.length > 0 && !filialId) {
+    if (todasAsFiliais.length > 0 && !defaultFilialSet) {
       // Ordena filiais por ID (numérico) e pega a menor
-      const sortedFiliais = [...filiaisOptions].sort((a, b) => {
+      const sortedFiliais = [...todasAsFiliais].sort((a, b) => {
         const idA = parseInt(a.value)
         const idB = parseInt(b.value)
         return idA - idB
       })
-      setFilialId(sortedFiliais[0].value)
+      setFiliaisSelecionadas([sortedFiliais[0]])
+      setDefaultFilialSet(true)
     }
-  }, [filiaisOptions, filialId])
+  }, [todasAsFiliais, defaultFilialSet])
 
   // Log de acesso ao módulo
   useEffect(() => {
@@ -140,15 +146,15 @@ export default function VendaCurvaPage() {
 
   // Aplicar filtros automaticamente quando mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialId && mes && ano) {
+    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && mes && ano) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, ano, filialId])
+  }, [mes, ano, filiaisSelecionadas])
 
   // Carregar dados quando a página mudar
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialId && page > 1) {
+    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && page > 1) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,10 +163,10 @@ export default function VendaCurvaPage() {
   // Buscar dados
   const fetchData = async () => {
     if (!currentTenant?.supabase_schema) return
-    
+
     // Validar se filial está selecionada
-    if (!filialId) {
-      setError('Por favor, selecione uma filial')
+    if (filiaisSelecionadas.length === 0) {
+      setError('Por favor, selecione ao menos uma filial')
       return
     }
 
@@ -172,7 +178,7 @@ export default function VendaCurvaPage() {
         schema: currentTenant.supabase_schema,
         mes,
         ano,
-        filial_id: filialId,
+        filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: page.toString(),
         page_size: pageSize.toString(),
       })
@@ -195,7 +201,7 @@ export default function VendaCurvaPage() {
 
   // Exportar PDF
   const handleExportarPDF = async () => {
-    if (!currentTenant?.supabase_schema || !filialId) return
+    if (!currentTenant?.supabase_schema || filiaisSelecionadas.length === 0) return
 
     try {
       setLoading(true)
@@ -209,7 +215,7 @@ export default function VendaCurvaPage() {
         schema: currentTenant.supabase_schema,
         mes,
         ano,
-        filial_id: filialId,
+        filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: '1',
         page_size: '10000'
       })
@@ -234,7 +240,9 @@ export default function VendaCurvaPage() {
       doc.setFont('helvetica')
 
       // Cabeçalho
-      const filialNome = filiaisOptions.find(f => f.value === filialId)?.label || `Filial ${filialId}`
+      const filialNome = filiaisSelecionadas.length === 1
+        ? (todasAsFiliais.find(f => f.value === filiaisSelecionadas[0].value)?.label || filiaisSelecionadas[0].label)
+        : `${filiaisSelecionadas.length} filiais selecionadas`
       const mesNome = meses.find(m => m.value === mes)?.label || mes
       
       doc.setFontSize(16)
@@ -511,31 +519,30 @@ export default function VendaCurvaPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-            {/* Filial */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label htmlFor="filial">Filial</Label>
+            {/* Filiais */}
+            <div className="flex flex-col gap-2 flex-1 min-w-0">
+              <Label>Filiais</Label>
               <div className="h-10">
-                <Select value={filialId} onValueChange={(value) => { setFilialId(value); setPage(1) }}>
-                  <SelectTrigger id="filial" className="w-full sm:w-[200px] h-10">
-                    <SelectValue placeholder="Selecione a filial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filiaisOptions.map((filial) => (
-                      <SelectItem key={filial.value} value={filial.value}>
-                        {filial.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={todasAsFiliais}
+                  value={filiaisSelecionadas}
+                  onValueChange={(value) => {
+                    setFiliaisSelecionadas(value)
+                    setPage(1)
+                  }}
+                  placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+                  disabled={isLoadingBranches}
+                  className="w-full h-10"
+                />
               </div>
             </div>
 
             {/* Mês */}
             <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label htmlFor="mes">Mês</Label>
+              <Label>Mês</Label>
               <div className="h-10">
                 <Select value={mes} onValueChange={(value) => { setMes(value); setPage(1) }}>
-                  <SelectTrigger id="mes" className="w-full sm:w-[160px] h-10">
+                  <SelectTrigger className="w-full sm:w-[160px] h-10">
                     <SelectValue placeholder="Selecione o mês" />
                   </SelectTrigger>
                   <SelectContent>
@@ -551,10 +558,10 @@ export default function VendaCurvaPage() {
 
             {/* Ano */}
             <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label htmlFor="ano">Ano</Label>
+              <Label>Ano</Label>
               <div className="h-10">
                 <Select value={ano} onValueChange={(value) => { setAno(value); setPage(1) }}>
-                  <SelectTrigger id="ano" className="w-full sm:w-[120px] h-10">
+                  <SelectTrigger className="w-full sm:w-[120px] h-10">
                     <SelectValue placeholder="Selecione o ano" />
                   </SelectTrigger>
                   <SelectContent>

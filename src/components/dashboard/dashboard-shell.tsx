@@ -19,7 +19,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           <TopBar />
         </header>
         <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-4 py-6">
+          <div className="w-full max-w-[1600px] mx-auto p-4 py-6">
             {children}
           </div>
         </main>

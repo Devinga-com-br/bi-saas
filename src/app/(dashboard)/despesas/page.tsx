@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { ChevronDown, ChevronRight, FileDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
-import { format } from 'date-fns'
+import { format, startOfMonth, subDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { PeriodFilter } from '@/components/despesas/period-filter'
+import { MultiSelect } from '@/components/ui/multi-select'
 
 // Interfaces para dados estruturados por filial
 interface DespesaPorFilial {
@@ -59,14 +59,15 @@ interface ReportData {
 
 export default function DespesasPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { options: filiaisOptions } = useBranchesOptions({
+  const { options: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
+    enabled: !!currentTenant
   })
 
-  // Estados dos filtros
-  const [filialsSelecionadas, setFilialsSelecionadas] = useState<number[]>([])
-  const [dataInicial, setDataInicial] = useState<Date | undefined>(undefined)
-  const [dataFinal, setDataFinal] = useState<Date | undefined>(undefined)
+  // Estados dos filtros - seguindo padrão do Dashboard
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
+  const [dataInicial, setDataInicial] = useState<Date>(startOfMonth(new Date()))
+  const [dataFinal, setDataFinal] = useState<Date>(subDays(new Date(), 1))
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -89,13 +90,11 @@ export default function DespesasPage() {
     }
   }, [data?.departamentos])
 
-  // Selecionar todas as filiais por padrão
-  useEffect(() => {
-    if (filiaisOptions.length > 0 && filialsSelecionadas.length === 0) {
-      const todasFiliais = filiaisOptions.map(f => parseInt(f.value))
-      setFilialsSelecionadas(todasFiliais)
-    }
-  }, [filiaisOptions, filialsSelecionadas.length])
+  // Handler para mudança de período
+  const handlePeriodChange = (start: Date, end: Date) => {
+    setDataInicial(start)
+    setDataFinal(end)
+  }
 
   // Log de acesso ao módulo
   useEffect(() => {
@@ -111,19 +110,14 @@ export default function DespesasPage() {
 
   // Buscar dados automaticamente quando filtros mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filialsSelecionadas.length > 0 && dataInicial && dataFinal) {
+    if (currentTenant?.supabase_schema && dataInicial && dataFinal) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, filialsSelecionadas, dataInicial, dataFinal])
-
-  const handlePeriodChange = (start: Date, end: Date) => {
-    setDataInicial(start)
-    setDataFinal(end)
-  }
+  }, [currentTenant?.supabase_schema, filiaisSelecionadas, dataInicial, dataFinal])
 
   const fetchData = async () => {
-    if (!currentTenant?.supabase_schema || filialsSelecionadas.length === 0 || !dataInicial || !dataFinal) {
+    if (!currentTenant?.supabase_schema || !dataInicial || !dataFinal) {
       return
     }
 
@@ -131,8 +125,19 @@ export default function DespesasPage() {
     setError('')
 
     try {
+      // Obter lista de filiais (todas ou selecionadas)
+      const filiaisParaBuscar = filiaisSelecionadas.length === 0
+        ? todasAsFiliais.map(f => parseInt(f.value)).filter(id => !isNaN(id))
+        : filiaisSelecionadas.map(f => parseInt(f.value)).filter(id => !isNaN(id))
+
+      if (filiaisParaBuscar.length === 0) {
+        setError('Selecione pelo menos uma filial')
+        setLoading(false)
+        return
+      }
+
       // Buscar dados para cada filial
-      const promises = filialsSelecionadas.map(async (filialId) => {
+      const promises = filiaisParaBuscar.map(async (filialId) => {
         const params = new URLSearchParams({
           schema: currentTenant.supabase_schema || '',
           filial_id: filialId.toString(),
@@ -289,6 +294,9 @@ export default function DespesasPage() {
       .map(([mes, valor]) => ({ mes, valor }))
       .sort((a, b) => a.mes.localeCompare(b.mes))
 
+    // Extrair IDs das filiais dos resultados
+    const filiais = results.map(r => r.filialId).sort((a, b) => a - b)
+
     return {
       totalizador: {
         valorTotal: totalGeral,
@@ -299,26 +307,10 @@ export default function DespesasPage() {
       },
       grafico,
       departamentos,
-      filiais: filialsSelecionadas.sort((a, b) => a - b)
+      filiais
     }
   }
 
-  const toggleFilial = (filialId: number) => {
-    setFilialsSelecionadas(prev => {
-      if (prev.includes(filialId)) {
-        // Não permitir desmarcar se for a última
-        if (prev.length === 1) return prev
-        return prev.filter(id => id !== filialId)
-      } else {
-        return [...prev, filialId].sort((a, b) => a - b)
-      }
-    })
-  }
-
-  const selecionarTodasFiliais = () => {
-    const todasFiliais = filiaisOptions.map(f => parseInt(f.value))
-    setFilialsSelecionadas(todasFiliais)
-  }
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -338,7 +330,7 @@ export default function DespesasPage() {
   }
 
   const getFilialNome = (filialId: number) => {
-    const filial = filiaisOptions.find(f => parseInt(f.value) === filialId)
+    const filial = todasAsFiliais.find(f => parseInt(f.value) === filialId)
     return filial?.label || `Filial ${filialId}`
   }
 
@@ -377,84 +369,45 @@ export default function DespesasPage() {
     )
   }
 
+  const periodoAtual = `${currentTenant?.name || ''} - Dados de ${format(dataInicial, "dd/MM/yyyy")} a ${format(dataFinal, "dd/MM/yyyy", { locale: ptBR })}`
+
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Despesas</h1>
-        <p className="text-muted-foreground">
-          Análise comparativa de despesas por filial
-        </p>
-      </div>
-
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Selecione o período e as filiais para análise</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            {/* Seleção de Filiais */}
-            <div className="flex flex-col gap-2 w-full md:w-[300px]">
-              <Label>Filiais</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="h-10 w-full border rounded-md px-3 text-left text-sm flex items-center justify-between hover:bg-accent">
-                    <span>
-                      {filialsSelecionadas.length === filiaisOptions.length
-                        ? 'Todas as Filiais'
-                        : filialsSelecionadas.length === 0
-                        ? 'Selecione filiais'
-                        : `${filialsSelecionadas.length} filiais selecionadas`}
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between pb-2 border-b">
-                      <span className="text-sm font-medium">Selecione as Filiais</span>
-                      <button
-                        onClick={selecionarTodasFiliais}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Todas
-                      </button>
-                    </div>
-                    <div className="max-h-[200px] overflow-y-auto space-y-2">
-                      {filiaisOptions.map((filial) => {
-                        const filialId = parseInt(filial.value)
-                        return (
-                          <div key={filial.value} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`filial-${filial.value}`}
-                              checked={filialsSelecionadas.includes(filialId)}
-                              onCheckedChange={() => toggleFilial(filialId)}
-                            />
-                            <label
-                              htmlFor={`filial-${filial.value}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                            >
-                              {filial.label}
-                            </label>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+    <div className="space-y-6">
+      {/* Header e Filtros */}
+      <div className='space-y-4'>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Despesas</h1>
+            <p className="text-muted-foreground">
+              {currentTenant ? periodoAtual : 'Selecione uma empresa para começar.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
+          {/* FILIAIS */}
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <Label>Filiais</Label>
+            <div className="h-10">
+              <MultiSelect
+                options={todasAsFiliais}
+                value={filiaisSelecionadas}
+                onValueChange={setFiliaisSelecionadas}
+                placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+                disabled={isLoadingBranches}
+                className="w-full h-10"
+              />
             </div>
+          </div>
 
-            {/* Filtro de Período Inteligente */}
-            <div className="flex flex-col gap-2">
-              <Label>Período</Label>
+          {/* PERÍODO */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Período</Label>
+            <div className="h-10">
               <PeriodFilter onPeriodChange={handlePeriodChange} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Mensagem de Erro */}
       {error && (
@@ -483,74 +436,57 @@ export default function DespesasPage() {
         <>
           {/* Tabela de Comparação */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <CardTitle>Comparação de Despesas por Filial</CardTitle>
-                <CardDescription>Hierarquia: Departamento → Tipo → Despesa</CardDescription>
+                <CardTitle className="text-xl sm:text-2xl">Despesas por Filial</CardTitle>
               </div>
               <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
                 <FileDown className="h-4 w-4" />
                 Exportar
               </button>
             </CardHeader>
-            <CardContent>
-              <div className="relative w-full overflow-x-auto rounded-lg border">
-                <table className="w-full text-left table-auto min-w-max">
-                  <thead>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-muted/50">
                     <tr>
-                      <th className="p-3 border-b sticky left-0 z-10 min-w-[400px] bg-background">
-                        <p className="text-xs font-normal leading-none">
-                          Descrição
-                        </p>
+                      <th className="p-3 border-b font-medium whitespace-nowrap">
+                        Descrição
                       </th>
-                      <th className="p-3 border-b sticky left-[400px] z-10 bg-background min-w-[150px]">
-                        <p className="text-xs font-normal leading-none text-right">
-                          Total
-                        </p>
+                      <th className="p-3 border-b font-medium text-right whitespace-nowrap">
+                        Total
                       </th>
-                      {data.filiais.map((filialId, idx) => (
-                        <th 
-                          key={filialId} 
-                          className={`p-3 border-b ${
-                            idx % 2 === 0 
-                              ? 'bg-muted/30' 
-                              : 'bg-background'
-                          } min-w-[150px]`}
+                      {data.filiais.map((filialId) => (
+                        <th
+                          key={filialId}
+                          className="p-3 border-b font-medium text-right whitespace-nowrap"
                         >
-                          <p className="text-xs font-normal leading-none text-right">
-                            {getFilialNome(filialId)}
-                          </p>
+                          {getFilialNome(filialId)}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {/* Linha Total Despesas */}
-                    <tr className="bg-primary/10 font-bold border-b-2">
-                      <td className="p-3 border-b bg-primary/10 sticky left-0 z-10">
-                        <div className="text-sm font-bold">
-                          TOTAL DESPESAS
-                        </div>
+                    <tr className="bg-slate-100 dark:bg-slate-800 font-bold">
+                      <td className="p-3 border-b whitespace-nowrap">
+                        TOTAL DESPESAS
                       </td>
-                      <td className="p-3 border-b bg-primary/10 sticky left-[400px] z-10">
-                        <div className="text-sm font-bold text-right">
-                          {formatCurrency(data.totalizador.valorTotal)}
-                        </div>
+                      <td className="p-3 border-b text-right whitespace-nowrap">
+                        {formatCurrency(data.totalizador.valorTotal)}
                       </td>
                       {data.filiais.map((filialId) => {
                         // Calcular total da filial somando todos os departamentos
                         const totalFilial = data.departamentos.reduce((sum, dept) => {
                           return sum + (dept.valores_filiais[filialId] || 0)
                         }, 0)
-                        
+
                         return (
-                          <td 
-                            key={filialId} 
-                            className="p-3 border-b bg-primary/10"
+                          <td
+                            key={filialId}
+                            className="p-3 border-b text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800"
                           >
-                            <div className="text-sm font-bold text-right">
-                              {formatCurrency(totalFilial)}
-                            </div>
+                            {formatCurrency(totalFilial)}
                           </td>
                         )
                       })}
@@ -560,61 +496,49 @@ export default function DespesasPage() {
                       <React.Fragment key={dept.dept_id}>
                         {/* Linha do Departamento */}
                         <tr className="hover:bg-muted/50 cursor-pointer">
-                          <td 
-                            className="p-3 border-b bg-background sticky left-0 z-10"
+                          <td
+                            className="p-3 border-b whitespace-nowrap"
                             onClick={() => setExpandedDepts(prev => ({ ...prev, [dept.dept_id]: !prev[dept.dept_id] }))}
                           >
                             <div className="flex items-center gap-2">
                               {expandedDepts[dept.dept_id] ? (
-                                <ChevronDown className="h-4 w-4" />
+                                <ChevronDown className="h-4 w-4 flex-shrink-0" />
                               ) : (
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className="h-4 w-4 flex-shrink-0" />
                               )}
-                              <span className="text-sm font-medium">{dept.dept_descricao}</span>
+                              <span className="font-medium">{dept.dept_descricao}</span>
                             </div>
                           </td>
-                          <td className="p-3 border-b bg-background sticky left-[400px] z-10">
-                            <div className="flex flex-col items-end">
-                              <div className="text-sm font-bold text-right">
-                                {formatCurrency(getTotalGeral(dept.valores_filiais))}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground">
-                                {calculatePercentage(getTotalGeral(dept.valores_filiais), data.totalizador.valorTotal)}
-                              </div>
+                          <td className="p-3 border-b text-right whitespace-nowrap">
+                            <div className="font-bold">
+                              {formatCurrency(getTotalGeral(dept.valores_filiais))}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {calculatePercentage(getTotalGeral(dept.valores_filiais), data.totalizador.valorTotal)}
                             </div>
                           </td>
-                          {data.filiais.map((filialId, idx) => {
+                          {data.filiais.map((filialId) => {
                             const valorFilial = getTotalFilial(dept.valores_filiais, filialId)
                             const totalGeral = getTotalGeral(dept.valores_filiais)
                             const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
                             
                             return (
-                              <td 
-                                key={filialId} 
-                                className={`p-3 border-b ${
-                                  idx % 2 === 0 
-                                    ? 'bg-muted/30' 
-                                    : 'bg-background'
-                                }`}
+                              <td
+                                key={filialId}
+                                className="p-3 border-b text-right whitespace-nowrap"
                               >
-                                <div className="flex flex-col items-end gap-0.5">
-                                  <div className="text-sm font-medium text-right">
-                                    {formatCurrency(valorFilial)}
-                                  </div>
-                                  {valorFilial > 0 ? (
-                                    <div 
-                                      className={`text-[10px] font-medium ${
-                                        isPositive ? 'text-red-500' : 'text-green-500'
-                                      }`}
-                                    >
-                                      {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
-                                    </div>
-                                  ) : (
-                                    <div className="text-[10px] text-muted-foreground">
-                                      -
-                                    </div>
-                                  )}
+                                <div className="font-medium">
+                                  {formatCurrency(valorFilial)}
                                 </div>
+                                {valorFilial > 0 && (
+                                  <div
+                                    className={`text-xs ${
+                                      isPositive ? 'text-red-500' : 'text-green-500'
+                                    }`}
+                                  >
+                                    {isPositive ? '+' : '-'}{diff.toFixed(1)}%
+                                  </div>
+                                )}
                               </td>
                             )
                           })}
@@ -627,7 +551,7 @@ export default function DespesasPage() {
                             <React.Fragment key={tipoKey}>
                               <tr className="hover:bg-muted/40 cursor-pointer">
                                 <td 
-                                  className="p-3 border-b bg-background sticky left-0 z-10 pl-8"
+                                  className="p-3 border-b bg-background sticky left-0 z-10 w-[250px] sm:w-[300px] lg:w-[400px] pl-8"
                                   onClick={() => setExpandedTipos(prev => ({ ...prev, [tipoKey]: !prev[tipoKey] }))}
                                 >
                                   <div className="flex items-center gap-2">
@@ -639,7 +563,7 @@ export default function DespesasPage() {
                                     <span className="text-sm">{tipo.tipo_descricao}</span>
                                   </div>
                                 </td>
-                                <td className="p-3 border-b bg-background sticky left-[400px] z-10">
+                                <td className="p-3 border-b bg-background sticky left-[250px] sm:left-[300px] lg:left-[400px] z-10 w-[120px] sm:w-[150px]">
                                   <div className="flex flex-col items-end">
                                     <div className="text-sm font-semibold text-right">
                                       {formatCurrency(getTotalGeral(tipo.valores_filiais))}
@@ -649,19 +573,15 @@ export default function DespesasPage() {
                                     </div>
                                   </div>
                                 </td>
-                                {data.filiais.map((filialId, idx) => {
+                                {data.filiais.map((filialId) => {
                                   const valorFilial = getTotalFilial(tipo.valores_filiais, filialId)
                                   const totalGeral = getTotalGeral(tipo.valores_filiais)
                                   const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
                                   
                                   return (
-                                    <td 
-                                      key={filialId} 
-                                      className={`p-3 border-b ${
-                                        idx % 2 === 0 
-                                          ? 'bg-muted/30' 
-                                          : 'bg-background'
-                                      }`}
+                                    <td
+                                      key={filialId}
+                                      className="p-3 border-b text-right whitespace-nowrap"
                                     >
                                       <div className="flex flex-col items-end gap-0.5">
                                         <div className="text-sm text-right">
@@ -689,7 +609,7 @@ export default function DespesasPage() {
                               {/* Despesas individuais */}
                               {expandedTipos[tipoKey] && tipo.despesas.map((desp, idx) => (
                                 <tr key={idx} className="hover:bg-muted/20">
-                                  <td className="p-3 border-b bg-background sticky left-0 z-10 pl-16">
+                                  <td className="p-3 border-b bg-background sticky left-0 z-10 w-[250px] sm:w-[300px] lg:w-[400px] pl-16">
                                     <div className="flex flex-col gap-0.5">
                                       <span className="text-xs">{desp.descricao_despesa || 'Sem descrição'}</span>
                                       <span className="text-[10px] text-muted-foreground">
@@ -699,7 +619,7 @@ export default function DespesasPage() {
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="p-3 border-b bg-background sticky left-[400px] z-10">
+                                  <td className="p-3 border-b bg-background sticky left-[250px] sm:left-[300px] lg:left-[400px] z-10 w-[120px] sm:w-[150px]">
                                     <div className="flex flex-col items-end">
                                       <div className="text-xs text-right">
                                         {formatCurrency(getTotalGeral(desp.valores_filiais))}
