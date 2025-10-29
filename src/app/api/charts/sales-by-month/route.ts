@@ -61,19 +61,52 @@ export async function GET(req: Request) {
       authorizedBranches
     })
 
-    // Call RPC with filiais parameter for branch filtering
+    // Call RPC with filiais parameter for branch filtering - Sales
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rawData, error } = await (supabase as any).rpc('get_sales_by_month_chart', {
+    const { data: salesData, error: salesError } = await (supabase as any).rpc('get_sales_by_month_chart', {
       schema_name: requestedSchema,
       p_filiais: finalFiliais || 'all'
     });
 
-    if (error) {
-      console.error('[API/CHARTS/SALES-BY-MONTH] RPC Error:', error);
-      return NextResponse.json({ error: 'Error fetching chart data', details: error.message }, { status: 500 });
+    if (salesError) {
+      console.error('[API/CHARTS/SALES-BY-MONTH] Sales RPC Error:', salesError);
+      return NextResponse.json({ error: 'Error fetching sales chart data', details: salesError.message }, { status: 500 });
     }
 
-    return NextResponse.json(rawData);
+    // Call RPC to get expenses by month
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: expensesData, error: expensesError } = await (supabase as any).rpc('get_expenses_by_month_chart', {
+      schema_name: requestedSchema,
+      p_filiais: finalFiliais || 'all'
+    });
+
+    if (expensesError) {
+      console.error('[API/CHARTS/SALES-BY-MONTH] Expenses RPC Error:', expensesError);
+      // Continue without expenses data if the function doesn't exist yet
+      console.warn('[API/CHARTS/SALES-BY-MONTH] Continuing without expense data');
+    }
+
+    console.log('[API/CHARTS/SALES-BY-MONTH] Sales data:', salesData?.length || 0, 'records')
+    console.log('[API/CHARTS/SALES-BY-MONTH] Expenses data:', expensesData?.length || 0, 'records')
+    if (expensesData && expensesData.length > 0) {
+      console.log('[API/CHARTS/SALES-BY-MONTH] Sample expense:', expensesData[0])
+    }
+
+    // Merge sales and expenses data by month
+    const mergedData = (salesData || []).map((sale: { mes: string; total_vendas: number; total_vendas_ano_anterior: number }) => {
+      const expense = expensesData?.find((exp: { mes: string }) => exp.mes === sale.mes)
+      return {
+        mes: sale.mes,
+        total_vendas: sale.total_vendas,
+        total_vendas_ano_anterior: sale.total_vendas_ano_anterior,
+        total_despesas: expense?.total_despesas || 0,
+        total_despesas_ano_anterior: expense?.total_despesas_ano_anterior || 0,
+      }
+    })
+
+    console.log('[API/CHARTS/SALES-BY-MONTH] Merged data sample:', mergedData[0])
+
+    return NextResponse.json(mergedData);
 
   } catch (e) {
     const error = e as Error;

@@ -263,8 +263,8 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Vendas Mensais (Ano Atual)</CardTitle>
-          <CardDescription>Total de vendas por mês para o ano corrente.</CardDescription>
+          <CardTitle>Vendas e Despesas Mensais (Ano Atual)</CardTitle>
+          <CardDescription>Comparativo entre total de Vendas e Despesas por mês.</CardDescription>
         </CardHeader>
         <CardContent>
           {isChartLoading ? (
