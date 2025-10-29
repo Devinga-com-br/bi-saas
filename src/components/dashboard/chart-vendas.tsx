@@ -228,7 +228,7 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
             dot={{ fill: '#f59e0b', r: 6, strokeWidth: 2, stroke: '#fff' }}
             activeDot={{ r: 8 }}
             connectNulls={false}
-            name="Lucro"
+            name="Lucro Bruto"
           />
         </ComposedChart>
       </ResponsiveContainer>
