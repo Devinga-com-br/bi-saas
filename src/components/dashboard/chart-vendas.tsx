@@ -2,16 +2,17 @@
 
 import {
   Bar,
-  BarChart,
+  ComposedChart,
   LabelList,
   Legend,
+  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatCurrency, formatValueShort } from '@/lib/chart-config'
+import { formatCurrency } from '@/lib/chart-config'
 
 interface SalesChartData {
   mes: string
@@ -19,6 +20,8 @@ interface SalesChartData {
   total_vendas_ano_anterior: number
   total_despesas?: number
   total_despesas_ano_anterior?: number
+  total_lucro?: number
+  total_lucro_ano_anterior?: number
 }
 
 interface ChartVendasProps {
@@ -60,48 +63,126 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
     return absValue.toString()
   }
 
-  // Custom label renderer for negative bars (despesa)
-  const renderCustomLabel = (props: any) => {
+  // Custom label renderer for negative bars (despesa) with background
+  const renderCustomLabel = (props: {
+    x?: string | number
+    y?: string | number
+    width?: string | number
+    height?: string | number
+    value?: string | number
+  }) => {
     const { x, y, width, height, value } = props
-    if (!value || value === 0) return null
+    if (!value || value === 0 || x === undefined || y === undefined || width === undefined || height === undefined) return null
 
-    const absValue = Math.abs(value)
+    const absValue = Math.abs(Number(value))
     const formattedValue = formatBarLabel(absValue)
 
+    // Convert to numbers
+    const xNum = Number(x)
+    const yNum = Number(y)
+    const widthNum = Number(width)
+    const heightNum = Number(height)
+
     // Para valores negativos, colocar o label abaixo da barra (y + height + offset)
-    const labelY = value < 0 ? y + height + 15 : y - 5
+    const labelY = Number(value) < 0 ? yNum + heightNum + 15 : yNum - 5
+
+    // Calcular dimensões do fundo
+    const textWidth = formattedValue.length * 7.5 // Aproximação
+    const padding = 4
 
     return (
-      <text
-        x={x + width / 2}
-        y={labelY}
-        fill="currentColor"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        style={{ fontSize: '12px', fontWeight: 'bold' }}
-      >
-        {formattedValue}
-      </text>
+      <g>
+        {/* Fundo do label */}
+        <rect
+          x={xNum + widthNum / 2 - textWidth / 2 - padding}
+          y={labelY - 8}
+          width={textWidth + padding * 2}
+          height={16}
+          fill="rgba(0, 0, 0, 0.75)"
+          rx={3}
+        />
+        {/* Texto */}
+        <text
+          x={xNum + widthNum / 2}
+          y={labelY}
+          fill="#ffffff"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{ fontSize: '12px', fontWeight: 'bold' }}
+        >
+          {formattedValue}
+        </text>
+      </g>
     )
   }
 
-  // Transform data: receita (positivo), despesa (negativo)
-  const chartData = data.map((d) => ({
-    name: d.mes.toUpperCase(),
-    receita: d.total_vendas,
-    despesa: -(d.total_despesas || 0), // Negativo para aparecer para baixo
-  }))
+  // Custom label renderer for positive bars (receita) with background
+  const renderReceitaLabel = (props: {
+    x?: string | number
+    y?: string | number
+    width?: string | number
+    value?: string | number
+  }) => {
+    const { x, y, width, value } = props
+    if (!value || value === 0 || x === undefined || y === undefined || width === undefined) return null
 
-  // Debug: Log data to console
-  console.log('[ChartVendas] Total de registros recebidos:', data.length)
-  console.log('[ChartVendas] Meses recebidos:', data.map(d => d.mes).join(', '))
-  console.log('[ChartVendas] Dados transformados:', chartData.length, 'registros')
-  console.log('[ChartVendas] Dados completos:', JSON.stringify(chartData, null, 2))
+    const formattedValue = formatBarLabel(Number(value))
+
+    // Convert to numbers
+    const xNum = Number(x)
+    const yNum = Number(y)
+    const widthNum = Number(width)
+
+    const labelY = yNum - 5
+
+    // Calcular dimensões do fundo
+    const textWidth = formattedValue.length * 7.5
+    const padding = 4
+
+    return (
+      <g>
+        {/* Fundo do label */}
+        <rect
+          x={xNum + widthNum / 2 - textWidth / 2 - padding}
+          y={labelY - 8}
+          width={textWidth + padding * 2}
+          height={16}
+          fill="rgba(0, 0, 0, 0.75)"
+          rx={3}
+        />
+        {/* Texto */}
+        <text
+          x={xNum + widthNum / 2}
+          y={labelY}
+          fill="#ffffff"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{ fontSize: '12px', fontWeight: 'bold' }}
+        >
+          {formattedValue}
+        </text>
+      </g>
+    )
+  }
+
+  // Transform data: receita (positivo), despesa (negativo), lucro (da tabela vendas_diarias_por_filial)
+  const chartData = data.map((d) => {
+    const receita = d.total_vendas
+    const despesaAbsoluta = d.total_despesas || 0
+    const lucro = d.total_lucro || 0
+
+    return {
+      name: d.mes.toUpperCase(),
+      receita: receita,
+      despesa: -despesaAbsoluta, // Negativo para aparecer para baixo
+      lucro: lucro === 0 ? null : lucro, // null para meses sem dados (não desenha linha)
+    }
+  })
 
   return (
     <div className="w-full h-[400px] min-h-[350px] max-h-[500px]">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
+        <ComposedChart
           data={chartData}
           stackOffset="sign"
           margin={{ top: 30, right: 5, left: 5, bottom: 30 }}
@@ -130,9 +211,7 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
           <Bar dataKey="receita" fill="#1cca5b" stackId="stack" name="Receita">
             <LabelList
               dataKey="receita"
-              position="top"
-              formatter={formatBarLabel}
-              style={{ fontSize: '12px', fontWeight: 'bold', fill: 'currentColor' }}
+              content={renderReceitaLabel}
             />
           </Bar>
           <Bar dataKey="despesa" fill="#ef4343" stackId="stack" name="Despesa">
@@ -141,7 +220,17 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
               content={renderCustomLabel}
             />
           </Bar>
-        </BarChart>
+          <Line
+            type="monotone"
+            dataKey="lucro"
+            stroke="#f59e0b"
+            strokeWidth={4}
+            dot={{ fill: '#f59e0b', r: 6, strokeWidth: 2, stroke: '#fff' }}
+            activeDot={{ r: 8 }}
+            connectNulls={false}
+            name="Lucro"
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )

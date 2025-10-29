@@ -86,21 +86,40 @@ export async function GET(req: Request) {
       console.warn('[API/CHARTS/SALES-BY-MONTH] Continuing without expense data');
     }
 
+    // Call RPC to get lucro (profit) by month
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lucroData, error: lucroError } = await (supabase as any).rpc('get_lucro_by_month_chart', {
+      schema_name: requestedSchema,
+      p_filiais: finalFiliais || 'all'
+    });
+
+    if (lucroError) {
+      console.error('[API/CHARTS/SALES-BY-MONTH] Lucro RPC Error:', lucroError);
+      console.warn('[API/CHARTS/SALES-BY-MONTH] Continuing without lucro data');
+    }
+
     console.log('[API/CHARTS/SALES-BY-MONTH] Sales data:', salesData?.length || 0, 'records')
     console.log('[API/CHARTS/SALES-BY-MONTH] Expenses data:', expensesData?.length || 0, 'records')
+    console.log('[API/CHARTS/SALES-BY-MONTH] Lucro data:', lucroData?.length || 0, 'records')
     if (expensesData && expensesData.length > 0) {
       console.log('[API/CHARTS/SALES-BY-MONTH] Sample expense:', expensesData[0])
     }
+    if (lucroData && lucroData.length > 0) {
+      console.log('[API/CHARTS/SALES-BY-MONTH] Sample lucro:', lucroData[0])
+    }
 
-    // Merge sales and expenses data by month
+    // Merge sales, expenses and lucro data by month
     const mergedData = (salesData || []).map((sale: { mes: string; total_vendas: number; total_vendas_ano_anterior: number }) => {
       const expense = expensesData?.find((exp: { mes: string }) => exp.mes === sale.mes)
+      const lucro = lucroData?.find((luc: { mes: string }) => luc.mes === sale.mes)
       return {
         mes: sale.mes,
         total_vendas: sale.total_vendas,
         total_vendas_ano_anterior: sale.total_vendas_ano_anterior,
         total_despesas: expense?.total_despesas || 0,
         total_despesas_ano_anterior: expense?.total_despesas_ano_anterior || 0,
+        total_lucro: lucro?.total_lucro || 0,
+        total_lucro_ano_anterior: lucro?.total_lucro_ano_anterior || 0,
       }
     })
 
