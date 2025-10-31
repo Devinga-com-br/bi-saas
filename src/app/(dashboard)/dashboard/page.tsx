@@ -171,26 +171,25 @@ export default function DashboardPage() {
               </p>
             </div>
         </div>
-        <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
-          {/* FILIAIS */}
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <Label>Filiais</Label>
-            <div className="h-10">
-              <MultiSelect
-                options={todasAsFiliais}
-                value={filiaisSelecionadas}
-                onValueChange={setFiliaisSelecionadas}
-                placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
-                disabled={isLoadingBranches}
-                className="w-full h-10"
-              />
+        <div className="rounded-md border p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+            {/* FILIAIS */}
+            <div className="flex flex-col gap-2 flex-1 min-w-0">
+              <Label>Filiais</Label>
+              <div className="h-10">
+                <MultiSelect
+                  options={todasAsFiliais}
+                  value={filiaisSelecionadas}
+                  onValueChange={setFiliaisSelecionadas}
+                  placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+                  disabled={isLoadingBranches}
+                  className="w-full h-10"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* PERÍODO */}
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Período</Label>
-            <div className="h-10">
+            {/* FILTRAR POR */}
+            <div className="flex-shrink-0">
               <PeriodFilter onPeriodChange={handlePeriodChange} />
             </div>
           </div>

@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { CalendarIcon } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, subMonths, subYears } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, subMonths, subYears, parse, isValid } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 type PeriodType = 'current_month' | 'current_day' | 'last_7_days' | 'last_30_days' | 'last_6_months' | 'last_year' | 'custom'
 
@@ -27,7 +29,6 @@ const periods: PeriodOption[] = [
   { value: 'last_30_days', label: 'Últimos 30 Dias' },
   { value: 'last_6_months', label: 'Últimos 6 Meses' },
   { value: 'last_year', label: 'Último Ano' },
-  { value: 'custom', label: 'Do Intervalo' },
 ]
 
 export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }: PeriodFilterProps) {
@@ -37,6 +38,14 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
   const [open, setOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [showCustomPicker, setShowCustomPicker] = useState(false)
+
+  // Estados para os inputs de data
+  const [startDateInput, setStartDateInput] = useState<string>('')
+  const [endDateInput, setEndDateInput] = useState<string>('')
+
+  // Estados para controlar os datepickers individuais
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
 
   const calculateDates = (period: PeriodType): { start: Date; end: Date } => {
     const now = new Date()
@@ -90,27 +99,94 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
     if (!initialized) {
       const { start, end } = calculateDates(selectedPeriod)
       onPeriodChange(start, end)
+      setStartDateInput(format(start, 'dd/MM/yyyy'))
+      setEndDateInput(format(end, 'dd/MM/yyyy'))
       setInitialized(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized])
 
-  const handleSelectPeriod = (period: PeriodType) => {
-    if (period === 'custom') {
-      setShowCustomPicker(true)
-      return
+  // Atualizar inputs quando as datas mudarem via seleção de período
+  useEffect(() => {
+    if (selectedPeriod !== 'custom') {
+      const { start, end } = calculateDates(selectedPeriod)
+      setStartDateInput(format(start, 'dd/MM/yyyy'))
+      setEndDateInput(format(end, 'dd/MM/yyyy'))
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPeriod])
 
+  const handleSelectPeriod = (period: PeriodType) => {
     setSelectedPeriod(period)
     setShowCustomPicker(false)
     const { start, end } = calculateDates(period)
+    setStartDateInput(format(start, 'dd/MM/yyyy'))
+    setEndDateInput(format(end, 'dd/MM/yyyy'))
     onPeriodChange(start, end)
     setOpen(false)
+  }
+
+  const handleStartDateChange = (value: string) => {
+    setStartDateInput(value)
+
+    // Tentar fazer parse da data no formato dd/MM/yyyy
+    if (value.length === 10) {
+      const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+      if (isValid(parsedDate)) {
+        setSelectedPeriod('custom')
+        const endDate = endDateInput ? parse(endDateInput, 'dd/MM/yyyy', new Date()) : new Date()
+        if (isValid(endDate)) {
+          onPeriodChange(parsedDate, endDate)
+        }
+      }
+    }
+  }
+
+  const handleEndDateChange = (value: string) => {
+    setEndDateInput(value)
+
+    // Tentar fazer parse da data no formato dd/MM/yyyy
+    if (value.length === 10) {
+      const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+      if (isValid(parsedDate)) {
+        setSelectedPeriod('custom')
+        const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : new Date()
+        if (isValid(startDate)) {
+          onPeriodChange(startDate, parsedDate)
+        }
+      }
+    }
+  }
+
+  const handleStartDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setStartDateInput(format(date, 'dd/MM/yyyy'))
+      setSelectedPeriod('custom')
+      const endDate = endDateInput ? parse(endDateInput, 'dd/MM/yyyy', new Date()) : new Date()
+      if (isValid(endDate)) {
+        onPeriodChange(date, endDate)
+      }
+      setShowStartDatePicker(false)
+    }
+  }
+
+  const handleEndDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setEndDateInput(format(date, 'dd/MM/yyyy'))
+      setSelectedPeriod('custom')
+      const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : new Date()
+      if (isValid(startDate)) {
+        onPeriodChange(startDate, date)
+      }
+      setShowEndDatePicker(false)
+    }
   }
 
   const handleApplyCustom = () => {
     if (customStart && customEnd) {
       setSelectedPeriod('custom')
+      setStartDateInput(format(customStart, 'dd/MM/yyyy'))
+      setEndDateInput(format(customEnd, 'dd/MM/yyyy'))
       onPeriodChange(customStart, customEnd)
       setOpen(false)
       setShowCustomPicker(false)
@@ -133,75 +209,118 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="rounded-full flex items-center gap-2 h-10"
-        >
-          <CalendarIcon className="w-4 h-4" />
-          {getDisplayLabel()}
-        </Button>
-      </PopoverTrigger>
+    <div className="flex flex-col gap-4 w-full lg:flex-row lg:items-end lg:gap-2">
+      {/* Filtrar por */}
+      <div className="flex flex-col gap-2 w-full sm:w-auto">
+        <Label className="text-sm">Filtrar por:</Label>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="rounded-full flex items-center gap-2 h-10 w-full sm:w-auto"
+            >
+              <CalendarIcon className="w-4 h-4" />
+              {getDisplayLabel()}
+            </Button>
+          </PopoverTrigger>
 
-      <PopoverContent className="w-[320px] p-4" align="start">
-        {!showCustomPicker ? (
-          <div className="grid grid-cols-2 gap-2">
-            {periods.map((period) => (
+          <PopoverContent className="w-[320px] p-4" align="start">
+            <div className="grid grid-cols-2 gap-2">
+              {periods.map((period) => (
+                <Button
+                  key={period.value}
+                  variant="outline"
+                  onClick={() => handleSelectPeriod(period.value)}
+                  className={`rounded-full text-sm ${
+                    selectedPeriod === period.value
+                      ? 'border-primary bg-primary/10'
+                      : 'hover:bg-accent'
+                  }`}
+                >
+                  {period.label}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Input de Data Inicial com Datepicker */}
+      <div className="flex flex-col gap-2 w-full sm:w-auto">
+        <Label className="text-sm">Data Inicial</Label>
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="dd/mm/aaaa"
+            value={startDateInput}
+            onChange={(e) => handleStartDateChange(e.target.value)}
+            className="w-full sm:w-[140px] h-10 text-center pr-9"
+            maxLength={10}
+          />
+          <Popover open={showStartDatePicker} onOpenChange={setShowStartDatePicker}>
+            <PopoverTrigger asChild>
               <Button
-                key={period.value}
-                variant="outline"
-                onClick={() => handleSelectPeriod(period.value)}
-                className={`rounded-full text-sm ${
-                  selectedPeriod === period.value 
-                    ? 'border-primary bg-primary/10' 
-                    : 'hover:bg-accent'
-                }`}
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-accent"
               >
-                {period.label}
+                <CalendarIcon className="h-4 w-4" />
               </Button>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Inicial</label>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={customStart}
-                onSelect={setCustomStart}
+                selected={startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : undefined}
+                onSelect={handleStartDateSelect}
                 locale={ptBR}
-                className="rounded-md border"
+                initialFocus
               />
-            </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Final</label>
+      {/* Seta separadora - oculta em mobile */}
+      <span className="hidden lg:block text-muted-foreground self-end pb-2">→</span>
+
+      {/* Input de Data Final com Datepicker */}
+      <div className="flex flex-col gap-2 w-full sm:w-auto">
+        <Label className="text-sm">Data Final</Label>
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="dd/mm/aaaa"
+            value={endDateInput}
+            onChange={(e) => handleEndDateChange(e.target.value)}
+            className="w-full sm:w-[140px] h-10 text-center pr-9"
+            maxLength={10}
+          />
+          <Popover open={showEndDatePicker} onOpenChange={setShowEndDatePicker}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-accent"
+              >
+                <CalendarIcon className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={customEnd}
-                onSelect={setCustomEnd}
+                selected={endDateInput ? parse(endDateInput, 'dd/MM/yyyy', new Date()) : undefined}
+                onSelect={handleEndDateSelect}
                 locale={ptBR}
-                className="rounded-md border"
-                disabled={(date) => customStart ? date < customStart : false}
+                disabled={(date) => {
+                  const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : undefined
+                  return startDate && isValid(startDate) ? date < startDate : false
+                }}
+                initialFocus
               />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={handleCancelCustom} className="text-sm">
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleApplyCustom} 
-                disabled={!customStart || !customEnd}
-                className="text-sm"
-              >
-                Aplicar
-              </Button>
-            </div>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    </div>
   )
 }
