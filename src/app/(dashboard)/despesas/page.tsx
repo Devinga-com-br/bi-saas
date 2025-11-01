@@ -74,21 +74,9 @@ export default function DespesasPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Estados de expansão - Departamentos abertos por padrão, tipos fechados
+  // Estados de expansão - Todos fechados por padrão
   const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({})
   const [expandedTipos, setExpandedTipos] = useState<Record<string, boolean>>({})
-
-  // Abrir todos os departamentos quando os dados carregarem
-  useEffect(() => {
-    if (data?.departamentos) {
-      const allDepts: Record<number, boolean> = {}
-      data.departamentos.forEach(dept => {
-        allDepts[dept.dept_id] = true
-      })
-      setExpandedDepts(allDepts)
-      setExpandedTipos({}) // Tipos fechados
-    }
-  }, [data?.departamentos])
 
   // Handler para mudança de período
   const handlePeriodChange = (start: Date, end: Date) => {
