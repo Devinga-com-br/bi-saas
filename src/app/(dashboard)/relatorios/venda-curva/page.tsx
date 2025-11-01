@@ -1,10 +1,11 @@
 'use client'
 
 // Relatório de Venda por Curva ABC - MultiSelect de filiais sem opção "Todas"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, TrendingUp, DollarSign, FileDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, TrendingUp, DollarSign, FileDown, Search } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Collapsible,
@@ -119,6 +120,8 @@ export default function VendaCurvaPage() {
   const [expandedDept2, setExpandedDept2] = useState<Record<string, boolean>>({})
   const [expandedDept3, setExpandedDept3] = useState<Record<string, boolean>>({})
 
+  // Filtro de produto
+  const [filtroProduto, setFiltroProduto] = useState('')
   // Definir filial padrão quando opções estiverem disponíveis
   useEffect(() => {
     if (todasAsFiliais.length > 0 && !defaultFilialSet) {
@@ -160,6 +163,79 @@ export default function VendaCurvaPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
+
+  // Função para verificar se o produto corresponde ao filtro
+  const produtoCorrespondeFiltro = (produto: Produto): boolean => {
+    if (filtroProduto.length < 3) return true
+
+    const termoBusca = filtroProduto.toLowerCase()
+    const codigoStr = produto.codigo.toString()
+    const descricao = produto.descricao.toLowerCase()
+
+    return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
+  }
+
+  // Função para filtrar a hierarquia mantendo subgrupos que contêm produtos correspondentes
+  // mas mostrando TODOS os produtos do subgrupo para comparação
+  const filtrarHierarquia = useCallback((hierarquia: DeptNivel3[]): DeptNivel3[] => {
+    if (filtroProduto.length < 3) return hierarquia
+
+    return hierarquia
+      .map(dept3 => ({
+        ...dept3,
+        nivel2: dept3.nivel2
+          ?.map(dept2 => ({
+            ...dept2,
+            nivel1: dept2.nivel1
+              ?.filter(dept1 => {
+                // Manter subgrupo se tiver pelo menos 1 produto correspondente
+                return dept1.produtos?.some(produtoCorrespondeFiltro) || false
+              })
+          }))
+          .filter(dept2 => dept2.nivel1 && dept2.nivel1.length > 0) || []
+      }))
+      .filter(dept3 => dept3.nivel2.length > 0)
+  }, [filtroProduto])
+
+  // Calcular hierarquia filtrada usando useMemo
+  const hierarquiaFiltrada = useMemo(() => {
+    if (!data?.hierarquia) return []
+    return filtrarHierarquia(data.hierarquia)
+  }, [data?.hierarquia, filtrarHierarquia])
+
+  // Expandir automaticamente os collapsibles quando houver filtro ativo
+  useEffect(() => {
+    if (filtroProduto.length >= 3 && hierarquiaFiltrada.length > 0) {
+      // Expandir todos os dept3, dept2 e dept1 que têm produtos correspondentes
+      const newExpandedDept3: Record<string, boolean> = {}
+      const newExpandedDept2: Record<string, boolean> = {}
+      const newExpandedDept1: Record<string, boolean> = {}
+
+      hierarquiaFiltrada.forEach(dept3 => {
+        // Expandir dept3 (Setor)
+        newExpandedDept3[dept3.dept3_id.toString()] = true
+
+        dept3.nivel2?.forEach(dept2 => {
+          // Expandir dept2 (Grupo) - usando apenas o ID do dept2
+          newExpandedDept2[dept2.dept2_id.toString()] = true
+
+          dept2.nivel1?.forEach(dept1 => {
+            // Expandir dept1 (Subgrupo) - usando apenas o ID do dept1
+            newExpandedDept1[dept1.dept1_id.toString()] = true
+          })
+        })
+      })
+
+      setExpandedDept3(newExpandedDept3)
+      setExpandedDept2(newExpandedDept2)
+      setExpandedDept1(newExpandedDept1)
+    } else if (filtroProduto.length < 3) {
+      // Fechar todos quando o filtro for removido
+      setExpandedDept3({})
+      setExpandedDept2({})
+      setExpandedDept1({})
+    }
+  }, [filtroProduto, hierarquiaFiltrada])
 
   // Buscar dados
   const fetchData = async () => {
@@ -418,27 +494,42 @@ export default function VendaCurvaPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {produtos.map((produto, idx) => (
-            <TableRow key={`${produto.codigo}-${produto.filial_id}-${idx}`} className="border-b">
-              <TableCell className="text-xs">{produto.filial_id}</TableCell>
-              <TableCell className="text-xs">{produto.codigo}</TableCell>
-              <TableCell className="text-xs">{produto.descricao}</TableCell>
-              <TableCell className="text-right text-xs">{produto.qtde.toFixed(2)}</TableCell>
-              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_vendas)}</TableCell>
-              <TableCell>
-                <Badge className={getCurvaBadgeColor(produto.curva_venda)}>
-                  {produto.curva_venda}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_lucro)}</TableCell>
-              <TableCell className="text-right text-xs">{produto.percentual_lucro.toFixed(2)}%</TableCell>
-              <TableCell>
-                <Badge className={getCurvaBadgeColor(produto.curva_lucro)}>
-                  {produto.curva_lucro}
-                </Badge>
-              </TableCell>
-            </TableRow>
-          ))}
+          {produtos.map((produto, idx) => {
+            const isHighlighted = filtroProduto.length >= 3 && produtoCorrespondeFiltro(produto)
+            const cellStyle = isHighlighted ? {
+              backgroundColor: 'light-dark(#e4dfff, #2d2b55)',
+              color: 'light-dark(#4a4080, #2d2b55)'
+            } : undefined
+
+            return (
+              <TableRow
+                key={`${produto.codigo}-${produto.filial_id}-${idx}`}
+                className={`border-b ${isHighlighted ? 'border-l-4 border-l-primary' : ''}`}
+              >
+                <TableCell className="text-xs" style={cellStyle}>{produto.filial_id}</TableCell>
+                <TableCell className="text-xs" style={cellStyle}>
+                  {produto.codigo}
+                </TableCell>
+                <TableCell className="text-xs" style={cellStyle}>
+                  {produto.descricao}
+                </TableCell>
+                <TableCell className="text-right text-xs" style={cellStyle}>{produto.qtde.toFixed(2)}</TableCell>
+                <TableCell className="text-right text-xs" style={cellStyle}>{formatCurrency(produto.valor_vendas)}</TableCell>
+                <TableCell style={cellStyle}>
+                  <Badge className={getCurvaBadgeColor(produto.curva_venda)}>
+                    {produto.curva_venda}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right text-xs" style={cellStyle}>{formatCurrency(produto.valor_lucro)}</TableCell>
+                <TableCell className="text-right text-xs" style={cellStyle}>{produto.percentual_lucro.toFixed(2)}%</TableCell>
+                <TableCell style={cellStyle}>
+                  <Badge className={getCurvaBadgeColor(produto.curva_lucro)}>
+                    {produto.curva_lucro}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     )
@@ -571,6 +662,21 @@ export default function VendaCurvaPage() {
                 </Select>
               </div>
             </div>
+
+            {/* Filtro de Produto */}
+            <div className="flex flex-col gap-2 flex-1 min-w-0">
+              <Label>Filtrar Produto</Label>
+              <div className="h-10 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Digite código ou nome (mín. 3 caracteres)"
+                  value={filtroProduto}
+                  onChange={(e) => setFiltroProduto(e.target.value)}
+                  className="w-full h-10 pl-9"
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -613,7 +719,7 @@ export default function VendaCurvaPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {data.hierarquia.map((dept3) => (
+                {hierarquiaFiltrada.map((dept3) => (
                   <Collapsible
                     key={dept3.dept3_id}
                     open={expandedDept3[dept3.dept3_id.toString()]}
