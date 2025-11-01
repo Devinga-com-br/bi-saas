@@ -33,11 +33,10 @@ const periods: PeriodOption[] = [
 
 export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }: PeriodFilterProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(initialPeriod)
-  const [customStart, setCustomStart] = useState<Date | undefined>(undefined)
-  const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined)
+  const [customStart] = useState<Date | undefined>(undefined)
+  const [customEnd] = useState<Date | undefined>(undefined)
   const [open, setOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
-  const [showCustomPicker, setShowCustomPicker] = useState(false)
 
   // Estados para os inputs de data
   const [startDateInput, setStartDateInput] = useState<string>('')
@@ -118,7 +117,6 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
 
   const handleSelectPeriod = (period: PeriodType) => {
     setSelectedPeriod(period)
-    setShowCustomPicker(false)
     const { start, end } = calculateDates(period)
     setStartDateInput(format(start, 'dd/MM/yyyy'))
     setEndDateInput(format(end, 'dd/MM/yyyy'))
@@ -182,22 +180,6 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
     }
   }
 
-  const handleApplyCustom = () => {
-    if (customStart && customEnd) {
-      setSelectedPeriod('custom')
-      setStartDateInput(format(customStart, 'dd/MM/yyyy'))
-      setEndDateInput(format(customEnd, 'dd/MM/yyyy'))
-      onPeriodChange(customStart, customEnd)
-      setOpen(false)
-      setShowCustomPicker(false)
-    }
-  }
-
-  const handleCancelCustom = () => {
-    setCustomStart(undefined)
-    setCustomEnd(undefined)
-    setShowCustomPicker(false)
-  }
 
   const getDisplayLabel = () => {
     if (selectedPeriod === 'custom' && customStart && customEnd) {

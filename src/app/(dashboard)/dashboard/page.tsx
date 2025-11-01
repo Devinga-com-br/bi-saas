@@ -8,7 +8,6 @@ import { CardMetric } from '@/components/dashboard/card-metric'
 import { ChartVendas } from '@/components/dashboard/chart-vendas'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { format, startOfMonth, subDays } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatPercentage } from '@/lib/chart-config'
@@ -158,7 +157,6 @@ export default function DashboardPage() {
   })
 
   const isDataLoading = isLoading || !currentTenant
-  const periodoAtual = `Dados de ${format(dataInicio, "dd/MM/yyyy")} a ${format(dataFim, "dd/MM/yyyy", { locale: ptBR })}`
 
   return (
     <div className="space-y-6">

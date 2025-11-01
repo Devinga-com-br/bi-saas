@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
@@ -22,7 +22,6 @@ import {
   Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
 import type { UserWithTenant, UserProfile } from '@/types'
 
 const menuItems = [
@@ -34,7 +33,6 @@ const menuItems = [
 
 export default function ConfiguracoesPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const router = useRouter()
   const [activeSection, setActiveSection] = useState<string>('perfil')
   const [profileData, setProfileData] = useState<{
     profile: UserWithTenant | null
@@ -200,7 +198,7 @@ export default function ConfiguracoesPage() {
             />
           )}
 
-          {activeSection === 'setores' && isAdminOrAbove && currentTenant && (
+          {activeSection === 'setores' && isAdminOrAbove && currentTenant && currentTenant.supabase_schema && (
             <SetoresContent tenantSchema={currentTenant.supabase_schema} />
           )}
 

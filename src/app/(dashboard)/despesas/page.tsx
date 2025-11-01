@@ -9,7 +9,6 @@ import { useBranchesOptions } from '@/hooks/use-branches'
 import { ChevronDown, ChevronRight, FileDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { format, startOfMonth, subDays } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { PeriodFilter } from '@/components/despesas/period-filter'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
@@ -369,8 +368,6 @@ export default function DespesasPage() {
       </div>
     )
   }
-
-  const periodoAtual = `${currentTenant?.name || ''} - Dados de ${format(dataInicial, "dd/MM/yyyy")} a ${format(dataFinal, "dd/MM/yyyy", { locale: ptBR })}`
 
   return (
     <div className="space-y-6">

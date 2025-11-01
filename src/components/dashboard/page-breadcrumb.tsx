@@ -64,7 +64,7 @@ export function PageBreadcrumb() {
           </BreadcrumbLink>
         </BreadcrumbItem>
 
-        {breadcrumbItems.map((item, index) => (
+        {breadcrumbItems.map((item) => (
           <Fragment key={item.path}>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

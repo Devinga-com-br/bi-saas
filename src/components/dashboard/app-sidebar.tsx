@@ -7,16 +7,12 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   FileText,
-  Settings,
   ChevronRight,
-  Building2,
   LucideIcon,
   Package,
   TrendingUp,
   Target,
   DollarSign,
-  UserCog,
-  UserCircle,
   Cog,
 } from 'lucide-react'
 
