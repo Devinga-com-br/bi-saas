@@ -32,6 +32,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Departamento {
   id: number
@@ -214,13 +215,10 @@ export default function SetoresPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Setores</h1>
-          <p className="text-muted-foreground">
-            Configure os setores para acompanhamento de metas
-          </p>
-        </div>
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      <div className="flex justify-end">
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Setor

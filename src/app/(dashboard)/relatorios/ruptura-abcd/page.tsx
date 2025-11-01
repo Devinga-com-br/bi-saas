@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -367,17 +368,12 @@ export default function RupturaABCDPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Relatório de Ruptura por Curva ABCD</h1>
-          <p className="text-muted-foreground">
-            Análise de produtos com ruptura de estoque por curva de vendas
-          </p>
-        </div>
-        
-        {/* Botão de Exportar */}
-        {data && data.total_records > 0 && (
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      {/* Botão de Exportar */}
+      {data && data.total_records > 0 && (
+        <div className="flex justify-end">
           <Button
             onClick={handleExportarPDF}
             disabled={loading}
@@ -387,8 +383,8 @@ export default function RupturaABCDPage() {
             <FileDown className="h-4 w-4" />
             Exportar PDF
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <Card>

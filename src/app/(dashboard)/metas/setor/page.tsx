@@ -40,6 +40,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Setor {
   id: number
@@ -319,13 +320,10 @@ export default function MetaSetorPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Meta por Setor</h1>
-          <p className="text-muted-foreground">
-            Acompanhe as metas de vendas por setor
-          </p>
-        </div>
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      <div className="flex items-center justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>

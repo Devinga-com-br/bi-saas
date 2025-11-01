@@ -18,6 +18,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
 import { PeriodFilter } from '@/components/despesas/period-filter'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Estrutura de dados da API
 interface DashboardData {
@@ -161,16 +162,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header e Filtros */}
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      {/* Filtros */}
       <div className='space-y-4'>
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Dashboard Estratégico</h1>
-              <p className="text-muted-foreground">
-                {currentTenant ? `${currentTenant.name} - ${periodoAtual}` : 'Selecione uma empresa para começar.'}
-              </p>
-            </div>
-        </div>
         <div className="rounded-md border p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
             {/* FILIAIS */}

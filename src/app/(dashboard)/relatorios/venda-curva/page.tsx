@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -489,16 +490,12 @@ export default function VendaCurvaPage() {
   // Continua na próxima parte...
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Relatório de Venda por Curva</h2>
-          <p className="text-muted-foreground">
-            Análise de vendas agrupada por departamentos e curva ABC
-          </p>
-        </div>
-        
-        {/* Botão de Exportar */}
-        {data && data.hierarquia && data.hierarquia.length > 0 && (
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      {/* Botão de Exportar */}
+      {data && data.hierarquia && data.hierarquia.length > 0 && (
+        <div className="flex justify-end">
           <Button
             onClick={handleExportarPDF}
             disabled={loading}
@@ -508,8 +505,8 @@ export default function VendaCurvaPage() {
             <FileDown className="h-4 w-4" />
             Exportar PDF
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <Card>

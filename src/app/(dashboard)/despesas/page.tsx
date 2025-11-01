@@ -12,6 +12,7 @@ import { format, startOfMonth, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PeriodFilter } from '@/components/despesas/period-filter'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Interfaces para dados estruturados por filial
 interface DespesaPorFilial {
@@ -373,16 +374,11 @@ export default function DespesasPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header e Filtros */}
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      {/* Filtros */}
       <div className='space-y-4'>
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Despesas</h1>
-            <p className="text-muted-foreground">
-              {currentTenant ? periodoAtual : 'Selecione uma empresa para começar.'}
-            </p>
-          </div>
-        </div>
         <div className="rounded-md border p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
             {/* FILIAIS */}

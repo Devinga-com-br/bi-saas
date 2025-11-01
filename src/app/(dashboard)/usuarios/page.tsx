@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Breadcrumbs } from '@/components/ui/breadcrumbs'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { UserPlus, Users, Shield, Pencil, Trash2, Building2 } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import type { UserProfile as UP } from '@/types'
@@ -108,29 +108,18 @@ export default async function UsersPage() {
   return (
     <AuditWrapper module="usuarios">
       <div className="space-y-6">
-        {/* Breadcrumbs */}
-        <Breadcrumbs items={[{ label: 'Usuários' }]} />
+        {/* Breadcrumb */}
+        <PageBreadcrumb />
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-              <Users className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Usuários</h1>
-              <p className="text-muted-foreground mt-1.5">
-                Gerencie os usuários cadastrados no sistema
-              </p>
-            </div>
-          </div>
+        <div className="flex justify-end">
           <Button asChild>
             <Link href="/usuarios/novo">
               <UserPlus className="mr-2 h-4 w-4" />
               Novo Usuário
             </Link>
-        </Button>
-      </div>
+          </Button>
+        </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

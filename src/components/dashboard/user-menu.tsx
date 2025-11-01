@@ -15,15 +15,17 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Building2, Check, Moon, Sun } from 'lucide-react'
+import { LogOut, User, Building2, Check, Moon, Sun, ChevronDown } from 'lucide-react'
 import { useTenant } from '@/hooks/use-tenant'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useTheme } from '@/contexts/theme-context'
+import { useUser } from '@/hooks/use-user'
 
 export function UserMenu() {
   const router = useRouter()
   const supabase = createClient()
   const { profile } = useTenant()
+  const { user } = useUser()
   const { currentTenant, accessibleTenants, switchTenant, canSwitchTenants } = useTenantContext()
   const { theme, setTheme } = useTheme()
 
@@ -53,15 +55,19 @@ export function UserMenu() {
     .toUpperCase()
     .slice(0, 2) || '??'
 
+  const userEmail = user?.email || 'user@example.com'
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="rounded-full hover:ring-2 hover:ring-primary/20 transition-all">
-          <Avatar className="h-9 w-9 cursor-pointer">
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+        <button className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-accent transition-all">
+          <Avatar className="h-8 w-8 cursor-pointer">
+            <AvatarFallback className="bg-gradient-to-br from-green-500 to-purple-600 text-white font-medium text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
+          <span className="text-sm font-medium hidden sm:inline-block">{userEmail}</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:inline-block" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Meta {
   id: number
@@ -308,12 +309,10 @@ export default function MetaMensalPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Meta Mensal</h1>
-          <p className="text-muted-foreground">Acompanhe as metas mensais por filial</p>
-        </div>
-        
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button
             variant="outline"
