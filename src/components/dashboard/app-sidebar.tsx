@@ -17,6 +17,7 @@ import {
   DollarSign,
   UserCog,
   UserCircle,
+  Cog,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -57,12 +58,15 @@ interface NavigationItem {
   items?: NavigationSubItem[]
 }
 
-const navigation: NavigationItem[] = [
+const visaoGeralNavigation: NavigationItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
   },
+]
+
+const gerencialNavigation: NavigationItem[] = [
   {
     name: 'Despesas',
     href: '/despesas',
@@ -102,35 +106,13 @@ const navigation: NavigationItem[] = [
       },
     ],
   },
+]
+
+const accountNavigation: NavigationItem[] = [
   {
     name: 'Configurações',
     href: '/configuracoes',
-    icon: Settings,
-    items: [
-      {
-        name: 'Perfil',
-        href: '/perfil',
-        icon: UserCircle,
-      },
-      {
-        name: 'Usuários',
-        href: '/usuarios',
-        icon: UserCog,
-        requiresAdminOrAbove: true,
-      },
-      {
-        name: 'Setores',
-        href: '/configuracoes/setores',
-        icon: Building2,
-        requiresAdminOrAbove: true,
-      },
-      {
-        name: 'Empresas',
-        href: '/empresas',
-        icon: Building2,
-        requiresSuperAdmin: true,
-      },
-    ],
+    icon: Cog,
   },
 ]
 
@@ -143,7 +125,7 @@ export function AppSidebar() {
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
 
   // Filter navigation items based on user role
-  const filteredNavigation = navigation.filter(item => {
+  const filterNavigation = (items: NavigationItem[]) => items.filter(item => {
     if (item.requiresSuperAdmin && !isSuperAdmin) {
       return false
     }
@@ -169,6 +151,10 @@ export function AppSidebar() {
     }
     return item
   })
+
+  const filteredVisaoGeralNav = filterNavigation(visaoGeralNavigation)
+  const filteredGerencialNav = filterNavigation(gerencialNavigation)
+  const filteredAccountNav = filterNavigation(accountNavigation)
 
   return (
     <Sidebar collapsible="icon">
@@ -202,11 +188,14 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
+        {/* Visão Geral */}
         <SidebarGroup>
-          <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="relative mb-2">
+            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Visão Geral</span>
+            <div className="absolute left-24 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+          </SidebarGroupLabel>
           <SidebarMenu>
-            {filteredNavigation.map((item) => {
-              // Check if current path matches item or starts with item path
+            {filteredVisaoGeralNav.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
               const Icon = item.icon
 
@@ -260,6 +249,165 @@ export function AppSidebar() {
                 )
               }
 
+              return (
+                <SidebarMenuItem key={item.name}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.name}
+                    isActive={isActive}
+                  >
+                    <Link href={item.href}>
+                      <Icon />
+                      <span>{item.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        {/* Gerencial */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="relative mb-2">
+            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Gerencial</span>
+            <div className="absolute left-20 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {filteredGerencialNav.map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+              const Icon = item.icon
+
+              if (item.items) {
+                const hasActiveChild = item.items.some((child) =>
+                  pathname === child.href || pathname.startsWith(child.href)
+                )
+
+                return (
+                  <Collapsible key={item.name} asChild defaultOpen={hasActiveChild}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          tooltip={item.name}
+                          className={cn((isActive || hasActiveChild) && 'bg-sidebar-accent')}
+                        >
+                          <Icon />
+                          <span>{item.name}</span>
+                          {item.badge && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {item.badge}
+                            </Badge>
+                          )}
+                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.items.map((subItem) => {
+                            const SubIcon = subItem.icon
+                            const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href)
+
+                            return (
+                              <SidebarMenuSubItem key={subItem.name}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isSubActive}
+                                >
+                                  <Link href={subItem.href}>
+                                    <SubIcon />
+                                    <span>{subItem.name}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )
+                          })}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                )
+              }
+
+              return (
+                <SidebarMenuItem key={item.name}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.name}
+                    isActive={isActive}
+                  >
+                    <Link href={item.href}>
+                      <Icon />
+                      <span>{item.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        {/* Conta Section with Divider */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="relative mb-2">
+            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Conta</span>
+            <div className="absolute left-12 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {filteredAccountNav.map((item) => {
+              const Icon = item.icon
+
+              if (item.items) {
+                const hasActiveChild = item.items.some((child) =>
+                  pathname === child.href || pathname.startsWith(child.href)
+                )
+                const isActive = pathname === item.href || hasActiveChild
+
+                return (
+                  <Collapsible key={item.name} asChild defaultOpen={hasActiveChild}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          tooltip={item.name}
+                          className={cn((isActive || hasActiveChild) && 'bg-sidebar-accent')}
+                        >
+                          <Icon />
+                          <span>{item.name}</span>
+                          {item.badge && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {item.badge}
+                            </Badge>
+                          )}
+                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.items.map((subItem) => {
+                            const SubIcon = subItem.icon
+                            const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href)
+
+                            return (
+                              <SidebarMenuSubItem key={subItem.name}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isSubActive}
+                                >
+                                  <Link href={subItem.href}>
+                                    <SubIcon />
+                                    <span>{subItem.name}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )
+                          })}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                )
+              }
+
+              const isActive = pathname === item.href
               return (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
