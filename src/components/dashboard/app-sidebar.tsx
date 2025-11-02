@@ -106,6 +106,11 @@ const gerencialNavigation: NavigationItem[] = [
         href: '/relatorios/venda-curva',
         icon: TrendingUp,
       },
+      {
+        name: 'Ruptura Venda 60d',
+        href: '/relatorios/ruptura-venda-60d',
+        icon: Package,
+      },
     ],
   },
 ]

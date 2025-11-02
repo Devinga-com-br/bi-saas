@@ -347,57 +347,6 @@ export default function DREGerencialPage() {
     }
   }
 
-  const fetchData = async () => {
-    if (!currentTenant?.supabase_schema) {
-      return
-    }
-
-    setLoading(true)
-    setError('')
-
-    try {
-      const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
-
-      // Para despesas, vamos buscar para todas as filiais
-      const filiaisParaBuscar = todasAsFiliais.map(f => parseInt(f.value)).filter(id => !isNaN(id))
-
-      if (filiaisParaBuscar.length === 0) {
-        setError('Nenhuma filial disponível')
-        setLoading(false)
-        return
-      }
-
-      // Buscar dados para cada filial
-      const promises = filiaisParaBuscar.map(async (filialId) => {
-        const params = new URLSearchParams({
-          schema: currentTenant.supabase_schema || '',
-          filial_id: filialId.toString(),
-          data_inicial: dataInicio,
-          data_final: dataFim,
-        })
-
-        const response = await fetch(`/api/despesas/hierarquia?${params}`)
-        const result = await response.json()
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao buscar dados')
-        }
-
-        return { filialId, data: result }
-      })
-
-      const results = await Promise.all(promises)
-
-      // Consolidar dados de todas as filiais
-      const consolidated = consolidateData(results)
-      setData(consolidated)
-    } catch (err) {
-      console.error('[Despesas] Erro:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao buscar dados')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const consolidateData = (results: Array<{ filialId: number; data: ReportData }>): ReportData => {
     const deptMap = new Map<number, DepartamentoPorFilial>()
