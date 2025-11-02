@@ -4,7 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 
-export type AuditModule = 'dashboard' | 'usuarios' | 'relatorios' | 'relatorios_venda_curva' | 'configuracoes' | 'metas' | 'despesas' | 'dre-gerencial'
+export type AuditModule = 'dashboard' | 'usuarios' | 'relatorios' | 'relatorios_venda_curva' | 'configuracoes' | 'metas' | 'despesas' | 'dre-gerencial' | 'descontos_venda'
 
 interface AuditLogParams {
   module: AuditModule

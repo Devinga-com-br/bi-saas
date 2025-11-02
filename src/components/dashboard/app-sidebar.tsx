@@ -15,6 +15,7 @@ import {
   DollarSign,
   Cog,
   ChartBarBig,
+  TrendingDown,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -68,6 +69,11 @@ const gerencialNavigation: NavigationItem[] = [
     name: 'Despesas',
     href: '/despesas',
     icon: DollarSign,
+  },
+  {
+    name: 'Descontos Venda',
+    href: '/descontos-venda',
+    icon: TrendingDown,
   },
   {
     name: 'DRE Gerencial',

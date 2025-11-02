@@ -195,7 +195,7 @@ export default function VendaCurvaPage() {
           .filter(dept2 => dept2.nivel1 && dept2.nivel1.length > 0) || []
       }))
       .filter(dept3 => dept3.nivel2.length > 0)
-  }, [filtroProduto])
+  }, [filtroProduto, produtoCorrespondeFiltro])
 
   // Calcular hierarquia filtrada usando useMemo
   const hierarquiaFiltrada = useMemo(() => {
