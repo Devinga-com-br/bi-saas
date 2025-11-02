@@ -6,11 +6,11 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, FileDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown, Receipt, SquarePercent, TrendingUp, TrendingDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // Meses em português
 const MESES = [
@@ -78,7 +78,36 @@ interface ReportData {
   filiais: number[] // IDs das filiais retornadas
 }
 
-export default function DespesasPage() {
+interface IndicadoresData {
+  receitaBruta: number
+  lucroBruto: number
+  cmv: number
+  totalDespesas: number
+  lucroLiquido: number
+  margemLucroBruto: number
+  margemLucroLiquido: number
+}
+
+interface DashboardData {
+  receita_bruta?: number
+  lucro_bruto?: number
+  cmv?: number
+  margem_lucro?: number
+}
+
+interface ComparacaoIndicadores {
+  current: IndicadoresData
+  pam: {
+    data: IndicadoresData
+    ano: number
+  }
+  paa: {
+    data: IndicadoresData
+    ano: number
+  }
+}
+
+export default function DREGerencialPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { options: todasAsFiliais } = useBranchesOptions({
     tenantId: currentTenant?.id,
@@ -95,18 +124,21 @@ export default function DespesasPage() {
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
+  const [dataPam, setDataPam] = useState<ReportData | null>(null)
+  const [dataPaa, setDataPaa] = useState<ReportData | null>(null)
+  const [indicadores, setIndicadores] = useState<ComparacaoIndicadores | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingIndicadores, setLoadingIndicadores] = useState(false)
   const [error, setError] = useState('')
 
   // Estados de expansão - Todos fechados por padrão
   const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({})
   const [expandedTipos, setExpandedTipos] = useState<Record<string, boolean>>({})
-
   // Log de acesso ao módulo
   useEffect(() => {
     if (userProfile?.id && currentTenant?.id) {
       logModuleAccess({
-        module: 'despesas',
+        module: 'dre-gerencial',
         tenantId: currentTenant.id,
         userName: userProfile.full_name || 'Usuário',
         userEmail: userProfile.id,
@@ -114,13 +146,58 @@ export default function DespesasPage() {
     }
   }, [userProfile?.id, currentTenant?.id, userProfile?.full_name])
 
-  // Buscar dados automaticamente quando filtros mudarem
+  // Buscar despesas e depois indicadores quando filtros mudarem
   useEffect(() => {
     if (currentTenant?.supabase_schema) {
-      fetchData()
+      // Primeiro busca despesas, depois indicadores
+      fetchAllDespesas().then(() => {
+        fetchIndicadores()
+      })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.supabase_schema, filialId, mes, ano])
+
+  // Buscar despesas dos 3 períodos
+  const fetchAllDespesas = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      // Período atual
+      const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
+      
+      // PAM - mês anterior
+      const mesPam = mes - 1 < 0 ? 11 : mes - 1
+      const anoPam = mes - 1 < 0 ? ano - 1 : ano
+      const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam)
+      
+      // PAA - mesmo mês ano passado
+      const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mes, ano - 1)
+
+      console.log('[DRE Frontend] Buscando despesas:', {
+        atual: `${dataInicio} a ${dataFim}`,
+        pam: `${dataInicioPam} a ${dataFimPam}`,
+        paa: `${dataInicioPaa} a ${dataFimPaa}`
+      })
+
+      // Buscar em paralelo
+      const [dataAtual, despesasPam, despesasPaa] = await Promise.all([
+        fetchDespesasPeriodo(dataInicio, dataFim),
+        fetchDespesasPeriodo(dataInicioPam, dataFimPam),
+        fetchDespesasPeriodo(dataInicioPaa, dataFimPaa)
+      ])
+
+      setData(dataAtual)
+      setDataPam(despesasPam)
+      setDataPaa(despesasPaa)
+    } catch (err) {
+      const error = err as Error
+      console.error('[DRE] Erro ao buscar despesas:', error)
+      setError(error.message || 'Erro ao carregar despesas')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Calcular datas com base em mês e ano
   const getDatasMesAno = (mesParam: number, anoParam: number) => {
@@ -129,6 +206,144 @@ export default function DespesasPage() {
     return {
       dataInicio: format(dataInicio, 'yyyy-MM-dd'),
       dataFim: format(dataFim, 'yyyy-MM-dd')
+    }
+  }
+
+  // Função auxiliar para buscar despesas de um período
+  const fetchDespesasPeriodo = async (dataInicio: string, dataFim: string): Promise<ReportData | null> => {
+    if (!currentTenant?.supabase_schema) {
+      return null
+    }
+
+    try {
+      const filiaisParaBuscar = todasAsFiliais.map(f => parseInt(f.value)).filter(id => !isNaN(id))
+
+      if (filiaisParaBuscar.length === 0) {
+        return null
+      }
+
+      const promises = filiaisParaBuscar.map(async (filialId) => {
+        const params = new URLSearchParams({
+          schema: currentTenant.supabase_schema || '',
+          filial_id: filialId.toString(),
+          data_inicial: dataInicio,
+          data_final: dataFim,
+        })
+
+        const response = await fetch(`/api/despesas/hierarquia?${params}`)
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao buscar dados')
+        }
+
+        return { filialId, data: result }
+      })
+
+      const results = await Promise.all(promises)
+      return consolidateData(results)
+    } catch (error) {
+      console.error('[DRE] Erro ao buscar despesas:', error)
+      return null
+    }
+  }
+
+  const fetchIndicadores = async () => {
+    if (!currentTenant?.supabase_schema) {
+      return
+    }
+
+    setLoadingIndicadores(true)
+
+    try {
+      const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
+
+      const params = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        filiais: filialId,
+        dataInicio: dataInicio,
+        dataFim: dataFim
+      })
+
+      console.log('[DRE Frontend] Buscando indicadores com:', { 
+        filiais: filialId,
+        mes: MESES[mes].label,
+        ano,
+        dataInicio,
+        dataFim
+      })
+
+      const response = await fetch(`/api/dre-gerencial/indicadores?${params}`)
+      
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[DRE Frontend] Erro na resposta:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: text
+        })
+        throw new Error(`Erro ${response.status}: ${text.substring(0, 100)}`)
+      }
+
+      const result = await response.json()
+      console.log('[DRE Frontend] Resultado recebido:', result)
+
+      // Processar dados do dashboard para calcular indicadores (incluindo despesas)
+      const processIndicadores = (dashboardData: DashboardData, despesasData: ReportData | null): IndicadoresData => {
+        const receitaBruta = dashboardData?.receita_bruta || 0
+        const lucroBruto = dashboardData?.lucro_bruto || 0
+        const cmv = dashboardData?.cmv || 0
+        const margemLucroBruto = dashboardData?.margem_lucro || 0
+
+        // Calcular total de despesas
+        const totalDespesas = despesasData?.totalizador?.valorTotal || 0
+        
+        // Calcular lucro líquido: Lucro Bruto - Total Despesas
+        const lucroLiquido = lucroBruto - totalDespesas
+        
+        // Calcular margem líquida: (Lucro Líquido / Receita Bruta) * 100
+        const margemLucroLiquido = receitaBruta > 0 ? (lucroLiquido / receitaBruta) * 100 : 0
+
+        console.log('[DRE Frontend] Processando indicadores:', { 
+          receitaBruta, 
+          lucroBruto, 
+          cmv, 
+          totalDespesas,
+          lucroLiquido,
+          margemLucroBruto,
+          margemLucroLiquido
+        })
+
+        return {
+          receitaBruta,
+          lucroBruto,
+          cmv,
+          totalDespesas,
+          lucroLiquido,
+          margemLucroBruto,
+          margemLucroLiquido
+        }
+      }
+
+      const processedIndicadores = {
+        current: processIndicadores(result.current, data),
+        pam: {
+          data: processIndicadores(result.pam.data, dataPam),
+          ano: result.pam.ano
+        },
+        paa: {
+          data: processIndicadores(result.paa.data, dataPaa),
+          ano: result.paa.ano
+        }
+      }
+
+      console.log('[DRE Frontend] Indicadores processados:', processedIndicadores)
+
+      setIndicadores(processedIndicadores)
+    } catch (err) {
+      console.error('[DRE] Erro ao buscar indicadores:', err)
+    } finally {
+      setLoadingIndicadores(false)
     }
   }
 
@@ -454,6 +669,276 @@ export default function DespesasPage() {
         </div>
       </div>
 
+      {/* Cards de Indicadores */}
+      {loadingIndicadores ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        indicadores && (
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {/* Receita Bruta */}
+            <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium">Receita Bruta</CardTitle>
+              <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.receitaBruta)}</div>
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>PAM ({indicadores.pam.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.pam.data.receitaBruta)}</span>
+                </div>
+                {indicadores.pam.data.receitaBruta > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.receitaBruta >= indicadores.pam.data.receitaBruta
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.receitaBruta >= indicadores.pam.data.receitaBruta ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((indicadores.current.receitaBruta - indicadores.pam.data.receitaBruta) / indicadores.pam.data.receitaBruta * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>PAA ({indicadores.paa.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.paa.data.receitaBruta)}</span>
+                </div>
+                {indicadores.paa.data.receitaBruta > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.receitaBruta >= indicadores.paa.data.receitaBruta
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.receitaBruta >= indicadores.paa.data.receitaBruta ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((indicadores.current.receitaBruta - indicadores.paa.data.receitaBruta) / indicadores.paa.data.receitaBruta * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+            </Card>
+
+          {/* CMV */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium">CMV</CardTitle>
+              <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.cmv)}</div>
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>PAM ({indicadores.pam.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.pam.data.cmv)}</span>
+                </div>
+                {indicadores.pam.data.cmv > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.cmv <= indicadores.pam.data.cmv
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.cmv <= indicadores.pam.data.cmv ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {Math.abs((indicadores.current.cmv - indicadores.pam.data.cmv) / indicadores.pam.data.cmv * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>PAA ({indicadores.paa.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.paa.data.cmv)}</span>
+                </div>
+                {indicadores.paa.data.cmv > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.cmv <= indicadores.paa.data.cmv
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.cmv <= indicadores.paa.data.cmv ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {Math.abs((indicadores.current.cmv - indicadores.paa.data.cmv) / indicadores.paa.data.cmv * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+            </Card>
+
+          {/* Lucro Bruto */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium">Lucro Bruto</CardTitle>
+              <SquarePercent className="h-3.5 w-3.5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.lucroBruto)}</div>
+              <div className="text-[10px] text-muted-foreground mb-2">
+                {indicadores.current.margemLucroBruto.toFixed(2)}% da Receita Bruta
+              </div>
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>PAM ({indicadores.pam.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.pam.data.lucroBruto)}</span>
+                </div>
+                {indicadores.pam.data.lucroBruto > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.lucroBruto >= indicadores.pam.data.lucroBruto
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.lucroBruto >= indicadores.pam.data.lucroBruto ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((indicadores.current.lucroBruto - indicadores.pam.data.lucroBruto) / indicadores.pam.data.lucroBruto * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>PAA ({indicadores.paa.ano}):</span>
+                  <span className="font-medium">{formatCurrency(indicadores.paa.data.lucroBruto)}</span>
+                </div>
+                {indicadores.paa.data.lucroBruto > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    indicadores.current.lucroBruto >= indicadores.paa.data.lucroBruto
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {indicadores.current.lucroBruto >= indicadores.paa.data.lucroBruto ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((indicadores.current.lucroBruto - indicadores.paa.data.lucroBruto) / indicadores.paa.data.lucroBruto * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+            </Card>
+
+          {/* Total de Despesas */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium">Total de Despesas</CardTitle>
+              <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg lg:text-xl font-bold">
+                {data ? formatCurrency(data.totalizador.valorTotal) : '-'}
+              </div>
+              {data && indicadores.current.receitaBruta > 0 && (
+                <div className="text-[10px] text-muted-foreground mb-2">
+                  {((data.totalizador.valorTotal / indicadores.current.receitaBruta) * 100).toFixed(2)}% da Receita Bruta
+                </div>
+              )}
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>PAM ({indicadores.pam.ano}):</span>
+                  <span className="font-medium">
+                    {dataPam ? formatCurrency(dataPam.totalizador.valorTotal) : 'Carregando...'}
+                  </span>
+                </div>
+                {dataPam && dataPam.totalizador.valorTotal > 0 && data && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    data.totalizador.valorTotal <= dataPam.totalizador.valorTotal
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {data.totalizador.valorTotal <= dataPam.totalizador.valorTotal ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((data.totalizador.valorTotal - dataPam.totalizador.valorTotal) / dataPam.totalizador.valorTotal * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>PAA ({indicadores.paa.ano}):</span>
+                  <span className="font-medium">
+                    {dataPaa ? formatCurrency(dataPaa.totalizador.valorTotal) : 'Carregando...'}
+                  </span>
+                </div>
+                {dataPaa && dataPaa.totalizador.valorTotal > 0 && data && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    data.totalizador.valorTotal <= dataPaa.totalizador.valorTotal
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {data.totalizador.valorTotal <= dataPaa.totalizador.valorTotal ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {((data.totalizador.valorTotal - dataPaa.totalizador.valorTotal) / dataPaa.totalizador.valorTotal * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lucro Líquido */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium">Lucro Líquido</CardTitle>
+              <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg lg:text-xl font-bold">
+                {data ? formatCurrency(indicadores.current.lucroBruto - data.totalizador.valorTotal) : '-'}
+              </div>
+              {data && indicadores.current.receitaBruta > 0 && (
+                <div className="text-[10px] text-muted-foreground mb-2">
+                  {(((indicadores.current.lucroBruto - data.totalizador.valorTotal) / indicadores.current.receitaBruta) * 100).toFixed(2)}% da Receita Bruta
+                </div>
+              )}
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] text-muted-foreground">
+                  Lucro Líquido = Lucro Bruto - Despesas
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          </div>
+        )
+      )}
+
       {/* Mensagem de Erro */}
       {error && (
         <Card className="border-destructive">
@@ -483,7 +968,7 @@ export default function DespesasPage() {
           <Card>
             <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl sm:text-2xl">Despesas por Filial</CardTitle>
+                <CardTitle className="text-xl sm:text-2xl">DRE Gerencial</CardTitle>
               </div>
               <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
                 <FileDown className="h-4 w-4" />
@@ -515,7 +1000,7 @@ export default function DespesasPage() {
                     {/* Linha Total Despesas */}
                     <tr className="bg-slate-100 dark:bg-slate-800 font-bold">
                       <td className="p-3 border-b whitespace-nowrap">
-                        TOTAL DESPESAS
+                        TOTAL DRE
                       </td>
                       <td className="p-3 border-b text-right whitespace-nowrap">
                         {formatCurrency(data.totalizador.valorTotal)}

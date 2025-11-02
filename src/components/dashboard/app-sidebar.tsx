@@ -14,6 +14,7 @@ import {
   Target,
   DollarSign,
   Cog,
+  ChartBarBig,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -67,6 +68,11 @@ const gerencialNavigation: NavigationItem[] = [
     name: 'Despesas',
     href: '/despesas',
     icon: DollarSign,
+  },
+  {
+    name: 'DRE Gerencial',
+    href: '/dre-gerencial',
+    icon: ChartBarBig,
   },
   {
     name: 'Metas',
