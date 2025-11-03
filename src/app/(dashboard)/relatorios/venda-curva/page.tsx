@@ -165,7 +165,7 @@ export default function VendaCurvaPage() {
   }, [page])
 
   // Função para verificar se o produto corresponde ao filtro
-  const produtoCorrespondeFiltro = (produto: Produto): boolean => {
+  const produtoCorrespondeFiltro = useCallback((produto: Produto): boolean => {
     if (filtroProduto.length < 3) return true
 
     const termoBusca = filtroProduto.toLowerCase()
@@ -173,7 +173,7 @@ export default function VendaCurvaPage() {
     const descricao = produto.descricao.toLowerCase()
 
     return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
-  }
+  }, [filtroProduto])
 
   // Função para filtrar a hierarquia mantendo subgrupos que contêm produtos correspondentes
   // mas mostrando TODOS os produtos do subgrupo para comparação
