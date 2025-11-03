@@ -4,6 +4,10 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
+// FORÇAR ROTA DINÂMICA - NÃO CACHEAR
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Valida o schema da query
 const querySchema = z.object({
   schema: z.string().min(1),
@@ -61,9 +65,16 @@ export async function GET(req: Request) {
       authorizedBranches
     })
 
+    // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
+    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+    const directSupabase = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
     // Call RPC with filiais parameter for branch filtering - Sales
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: salesData, error: salesError } = await (supabase as any).rpc('get_sales_by_month_chart', {
+    const { data: salesData, error: salesError } = await (directSupabase as any).rpc('get_sales_by_month_chart', {
       schema_name: requestedSchema,
       p_filiais: finalFiliais || 'all'
     });
@@ -75,7 +86,7 @@ export async function GET(req: Request) {
 
     // Call RPC to get expenses by month
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: expensesData, error: expensesError } = await (supabase as any).rpc('get_expenses_by_month_chart', {
+    const { data: expensesData, error: expensesError } = await (directSupabase as any).rpc('get_expenses_by_month_chart', {
       schema_name: requestedSchema,
       p_filiais: finalFiliais || 'all'
     });
@@ -88,7 +99,7 @@ export async function GET(req: Request) {
 
     // Call RPC to get lucro (profit) by month
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: lucroData, error: lucroError } = await (supabase as any).rpc('get_lucro_by_month_chart', {
+    const { data: lucroData, error: lucroError } = await (directSupabase as any).rpc('get_lucro_by_month_chart', {
       schema_name: requestedSchema,
       p_filiais: finalFiliais || 'all'
     });

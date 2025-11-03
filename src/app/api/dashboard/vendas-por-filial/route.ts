@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
+// FORÇAR ROTA DINÂMICA - NÃO CACHEAR
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -56,8 +60,15 @@ export async function GET(request: NextRequest) {
       authorizedBranches
     })
 
+    // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
+    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+    const directSupabase = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
     // Chamar função RPC
-    const { data, error } = await supabase.rpc('get_vendas_por_filial', {
+    const { data, error } = await directSupabase.rpc('get_vendas_por_filial', {
       p_schema: schema,
       p_data_inicio: dataInicio,
       p_data_fim: dataFim,

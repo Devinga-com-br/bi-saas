@@ -4,6 +4,10 @@ import { z } from 'zod'
 import type { UserProfile } from '@/types'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 
+// FORÇAR ROTA DINÂMICA - NÃO CACHEAR
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Valida os novos parâmetros de filtro
 const querySchema = z.object({
   schema: z.string().min(1),
@@ -98,8 +102,18 @@ export async function GET(req: Request) {
       p_filiais_ids: finalFiliais
     };
 
+    // DEBUG: Log dos parâmetros enviados
+    console.log('[API/DASHBOARD] RPC Params:', JSON.stringify(rpcParams, null, 2));
+
+    // TEMPORÁRIO: Usar client direto sem cache (igual ao test-direct-db)
+    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+    const directSupabase = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await supabase.rpc('get_dashboard_data', rpcParams as any).single();
+    const { data, error } = await directSupabase.rpc('get_dashboard_data', rpcParams as any).single();
 
     if (error) {
       console.error('[API/DASHBOARD] RPC Error:', error);
