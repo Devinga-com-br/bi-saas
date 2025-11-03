@@ -29,12 +29,11 @@ const periods: PeriodOption[] = [
   { value: 'last_30_days', label: 'Últimos 30 Dias' },
   { value: 'last_6_months', label: 'Últimos 6 Meses' },
   { value: 'last_year', label: 'Último Ano' },
+  { value: 'custom', label: 'Período Customizado' },
 ]
 
 export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }: PeriodFilterProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(initialPeriod)
-  const [customStart] = useState<Date | undefined>(undefined)
-  const [customEnd] = useState<Date | undefined>(undefined)
   const [open, setOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
@@ -48,7 +47,7 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
 
   const calculateDates = (period: PeriodType): { start: Date; end: Date } => {
     const now = new Date()
-    
+
     switch (period) {
       case 'current_month':
         return {
@@ -81,9 +80,12 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
           end: now
         }
       case 'custom':
+        // Use existing dates from input fields if available
+        const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : now
+        const endDate = endDateInput ? parse(endDateInput, 'dd/MM/yyyy', new Date()) : now
         return {
-          start: customStart || now,
-          end: customEnd || now
+          start: isValid(startDate) ? startDate : now,
+          end: isValid(endDate) ? endDate : now
         }
       default:
         return {
@@ -182,10 +184,6 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
 
 
   const getDisplayLabel = () => {
-    if (selectedPeriod === 'custom' && customStart && customEnd) {
-      return `${format(customStart, 'dd/MM/yyyy')} → ${format(customEnd, 'dd/MM/yyyy')}`
-    }
-    
     const option = periods.find(p => p.value === selectedPeriod)
     return option?.label || 'Mês Atual'
   }
@@ -206,22 +204,79 @@ export function PeriodFilter({ onPeriodChange, initialPeriod = 'current_month' }
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent className="w-[320px] p-4" align="start">
-            <div className="grid grid-cols-2 gap-2">
-              {periods.map((period) => (
-                <Button
-                  key={period.value}
-                  variant="outline"
-                  onClick={() => handleSelectPeriod(period.value)}
-                  className={`rounded-full text-sm ${
-                    selectedPeriod === period.value
-                      ? 'border-primary bg-primary/10'
-                      : 'hover:bg-accent'
-                  }`}
-                >
-                  {period.label}
-                </Button>
-              ))}
+          <PopoverContent className="w-[360px] p-4" align="start">
+            <div className="flex flex-col gap-2">
+              {/* First row: 2 columns */}
+              <div className="grid grid-cols-2 gap-2">
+                {periods.slice(0, 2).map((period) => (
+                  <Button
+                    key={period.value}
+                    variant="outline"
+                    onClick={() => handleSelectPeriod(period.value)}
+                    className={`rounded-full text-sm h-10 ${
+                      selectedPeriod === period.value
+                        ? 'border-primary bg-primary/10'
+                        : 'hover:bg-accent'
+                    }`}
+                  >
+                    {period.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Second row: 2 columns */}
+              <div className="grid grid-cols-2 gap-2">
+                {periods.slice(2, 4).map((period) => (
+                  <Button
+                    key={period.value}
+                    variant="outline"
+                    onClick={() => handleSelectPeriod(period.value)}
+                    className={`rounded-full text-sm h-10 ${
+                      selectedPeriod === period.value
+                        ? 'border-primary bg-primary/10'
+                        : 'hover:bg-accent'
+                    }`}
+                  >
+                    {period.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Third row: 2 columns */}
+              <div className="grid grid-cols-2 gap-2">
+                {periods.slice(4, 6).map((period) => (
+                  <Button
+                    key={period.value}
+                    variant="outline"
+                    onClick={() => handleSelectPeriod(period.value)}
+                    className={`rounded-full text-sm h-10 ${
+                      selectedPeriod === period.value
+                        ? 'border-primary bg-primary/10'
+                        : 'hover:bg-accent'
+                    }`}
+                  >
+                    {period.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Fourth row: Full width for "Período Customizado" */}
+              <div className="pt-2 border-t">
+                {periods.slice(6).map((period) => (
+                  <Button
+                    key={period.value}
+                    variant="outline"
+                    onClick={() => handleSelectPeriod(period.value)}
+                    className={`rounded-full text-sm h-10 w-full ${
+                      selectedPeriod === period.value
+                        ? 'border-primary bg-primary/10'
+                        : 'hover:bg-accent'
+                    }`}
+                  >
+                    {period.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </PopoverContent>
         </Popover>
