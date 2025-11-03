@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
 import { subYears, subMonths, startOfMonth, endOfMonth, format } from 'date-fns'
 
+// FORÇAR ROTA DINÂMICA - NÃO CACHEAR
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(req: Request) {
   try {
     const supabase = await createClient()
@@ -111,6 +115,13 @@ export async function GET(req: Request) {
       paa: `${paaDataInicioStr} to ${paaDataFimStr} (${paaAno})`
     })
 
+    // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
+    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+    const directSupabase = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
     // Fetch current period data using get_dashboard_data (same as dashboard)
     console.log('[API/DRE-GERENCIAL] Calling get_dashboard_data with:', {
       schema_name: schema,
@@ -120,7 +131,7 @@ export async function GET(req: Request) {
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: currentData, error: currentError } = await (supabase.rpc as any)('get_dashboard_data', {
+    const { data: currentData, error: currentError } = await (directSupabase.rpc as any)('get_dashboard_data', {
       schema_name: schema,
       p_data_inicio: dataInicioStr,
       p_data_fim: dataFimStr,
@@ -144,7 +155,7 @@ export async function GET(req: Request) {
 
     // Fetch PAM data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: pamData, error: pamError } = await (supabase.rpc as any)('get_dashboard_data', {
+    const { data: pamData, error: pamError } = await (directSupabase.rpc as any)('get_dashboard_data', {
       schema_name: schema,
       p_data_inicio: pamDataInicioStr,
       p_data_fim: pamDataFimStr,
@@ -159,7 +170,7 @@ export async function GET(req: Request) {
 
     // Fetch PAA data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: paaData, error: paaError } = await (supabase.rpc as any)('get_dashboard_data', {
+    const { data: paaData, error: paaError } = await (directSupabase.rpc as any)('get_dashboard_data', {
       schema_name: schema,
       p_data_inicio: paaDataInicioStr,
       p_data_fim: paaDataFimStr,
