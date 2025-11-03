@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +42,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
+import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { Plus, Pencil, Trash2, TrendingDown } from 'lucide-react'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { logModuleAccess } from '@/lib/audit'
@@ -58,11 +60,30 @@ interface DescontoVenda {
 }
 
 export default function DescontosVendaPage() {
+  const router = useRouter()
   const { currentTenant, userProfile } = useTenantContext()
+  const { parameters, loading: parametersLoading } = useTenantParameters(currentTenant?.id)
   const { options: filiaisOptions } = useBranchesOptions({
     tenantId: currentTenant?.id,
     enabled: !!currentTenant,
   })
+
+  // Verificar se o módulo está habilitado
+  useEffect(() => {
+    if (!parametersLoading && currentTenant) {
+      const isEnabled = parameters.enable_descontos_venda === true
+      console.log('[DescontosVenda Page] Module check:', {
+        tenant: currentTenant.name,
+        parameters,
+        isEnabled
+      })
+      
+      if (!isEnabled) {
+        console.log('[DescontosVenda Page] Module disabled, redirecting to dashboard')
+        router.push('/dashboard')
+      }
+    }
+  }, [parameters, parametersLoading, currentTenant, router])
 
   const [descontos, setDescontos] = useState<DescontoVenda[]>([])
   const [loading, setLoading] = useState(true)

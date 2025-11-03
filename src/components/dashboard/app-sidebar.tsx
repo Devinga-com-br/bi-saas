@@ -37,6 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useTenantContext } from '@/contexts/tenant-context'
 import { Badge } from '@/components/ui/badge'
 import { CompanySwitcher } from './company-switcher'
+import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 
 interface NavigationSubItem {
   name: string
@@ -131,18 +132,28 @@ const accountNavigation: NavigationItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { userProfile } = useTenantContext()
+  const { userProfile, currentTenant } = useTenantContext()
   const { state } = useSidebar()
+  const { parameters, loading: parametersLoading } = useTenantParameters(currentTenant?.id)
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
 
-  // Filter navigation items based on user role
+  // Log when parameters change for debugging
+  React.useEffect(() => {
+    console.log('[AppSidebar] Parameters updated:', parameters, 'Tenant:', currentTenant?.id)
+  }, [parameters, currentTenant?.id])
+
+  // Filter navigation items based on user role and tenant parameters
   const filterNavigation = (items: NavigationItem[]) => items.filter(item => {
     if (item.requiresSuperAdmin && !isSuperAdmin) {
       return false
     }
     if (item.requiresAdminOrAbove && !isAdminOrAbove) {
+      return false
+    }
+    // Filter "Descontos Venda" based on tenant parameter
+    if (item.href === '/descontos-venda' && !parameters.enable_descontos_venda) {
       return false
     }
     return true
@@ -169,8 +180,9 @@ export function AppSidebar() {
   const filteredGerencialNav = filterNavigation(gerencialNavigation)
   const filteredAccountNav = filterNavigation(accountNavigation)
 
+  // Use tenant ID as key to force re-render when tenant changes
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" key={currentTenant?.id || 'no-tenant'}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

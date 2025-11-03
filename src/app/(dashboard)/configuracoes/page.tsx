@@ -10,6 +10,7 @@ import { PerfilContent } from '@/components/configuracoes/perfil-content'
 import { UsuariosContent } from '@/components/configuracoes/usuarios-content'
 import { SetoresContent } from '@/components/configuracoes/setores-content'
 import { EmpresasContent } from '@/components/configuracoes/empresas-content'
+import { ParametrosContent } from '@/components/configuracoes/parametros-content'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import {
@@ -20,6 +21,7 @@ import {
   Cog,
   UserPlus,
   Plus,
+  Sliders,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserWithTenant, UserProfile } from '@/types'
@@ -27,6 +29,7 @@ import type { UserWithTenant, UserProfile } from '@/types'
 const menuItems = [
   { id: 'perfil', label: 'Perfil', icon: UserCircle, description: 'Gerencie suas informações pessoais e preferências' },
   { id: 'usuarios', label: 'Usuários', icon: UserCog, requiresAdminOrAbove: true, description: 'Gerencie os usuários do sistema' },
+  { id: 'parametros', label: 'Parâmetros', icon: Sliders, requiresAdminOrAbove: true, description: 'Configure os parâmetros do sistema' },
   { id: 'setores', label: 'Setores', icon: Settings, requiresAdminOrAbove: true, description: 'Configure os setores para acompanhamento de metas' },
   { id: 'empresas', label: 'Empresas', icon: Building2, requiresSuperAdmin: true, description: 'Gerencie as empresas do sistema' },
 ]
@@ -196,6 +199,10 @@ export default function ConfiguracoesPage() {
               currentUserRole={userProfile.role}
               currentUserTenantId={userProfile.tenant_id}
             />
+          )}
+
+          {activeSection === 'parametros' && isAdminOrAbove && currentTenant && (
+            <ParametrosContent tenantId={currentTenant.id} />
           )}
 
           {activeSection === 'setores' && isAdminOrAbove && currentTenant && currentTenant.supabase_schema && (

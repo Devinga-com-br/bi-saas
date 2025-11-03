@@ -45,36 +45,36 @@ BEGIN
   v_pa_data_inicio := p_data_inicio - INTERVAL '1 year';
   v_pa_data_fim := p_data_fim - INTERVAL '1 year';
 
-  -- Condição de filiais
+  -- Condição de filiais (sem alias, será usado em diferentes contextos)
   IF p_filiais = 'all' OR p_filiais IS NULL THEN
     v_filiais_condition := '';
   ELSE
-    v_filiais_condition := format(' AND v.filial_id IN (%s)', p_filiais);
+    v_filiais_condition := format(' AND filial_id IN (%s)', p_filiais);
   END IF;
 
   -- Query principal com CTE para período atual e anterior
   RETURN QUERY EXECUTE format('
     WITH periodo_atual AS (
       SELECT
-        v.filial_id,
-        SUM(v.valor_total) as valor_total_bruto,
-        SUM(v.custo_total) as custo_total,
-        SUM(v.total_lucro) as total_lucro_bruto,
-        SUM(v.quantidade_total) as quantidade_total,
-        SUM(v.total_transacoes)::NUMERIC as total_transacoes
-      FROM %I.vendas_diarias_por_filial v
-      WHERE v.data_venda BETWEEN $1 AND $2
+        filial_id,
+        SUM(valor_total) as valor_total_bruto,
+        SUM(custo_total) as custo_total,
+        SUM(total_lucro) as total_lucro_bruto,
+        SUM(quantidade_total) as quantidade_total,
+        SUM(total_transacoes)::NUMERIC as total_transacoes
+      FROM %I.vendas_diarias_por_filial
+      WHERE data_venda BETWEEN $1 AND $2
       %s
-      GROUP BY v.filial_id
+      GROUP BY filial_id
     ),
     descontos_periodo_atual AS (
       SELECT
-        d.filial_id,
-        SUM(d.valor_desconto) as total_descontos
-      FROM %I.descontos_venda d
-      WHERE d.data_desconto BETWEEN $1 AND $2
+        filial_id,
+        SUM(valor_desconto) as total_descontos
+      FROM %I.descontos_venda
+      WHERE data_desconto BETWEEN $1 AND $2
       %s
-      GROUP BY d.filial_id
+      GROUP BY filial_id
     ),
     periodo_atual_com_desconto AS (
       SELECT
@@ -99,24 +99,24 @@ BEGIN
     ),
     periodo_anterior AS (
       SELECT
-        v.filial_id,
-        SUM(v.valor_total) as pa_valor_total_bruto,
-        SUM(v.custo_total) as pa_custo_total,
-        SUM(v.total_lucro) as pa_total_lucro_bruto,
-        SUM(v.total_transacoes)::NUMERIC as pa_total_transacoes
-      FROM %I.vendas_diarias_por_filial v
-      WHERE v.data_venda BETWEEN $3 AND $4
+        filial_id,
+        SUM(valor_total) as pa_valor_total_bruto,
+        SUM(custo_total) as pa_custo_total,
+        SUM(total_lucro) as pa_total_lucro_bruto,
+        SUM(total_transacoes)::NUMERIC as pa_total_transacoes
+      FROM %I.vendas_diarias_por_filial
+      WHERE data_venda BETWEEN $3 AND $4
       %s
-      GROUP BY v.filial_id
+      GROUP BY filial_id
     ),
     descontos_periodo_anterior AS (
       SELECT
-        d.filial_id,
-        SUM(d.valor_desconto) as total_descontos
-      FROM %I.descontos_venda d
-      WHERE d.data_desconto BETWEEN $3 AND $4
+        filial_id,
+        SUM(valor_desconto) as total_descontos
+      FROM %I.descontos_venda
+      WHERE data_desconto BETWEEN $3 AND $4
       %s
-      GROUP BY d.filial_id
+      GROUP BY filial_id
     ),
     periodo_anterior_com_desconto AS (
       SELECT

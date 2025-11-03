@@ -16,9 +16,9 @@ DECLARE
   result json;
   filial_filter TEXT;
 BEGIN
-  -- Construir filtro de filiais
+  -- Construir filtro de filiais (sem alias, será usado em diferentes contextos)
   IF p_filiais IS NOT NULL AND p_filiais != 'all' AND p_filiais != '' THEN
-    filial_filter := format('AND vdf.filial_id IN (%s)', p_filiais);
+    filial_filter := format('AND filial_id IN (%s)', p_filiais);
   ELSE
     filial_filter := '';
   END IF;
@@ -36,39 +36,39 @@ BEGIN
       ),
       vendas_ano_atual AS (
         SELECT
-          EXTRACT(MONTH FROM vdf.data_venda)::INTEGER as mes_num,
-          SUM(vdf.valor_total) as total_vendas
-        FROM %I.vendas_diarias_por_filial vdf
-        WHERE EXTRACT(YEAR FROM vdf.data_venda) = EXTRACT(YEAR FROM CURRENT_DATE)
+          EXTRACT(MONTH FROM data_venda)::INTEGER as mes_num,
+          SUM(valor_total) as total_vendas
+        FROM %I.vendas_diarias_por_filial
+        WHERE EXTRACT(YEAR FROM data_venda) = EXTRACT(YEAR FROM CURRENT_DATE)
         %s
-        GROUP BY EXTRACT(MONTH FROM vdf.data_venda)
+        GROUP BY EXTRACT(MONTH FROM data_venda)
       ),
       vendas_ano_anterior AS (
         SELECT
-          EXTRACT(MONTH FROM vdf.data_venda)::INTEGER as mes_num,
-          SUM(vdf.valor_total) as total_vendas
-        FROM %I.vendas_diarias_por_filial vdf
-        WHERE EXTRACT(YEAR FROM vdf.data_venda) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
+          EXTRACT(MONTH FROM data_venda)::INTEGER as mes_num,
+          SUM(valor_total) as total_vendas
+        FROM %I.vendas_diarias_por_filial
+        WHERE EXTRACT(YEAR FROM data_venda) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
         %s
-        GROUP BY EXTRACT(MONTH FROM vdf.data_venda)
+        GROUP BY EXTRACT(MONTH FROM data_venda)
       ),
       descontos_ano_atual AS (
         SELECT
-          EXTRACT(MONTH FROM d.data_desconto)::INTEGER as mes_num,
-          SUM(d.valor_desconto) as total_descontos
-        FROM %I.descontos_venda d
-        WHERE EXTRACT(YEAR FROM d.data_desconto) = EXTRACT(YEAR FROM CURRENT_DATE)
+          EXTRACT(MONTH FROM data_desconto)::INTEGER as mes_num,
+          SUM(valor_desconto) as total_descontos
+        FROM %I.descontos_venda
+        WHERE EXTRACT(YEAR FROM data_desconto) = EXTRACT(YEAR FROM CURRENT_DATE)
         %s
-        GROUP BY EXTRACT(MONTH FROM d.data_desconto)
+        GROUP BY EXTRACT(MONTH FROM data_desconto)
       ),
       descontos_ano_anterior AS (
         SELECT
-          EXTRACT(MONTH FROM d.data_desconto)::INTEGER as mes_num,
-          SUM(d.valor_desconto) as total_descontos
-        FROM %I.descontos_venda d
-        WHERE EXTRACT(YEAR FROM d.data_desconto) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
+          EXTRACT(MONTH FROM data_desconto)::INTEGER as mes_num,
+          SUM(valor_desconto) as total_descontos
+        FROM %I.descontos_venda
+        WHERE EXTRACT(YEAR FROM data_desconto) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
         %s
-        GROUP BY EXTRACT(MONTH FROM d.data_desconto)
+        GROUP BY EXTRACT(MONTH FROM data_desconto)
       )
       SELECT
         m.mes_nome AS mes,

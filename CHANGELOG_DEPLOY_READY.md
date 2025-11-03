@@ -1,5 +1,66 @@
 # Changelog - Versão Pronta para Deploy
 
+## Data: 03/11/2025
+
+### ✅ Novidades
+
+#### 1. **Módulo de Parâmetros por Tenant** (NOVO)
+- ✅ Nova seção "Parâmetros" em Configurações
+- ✅ Toggle para habilitar/desabilitar módulo "Descontos Venda" por tenant
+- ✅ Proteção de rota via middleware (redirect automático se desabilitado)
+- ✅ Filtro dinâmico no sidebar baseado em parâmetros
+- ✅ Tabela `tenant_parameters` com RLS policies
+- ✅ Hook `useTenantParameters` para gerenciar parâmetros
+- ✅ **FIX**: Parâmetros atualizam automaticamente ao trocar de tenant
+- ✅ Documentação completa em `docs/PARAMETROS_TENANT.md`
+
+#### 2. **Correção de Bugs no Dashboard**
+- ✅ Fix erro SQL "missing FROM-clause entry for table 'v'" em filtros por filial
+- ✅ Fix erro SQL "missing FROM-clause entry for table 'vdf'" em gráfico de vendas
+- ✅ Remoção de aliases de tabela nas funções RPC
+- ✅ Atualização de `APPLY_DISCOUNT_SALES_CHART.sql`
+- ✅ Atualização de `APPLY_DISCOUNT_VENDAS_FILIAL.sql`
+- ✅ Documentação da correção em `FIX_DASHBOARD_FILIAL_FILTER.md`
+
+#### 3. **Correção: Atualização de Parâmetros ao Trocar Tenant**
+- ✅ Hook `useTenantParameters` reseta valores ao mudar tenant
+- ✅ Sidebar força re-render com key dinâmica
+- ✅ Módulos aparecem/desaparecem instantaneamente sem refresh manual
+- ✅ Loading state corrigido para evitar race conditions
+- ✅ Documentação em `FIX_PARAMETERS_TENANT_SWITCH.md`
+
+#### 4. **Correção: Middleware Bloqueia Acesso Direto por URL**
+- ✅ Middleware valida parâmetros antes de renderizar página
+- ✅ Impossível burlar proteção via URL direta
+- ✅ Uso de `.maybeSingle()` para query robusta
+- ✅ Logs detalhados para debug no terminal
+- ✅ Comparação estrita: `parameter_value !== true`
+- ✅ Padrão seguro: sem parâmetro = bloqueado
+- ✅ Documentação em `FIX_MIDDLEWARE_URL_DIRECT_ACCESS.md`
+
+### 📁 Arquivos Criados/Modificados
+
+#### Novos Arquivos
+- `supabase/migrations/20251103145022_create_tenant_parameters.sql`
+- `src/components/configuracoes/parametros-content.tsx`
+- `src/hooks/use-tenant-parameters.ts`
+- `docs/PARAMETROS_TENANT.md`
+- `IMPLEMENTACAO_PARAMETROS.md`
+- `FIX_DASHBOARD_FILIAL_FILTER.md`
+- `FIX_PARAMETERS_TENANT_SWITCH.md`
+- `FIX_MIDDLEWARE_URL_DIRECT_ACCESS.md`
+- `TESTE_MIDDLEWARE_PARAMETROS.md`
+
+#### Arquivos Modificados
+- `src/app/(dashboard)/configuracoes/page.tsx` - Adicionado menu Parâmetros
+- `src/components/dashboard/app-sidebar.tsx` - Filtro dinâmico + key dinâmica + logs
+- `src/lib/supabase/middleware.ts` - Proteção robusta + logs + maybeSingle + comparação estrita
+- `src/hooks/use-tenant-parameters.ts` - Reset ao trocar tenant + valores padrão
+- `APPLY_DISCOUNT_SALES_CHART.sql` - Fix aliases SQL
+- `APPLY_DISCOUNT_VENDAS_FILIAL.sql` - Fix aliases SQL
+
+---
+
 ## Data: 16/10/2025
 
 ### ✅ Funcionalidades Implementadas

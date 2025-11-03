@@ -93,6 +93,64 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // Verificar se o módulo "Descontos Venda" está habilitado
+  if (user && request.nextUrl.pathname.startsWith('/descontos-venda')) {
+    // Obter tenant_id do cookie (para suportar superadmin que troca de tenant)
+    const tenantCookie = request.cookies.get('current-tenant-id')
+    let currentTenantId = tenantCookie?.value
+
+    // Se não tiver cookie, usar o tenant_id do profile
+    if (!currentTenantId) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .single()
+      
+      currentTenantId = profile?.tenant_id
+    }
+
+    console.log('[Middleware] Descontos Venda - Tenant check:', {
+      user_id: user.id,
+      tenant_from_cookie: tenantCookie?.value,
+      tenant_id_final: currentTenantId
+    })
+
+    if (currentTenantId) {
+      const { data: parameter } = await supabase
+        .from('tenant_parameters')
+        .select('parameter_value')
+        .eq('tenant_id', currentTenantId)
+        .eq('parameter_key', 'enable_descontos_venda')
+        .maybeSingle()
+
+      // Log para debug
+      console.log('[Middleware] Descontos Venda check:', {
+        tenant_id: currentTenantId,
+        parameter_found: !!parameter,
+        parameter_value: parameter?.parameter_value,
+        parameter_type: typeof parameter?.parameter_value,
+        will_redirect: !parameter || parameter.parameter_value !== true
+      })
+
+      // Redirecionar para dashboard se o módulo estiver desabilitado ou não configurado
+      // Aceita tanto boolean true quanto "true" (para compatibilidade)
+      const isEnabled = parameter && (parameter.parameter_value === true || parameter.parameter_value === 'true')
+      
+      if (!isEnabled) {
+        console.log('[Middleware] Redirecting to dashboard - module disabled or not configured')
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
+
+      console.log('[Middleware] Access granted - module enabled')
+    } else {
+      // Sem tenant_id, permitir acesso (será bloqueado na página se necessário)
+      console.log('[Middleware] No tenant_id found, allowing access (page will validate)')
+    }
+  }
+
   // Redirecionar para dashboard se autenticado (exceto na redefinição de senha)
   if (user && isPublicRoute && !isResetPasswordRoute) {
     const url = request.nextUrl.clone()
