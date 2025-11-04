@@ -91,7 +91,7 @@ export const MultiSelect = React.forwardRef<
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
           {value.map((option) => (
             <Badge
               key={option.value}
@@ -118,7 +118,7 @@ export const MultiSelect = React.forwardRef<
           ))}
           <CommandPrimitive.Input
             placeholder={placeholder}
-            className="ml-2 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+            className="ml-2 flex-1 bg-transparent outline-none placeholder:text-muted-foreground min-w-[120px]"
             value={inputValue}
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}

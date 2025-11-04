@@ -105,6 +105,13 @@ export default function MetaMensalPage() {
     logAccess()
   }, [currentTenant, userProfile])
 
+  // Ao carregar filiais, selecionar todas por padrão
+  useEffect(() => {
+    if (!isLoadingBranches && todasAsFiliais.length > 0 && filiaisSelecionadas.length === 0) {
+      setFiliaisSelecionadas(todasAsFiliais)
+    }
+  }, [isLoadingBranches, todasAsFiliais, filiaisSelecionadas.length])
+
   const loadReport = async () => {
     if (!currentTenant?.supabase_schema) return
 
@@ -119,8 +126,15 @@ export default function MetaMensalPage() {
       // Se nenhuma filial selecionada, buscar todas
       // Se tiver filiais selecionadas, buscar apenas as selecionadas
       if (filiaisSelecionadas.length > 0) {
-        const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
-        params.append('filial_id', filialIds)
+        // Filtrar "all" e pegar apenas os IDs numéricos das filiais
+        const filialIds = filiaisSelecionadas
+          .filter(f => f.value !== 'all')
+          .map(f => f.value)
+          .join(',')
+        
+        if (filialIds) {
+          params.append('filial_id', filialIds)
+        }
       }
 
       const response = await fetch(`/api/metas/report?${params}`)
@@ -208,7 +222,9 @@ export default function MetaMensalPage() {
           schema: currentTenant.supabase_schema,
           mes,
           ano,
-          filial_id: filiaisSelecionadas.length > 0 ? filiaisSelecionadas.map(f => f.value).join(',') : null
+          filial_id: filiaisSelecionadas.length > 0 
+            ? filiaisSelecionadas.filter(f => f.value !== 'all').map(f => f.value).join(',') 
+            : null
         })
       })
 

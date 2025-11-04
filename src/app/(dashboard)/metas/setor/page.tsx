@@ -82,6 +82,11 @@ export default function MetaSetorPage() {
   const [loadingSetores, setLoadingSetores] = useState(true)
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
 
+  // Estados para edição inline
+  const [editingCell, setEditingCell] = useState<{ data: string; filialId: number; field: 'percentual' | 'valor' } | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
   // Dialog para gerar meta
   const [dialogOpen, setDialogOpen] = useState(false)
   const [generateForm, setGenerateForm] = useState({
@@ -105,6 +110,13 @@ export default function MetaSetorPage() {
       })
     }
   }, [currentTenant, userProfile])
+
+  // Ao carregar filiais, selecionar todas por padrão
+  useEffect(() => {
+    if (!isLoadingBranches && todasAsFiliais.length > 0 && filiaisSelecionadas.length === 0) {
+      setFiliaisSelecionadas(todasAsFiliais)
+    }
+  }, [isLoadingBranches, todasAsFiliais, filiaisSelecionadas.length])
 
   const loadSetores = useCallback(async () => {
     if (!currentTenant) return
@@ -140,8 +152,15 @@ export default function MetaSetorPage() {
 
       // Se tiver filiais selecionadas, buscar apenas as selecionadas
       if (filiaisSelecionadas.length > 0) {
-        const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
-        params.append('filial_id', filialIds)
+        // Filtrar "all" e pegar apenas os IDs numéricos das filiais
+        const filialIds = filiaisSelecionadas
+          .filter(f => f.value !== 'all')
+          .map(f => f.value)
+          .join(',')
+        
+        if (filialIds) {
+          params.append('filial_id', filialIds)
+        }
       }
 
       const response = await fetch(`/api/metas/setor/report?${params}`)
@@ -279,6 +298,138 @@ export default function MetaSetorPage() {
     } finally {
       setIsGenerating(false)
       setGenerationProgress({ current: 0, total: 0 })
+    }
+  }
+
+  // Verificar se a data é hoje ou futuro
+  const isTodayOrFuture = (dateString: string): boolean => {
+    const metaDate = parseISO(dateString)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    metaDate.setHours(0, 0, 0, 0)
+    return metaDate >= today
+  }
+
+  // Verificar se deve mostrar diferença
+  const shouldShowDifference = (data: string, valorRealizado: number): boolean => {
+    if (isTodayOrFuture(data) && valorRealizado === 0) {
+      return false
+    }
+    return true
+  }
+
+  // Iniciar edição de célula
+  const startEditing = (data: string, filialId: number, field: 'percentual' | 'valor', currentValue: number) => {
+    setEditingCell({ data, filialId, field })
+    setEditingValue(currentValue.toString())
+  }
+
+  // Cancelar edição
+  const cancelEditing = () => {
+    setEditingCell(null)
+    setEditingValue('')
+  }
+
+  // Salvar edição
+  const saveEdit = async () => {
+    if (!editingCell || !currentTenant || !selectedSetor) return
+
+    const newValue = parseFloat(editingValue)
+    if (isNaN(newValue)) {
+      alert('Valor inválido')
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      // Encontrar a meta atual
+      const filialIdNum = editingCell.filialId
+      const setorIdNum = parseInt(selectedSetor)
+      const metasDoSetor = metasData[setorIdNum] || []
+      const metaDoDia = metasDoSetor.find(m => m.data === editingCell.data)
+      const filialData = metaDoDia?.filiais.find(f => f.filial_id === filialIdNum)
+
+      if (!filialData) {
+        alert('Meta não encontrada')
+        return
+      }
+
+      // Calcular valores
+      let novoPercentual: number
+      let novoValorMeta: number
+
+      if (editingCell.field === 'percentual') {
+        novoPercentual = newValue
+        novoValorMeta = filialData.valor_referencia * (1 + novoPercentual / 100)
+      } else {
+        novoValorMeta = newValue
+        novoPercentual = ((novoValorMeta / filialData.valor_referencia) - 1) * 100
+      }
+
+      // Chamar API para atualizar (usar a mesma API de meta mensal)
+      const response = await fetch('/api/metas/setor/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schema: currentTenant.supabase_schema,
+          setor_id: setorIdNum,
+          filial_id: filialIdNum,
+          data: editingCell.data,
+          meta_percentual: novoPercentual,
+          valor_meta: novoValorMeta,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao atualizar meta')
+      }
+
+      // Atualizar estado local
+      setMetasData(prev => {
+        const updated = { ...prev }
+        const setorMetas = [...(updated[setorIdNum] || [])]
+        const diaIndex = setorMetas.findIndex(m => m.data === editingCell.data)
+        
+        if (diaIndex >= 0) {
+          const filialIndex = setorMetas[diaIndex].filiais.findIndex(f => f.filial_id === filialIdNum)
+          if (filialIndex >= 0) {
+            setorMetas[diaIndex] = {
+              ...setorMetas[diaIndex],
+              filiais: setorMetas[diaIndex].filiais.map((f, idx) => 
+                idx === filialIndex 
+                  ? {
+                      ...f,
+                      meta_percentual: novoPercentual,
+                      valor_meta: novoValorMeta,
+                      diferenca: f.valor_realizado - novoValorMeta,
+                      diferenca_percentual: ((f.valor_realizado / novoValorMeta) - 1) * 100
+                    }
+                  : f
+              )
+            }
+          }
+        }
+        
+        updated[setorIdNum] = setorMetas
+        return updated
+      })
+
+      cancelEditing()
+    } catch (error) {
+      console.error('Error updating meta:', error)
+      alert(error instanceof Error ? error.message : 'Erro ao atualizar meta')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // Lidar com teclas
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEdit()
+    } else if (e.key === 'Escape') {
+      cancelEditing()
     }
   }
 
@@ -590,16 +741,14 @@ export default function MetaSetorPage() {
         {/* FILIAIS */}
         <div className="flex flex-col gap-2 flex-1 min-w-0">
           <Label>Filiais</Label>
-          <div className="h-10">
-            <MultiSelect
-              options={todasAsFiliais}
-              value={filiaisSelecionadas}
-              onValueChange={setFiliaisSelecionadas}
-              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
-              disabled={isLoadingBranches}
-              className="w-full h-10"
-            />
-          </div>
+          <MultiSelect
+            options={todasAsFiliais}
+            value={filiaisSelecionadas}
+            onValueChange={setFiliaisSelecionadas}
+            placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+            disabled={isLoadingBranches}
+            className="w-full"
+          />
         </div>
 
         {/* MÊS */}
@@ -730,6 +879,9 @@ export default function MetaSetorPage() {
                       ? ((totals.diferenca / totals.valor_meta) * 100)
                       : 0
 
+                  // Verificar se deve mostrar diferença
+                  const showDiff = shouldShowDifference(meta.data, totals.valor_realizado)
+
                   return (
                     <Fragment key={meta.data}>
                       <TableRow
@@ -762,30 +914,38 @@ export default function MetaSetorPage() {
                           {formatCurrency(totals.valor_realizado)}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          <span
-                            className={
-                              totals.diferenca === 0
-                                ? ''
-                                : totals.diferenca > 0
-                                ? 'text-green-500'
-                                : 'text-red-500'
-                            }
-                          >
-                            {formatCurrency(totals.diferenca)}
-                          </span>
+                          {showDiff ? (
+                            <span
+                              className={
+                                totals.diferenca === 0
+                                  ? ''
+                                  : totals.diferenca > 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }
+                            >
+                              {formatCurrency(totals.diferenca)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          <span
-                            className={
-                              difPercentual === 0
-                                ? ''
-                                : difPercentual > 0
-                                ? 'text-green-500'
-                                : 'text-red-500'
-                            }
-                          >
-                            {formatPercentage(difPercentual)}
-                          </span>
+                          {showDiff ? (
+                            <span
+                              className={
+                                difPercentual === 0
+                                  ? ''
+                                  : difPercentual > 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }
+                            >
+                              {formatPercentage(difPercentual)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
 
@@ -793,11 +953,14 @@ export default function MetaSetorPage() {
                         meta.filiais.map((filial) => {
                           const metaDiferencaValor = filial.diferenca || 0
                           const metaDiferencaPerc = filial.diferenca_percentual || 0
+                          const isEditingPercentual = editingCell?.data === meta.data && editingCell?.filialId === filial.filial_id && editingCell?.field === 'percentual'
+                          const isEditingValor = editingCell?.data === meta.data && editingCell?.filialId === filial.filial_id && editingCell?.field === 'valor'
+                          const showFilialDiff = shouldShowDifference(meta.data, filial.valor_realizado)
                           
                           return (
                             <TableRow
                               key={`${meta.data}-${filial.filial_id}`}
-                              className="bg-background/50"
+                              className="bg-background/50 group"
                             >
                               <TableCell></TableCell>
                               <TableCell className="pl-8 text-sm">
@@ -811,40 +974,94 @@ export default function MetaSetorPage() {
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(filial.valor_referencia)}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {filial.meta_percentual.toFixed(2)}%
+                              
+                              {/* Meta % - Editável */}
+                              <TableCell 
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                                onDoubleClick={() => startEditing(meta.data, filial.filial_id, 'percentual', filial.meta_percentual)}
+                                title="Duplo clique para editar"
+                              >
+                                {isEditingPercentual ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    onBlur={saveEdit}
+                                    autoFocus
+                                    disabled={savingEdit}
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  <span className="inline-flex items-center gap-1">
+                                    {filial.meta_percentual.toFixed(2)}%
+                                    <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                                  </span>
+                                )}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {formatCurrency(filial.valor_meta)}
+                              
+                              {/* Valor Meta - Editável */}
+                              <TableCell 
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                                onDoubleClick={() => startEditing(meta.data, filial.filial_id, 'valor', filial.valor_meta)}
+                                title="Duplo clique para editar"
+                              >
+                                {isEditingValor ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    onBlur={saveEdit}
+                                    autoFocus
+                                    disabled={savingEdit}
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  <span className="inline-flex items-center gap-1">
+                                    {formatCurrency(filial.valor_meta)}
+                                    <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(filial.valor_realizado)}
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                <span
-                                  className={
-                                    metaDiferencaValor === 0
-                                      ? ''
-                                      : metaDiferencaValor > 0
-                                      ? 'text-green-500'
-                                      : 'text-red-500'
-                                  }
-                                >
-                                  {formatCurrency(metaDiferencaValor)}
-                                </span>
+                                {showFilialDiff ? (
+                                  <span
+                                    className={
+                                      metaDiferencaValor === 0
+                                        ? ''
+                                        : metaDiferencaValor > 0
+                                        ? 'text-green-500'
+                                        : 'text-red-500'
+                                    }
+                                  >
+                                    {formatCurrency(metaDiferencaValor)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                <span
-                                  className={
-                                    metaDiferencaPerc === 0
-                                      ? ''
-                                      : metaDiferencaPerc > 0
-                                      ? 'text-green-500'
-                                      : 'text-red-500'
-                                  }
-                                >
-                                  {formatPercentage(metaDiferencaPerc)}
-                                </span>
+                                {showFilialDiff ? (
+                                  <span
+                                    className={
+                                      metaDiferencaPerc === 0
+                                        ? ''
+                                        : metaDiferencaPerc > 0
+                                        ? 'text-green-500'
+                                        : 'text-red-500'
+                                    }
+                                  >
+                                    {formatPercentage(metaDiferencaPerc)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                             </TableRow>
                           )

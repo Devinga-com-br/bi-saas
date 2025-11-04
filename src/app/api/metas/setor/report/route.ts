@@ -88,103 +88,58 @@ export async function GET(request: NextRequest) {
       finalFilialIds,
     })
 
-    // Call RPC for each filial and aggregate results
-    if (finalFilialIds === null) {
-      // Get all filials for this tenant
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('tenant_id')
-        .eq('id', user.id)
-        .single()
+    // Try optimized function first (if available), fallback to old function
+    let allData, error
 
-      const tenantId = (userProfile as unknown as { tenant_id?: string })?.tenant_id
+    // @ts-expect-error RPC function type not generated yet
+    const optimizedResult = await supabase.rpc('get_metas_setor_report_optimized', {
+      p_schema: schema,
+      p_setor_id: parseInt(setorId),
+      p_mes: parseInt(mes),
+      p_ano: parseInt(ano),
+      p_filial_ids: finalFilialIds && finalFilialIds.length > 0 ? finalFilialIds : null,
+    })
 
-      if (tenantId) {
-        const { data: allBranches } = await supabase
-          .from('branches')
-          .select('branch_code')
-          .eq('tenant_id', tenantId)
-
-        if (allBranches && allBranches.length > 0) {
-          finalFilialIds = allBranches
-            .map(b => parseInt((b as { branch_code: string }).branch_code, 10))
-            .filter(id => !isNaN(id))
-        } else {
-          finalFilialIds = []
-        }
-      } else {
-        finalFilialIds = []
-      }
-    }
-
-    // Fetch data for all filials in parallel
-    const promises = finalFilialIds.map(async (filialId) => {
+    if (optimizedResult.error) {
+      console.log('[API/METAS/SETOR/REPORT] Optimized function not available, using fallback')
+      // Fallback to old function
       // @ts-expect-error RPC function type not generated yet
-      const { data, error } = await supabase.rpc('get_metas_setor_report', {
+      const fallbackResult = await supabase.rpc('get_metas_setor_report', {
         p_schema: schema,
         p_setor_id: parseInt(setorId),
         p_mes: parseInt(mes),
         p_ano: parseInt(ano),
-        p_filial_id: filialId,
+        p_filial_id: null,
       })
 
-      if (error) {
-        console.error(`[API/METAS/SETOR/REPORT] Error for filial ${filialId}:`, error)
-        return []
+      allData = fallbackResult.data
+      error = fallbackResult.error
+
+      // Filter by authorized filials if needed (only for fallback)
+      if (!error && finalFilialIds && finalFilialIds.length > 0) {
+        const resultData = allData || []
+        const filteredData = resultData.map((day: { data: string; dia_semana: string; filiais: { filial_id: number }[] }) => ({
+          ...day,
+          filiais: day.filiais.filter(f => finalFilialIds.includes(f.filial_id))
+        })).filter((day: { filiais: unknown[] }) => day.filiais.length > 0)
+
+        console.log('[API/METAS/SETOR/REPORT] Success (fallback + filtered), dates:', filteredData.length, 'total filials:', filteredData.reduce((sum: number, d: { filiais: unknown[] }) => sum + d.filiais.length, 0))
+        return NextResponse.json(filteredData)
       }
-
-      return data || []
-    })
-
-    const results = await Promise.all(promises)
-    const allData = results.flat()
-
-    // Group data by date
-    interface MetaFilial {
-      filial_id: number
-      data_referencia: string
-      dia_semana_ref: string
-      valor_referencia: number
-      meta_percentual: number
-      valor_meta: number
-      valor_realizado: number
-      diferenca: number
-      diferenca_percentual: number
+    } else {
+      allData = optimizedResult.data
+      error = optimizedResult.error
+      console.log('[API/METAS/SETOR/REPORT] Using optimized function')
     }
 
-    interface MetaPorData {
-      data: string
-      dia_semana: string
-      filiais: MetaFilial[]
+    if (error) {
+      console.error('[API/METAS/SETOR/REPORT] RPC error:', error)
+      throw error
     }
 
-    const groupedByDate = new Map<string, MetaPorData>()
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    allData.forEach((item: any) => {
-      if (!item.data) return
-
-      if (!groupedByDate.has(item.data)) {
-        groupedByDate.set(item.data, {
-          data: item.data,
-          dia_semana: item.dia_semana || '',
-          filiais: []
-        })
-      }
-
-      const group = groupedByDate.get(item.data)!
-
-      // If item.filiais exists (single filial query result), use it
-      if (Array.isArray(item.filiais)) {
-        group.filiais.push(...item.filiais)
-      }
-    })
-
-    const aggregatedData = Array.from(groupedByDate.values())
-      .sort((a, b) => a.data.localeCompare(b.data))
-
-    console.log('[API/METAS/SETOR/REPORT] Success, dates:', aggregatedData.length, 'total filials:', aggregatedData.reduce((sum, d) => sum + d.filiais.length, 0))
-    return NextResponse.json(aggregatedData)
+    const resultData = allData || []
+    console.log('[API/METAS/SETOR/REPORT] Success, dates:', resultData.length, 'total filials:', resultData.reduce((sum: number, d: { filiais: unknown[] }) => sum + d.filiais.length, 0))
+    return NextResponse.json(resultData)
   } catch (error) {
     console.error('[API/METAS/SETOR/REPORT] Exception:', error)
     return NextResponse.json(
