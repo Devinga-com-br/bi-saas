@@ -65,7 +65,6 @@ export function useTenantParameters(tenantId: string | undefined) {
     }
 
     loadParameters()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId])
 
   return { parameters, loading }

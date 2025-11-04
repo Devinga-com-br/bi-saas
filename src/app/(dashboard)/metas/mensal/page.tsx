@@ -81,6 +81,11 @@ export default function MetaMensalPage() {
   const [generating, setGenerating] = useState(false)
   const [updating, setUpdating] = useState(false)
 
+  // Estados para edição inline
+  const [editingCell, setEditingCell] = useState<{ id: number; field: 'percentual' | 'valor' } | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
   // Log audit on mount
   useEffect(() => {
     const logAccess = async () => {
@@ -242,6 +247,24 @@ export default function MetaMensalPage() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
+  // Verificar se a data é hoje ou futuro
+  const isTodayOrFuture = (dateString: string): boolean => {
+    const metaDate = parseISO(dateString)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    metaDate.setHours(0, 0, 0, 0)
+    return metaDate >= today
+  }
+
+  // Verificar se deve mostrar diferença (não mostra se for dia futuro com realizado zero)
+  const shouldShowDifference = (meta: Meta): boolean => {
+    // Se é hoje ou futuro E realizado é zero, não mostra diferença
+    if (isTodayOrFuture(meta.data) && meta.valor_realizado === 0) {
+      return false
+    }
+    return true
+  }
+
   const getFilialLabel = () => {
     if (filiaisSelecionadas.length === 0) {
       return 'Todas as Filiais'
@@ -305,6 +328,110 @@ export default function MetaMensalPage() {
     })
     
     return grouped
+  }
+
+  // Funções de edição inline
+  const startEditing = (metaId: number, field: 'percentual' | 'valor', currentValue: number) => {
+    setEditingCell({ id: metaId, field })
+    setEditingValue(field === 'percentual' ? currentValue.toFixed(2) : currentValue.toFixed(2))
+  }
+
+  const cancelEditing = () => {
+    setEditingCell(null)
+    setEditingValue('')
+  }
+
+  const saveEdit = async () => {
+    if (!editingCell || !currentTenant?.supabase_schema) return
+
+    const newValue = parseFloat(editingValue)
+    if (isNaN(newValue)) {
+      alert('Valor inválido')
+      return
+    }
+
+    setSavingEdit(true)
+
+    try {
+      const meta = report?.metas.find(m => m.id === editingCell.id)
+      if (!meta) return
+
+      let valorMeta: number
+      let metaPercentual: number
+
+      if (editingCell.field === 'percentual') {
+        // Usuário alterou o percentual
+        metaPercentual = newValue
+        valorMeta = meta.valor_referencia * (1 + metaPercentual / 100)
+      } else {
+        // Usuário alterou o valor da meta
+        valorMeta = newValue
+        metaPercentual = ((valorMeta / meta.valor_referencia) - 1) * 100
+      }
+
+      const response = await fetch('/api/metas/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schema: currentTenant.supabase_schema,
+          metaId: editingCell.id,
+          valorMeta,
+          metaPercentual
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao atualizar meta')
+      }
+
+      // Atualizar estado local
+      setReport(prev => {
+        if (!prev) return prev
+        
+        const updatedMetas = prev.metas.map(m => {
+          if (m.id === editingCell.id) {
+            const diferenca = m.valor_realizado - valorMeta
+            const diferenca_percentual = valorMeta > 0 ? (diferenca / valorMeta) * 100 : 0
+            
+            return {
+              ...m,
+              meta_percentual: metaPercentual,
+              valor_meta: valorMeta,
+              diferenca,
+              diferenca_percentual
+            }
+          }
+          return m
+        })
+
+        // Recalcular totais
+        const total_meta = updatedMetas.reduce((sum, m) => sum + m.valor_meta, 0)
+        const percentual_atingido = total_meta > 0 ? (prev.total_realizado / total_meta) * 100 : 0
+
+        return {
+          ...prev,
+          metas: updatedMetas,
+          total_meta,
+          percentual_atingido
+        }
+      })
+
+      cancelEditing()
+    } catch (error) {
+      console.error('Error saving edit:', error)
+      alert(error instanceof Error ? error.message : 'Erro ao salvar alteração')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEdit()
+    } else if (e.key === 'Escape') {
+      cancelEditing()
+    }
   }
 
   return (
@@ -632,6 +759,11 @@ export default function MetaMensalPage() {
                     const diferencaValor = group.total_diferenca || 0
                     const diferencaPerc = group.diferenca_percentual || 0
                     
+                    // Verificar se deve mostrar diferença (não mostrar se for dia futuro com realizado zero)
+                    const isDateFuture = isTodayOrFuture(dateKey)
+                    const hasNoSales = group.total_realizado === 0
+                    const showDifference = !(isDateFuture && hasNoSales)
+                    
                     return (
                       <React.Fragment key={dateKey}>
                         {/* Linha agregada principal */}
@@ -665,14 +797,22 @@ export default function MetaMensalPage() {
                             {formatCurrency(group.total_realizado)}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
-                              {formatCurrency(diferencaValor)}
-                            </span>
+                            {showDifference ? (
+                              <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                                {formatCurrency(diferencaValor)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
-                              {formatPercentage(diferencaPerc)}
-                            </span>
+                            {showDifference ? (
+                              <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                                {formatPercentage(diferencaPerc)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                         </TableRow>
                         
@@ -680,6 +820,9 @@ export default function MetaMensalPage() {
                         {isExpanded && group.metas.map((meta) => {
                           const metaDiferencaValor = meta.diferenca || 0
                           const metaDiferencaPerc = meta.diferenca_percentual || 0
+                          const isEditingPercentual = editingCell?.id === meta.id && editingCell?.field === 'percentual'
+                          const isEditingValor = editingCell?.id === meta.id && editingCell?.field === 'valor'
+                          const showMetaDifference = shouldShowDifference(meta)
                           
                           return (
                             <TableRow 
@@ -696,24 +839,79 @@ export default function MetaMensalPage() {
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(meta.valor_referencia)}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {meta.meta_percentual.toFixed(2)}%
+                              
+                              {/* Meta % - Editável */}
+                              <TableCell 
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                                onDoubleClick={() => startEditing(meta.id, 'percentual', meta.meta_percentual)}
+                                title="Duplo clique para editar"
+                              >
+                                {isEditingPercentual ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    onBlur={saveEdit}
+                                    autoFocus
+                                    disabled={savingEdit}
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  <span className="inline-flex items-center gap-1">
+                                    {meta.meta_percentual.toFixed(2)}%
+                                    <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                                  </span>
+                                )}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {formatCurrency(meta.valor_meta)}
+                              
+                              {/* Valor Meta - Editável */}
+                              <TableCell 
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                                onDoubleClick={() => startEditing(meta.id, 'valor', meta.valor_meta)}
+                                title="Duplo clique para editar"
+                              >
+                                {isEditingValor ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    onBlur={saveEdit}
+                                    autoFocus
+                                    disabled={savingEdit}
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  <span className="inline-flex items-center gap-1">
+                                    {formatCurrency(meta.valor_meta)}
+                                    <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                                  </span>
+                                )}
                               </TableCell>
+                              
                               <TableCell className="text-right text-sm">
                                 {formatCurrency(meta.valor_realizado)}
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                <span className={metaDiferencaValor === 0 ? '' : metaDiferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
-                                  {formatCurrency(metaDiferencaValor)}
-                                </span>
+                                {showMetaDifference ? (
+                                  <span className={metaDiferencaValor === 0 ? '' : metaDiferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                                    {formatCurrency(metaDiferencaValor)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                <span className={metaDiferencaPerc === 0 ? '' : metaDiferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
-                                  {formatPercentage(metaDiferencaPerc)}
-                                </span>
+                                {showMetaDifference ? (
+                                  <span className={metaDiferencaPerc === 0 ? '' : metaDiferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                                    {formatPercentage(metaDiferencaPerc)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                             </TableRow>
                           )
@@ -751,6 +949,9 @@ export default function MetaMensalPage() {
                     .map((meta) => {
                       const diferencaValor = meta.diferenca || 0
                       const diferencaPerc = meta.diferenca_percentual || 0
+                      const isEditingPercentual = editingCell?.id === meta.id && editingCell?.field === 'percentual'
+                      const isEditingValor = editingCell?.id === meta.id && editingCell?.field === 'valor'
+                      const showDiff = shouldShowDifference(meta)
                       
                       return (
                         <TableRow key={meta.id}>
@@ -764,24 +965,77 @@ export default function MetaMensalPage() {
                           <TableCell className="text-right">
                             {formatCurrency(meta.valor_referencia)}
                           </TableCell>
-                          <TableCell className="text-right">
-                            {meta.meta_percentual.toFixed(2)}%
+                          
+                          {/* Meta % - Editável */}
+                          <TableCell 
+                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                            onDoubleClick={() => startEditing(meta.id, 'percentual', meta.meta_percentual)}
+                            title="Duplo clique para editar"
+                          >
+                            {isEditingPercentual ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onBlur={saveEdit}
+                                autoFocus
+                                disabled={savingEdit}
+                                className="h-9 text-right"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                {meta.meta_percentual.toFixed(2)}%
+                              </span>
+                            )}
                           </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(meta.valor_meta)}
+                          
+                          {/* Valor Meta - Editável */}
+                          <TableCell 
+                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                            onDoubleClick={() => startEditing(meta.id, 'valor', meta.valor_meta)}
+                            title="Duplo clique para editar"
+                          >
+                            {isEditingValor ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onBlur={saveEdit}
+                                autoFocus
+                                disabled={savingEdit}
+                                className="h-9 text-right"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                {formatCurrency(meta.valor_meta)}
+                              </span>
+                            )}
                           </TableCell>
+                          
                           <TableCell className="text-right font-medium">
                             {formatCurrency(meta.valor_realizado)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
-                              {formatCurrency(diferencaValor)}
-                            </span>
+                            {showDiff ? (
+                              <span className={diferencaValor === 0 ? '' : diferencaValor > 0 ? 'text-green-500' : 'text-red-500'}>
+                                {formatCurrency(diferencaValor)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
-                              {formatPercentage(diferencaPerc)}
-                            </span>
+                            {showDiff ? (
+                              <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
+                                {formatPercentage(diferencaPerc)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       )

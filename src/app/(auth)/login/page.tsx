@@ -1,6 +1,7 @@
 import { LoginForm } from '@/components/auth/login-form'
 import { Suspense } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import Image from 'next/image'
 
 function LoginFormWrapper() {
   return (
@@ -24,10 +25,13 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <Card className="w-full shadow-md rounded-xl bg-white">
           <CardHeader className="flex flex-col items-center pt-8 pb-4">
-            <img 
+            <Image 
               src="/logo_devinga_mobile.png" 
               alt="DevIngá" 
+              width={120}
+              height={40}
               className="h-10 w-auto"
+              priority
             />
           </CardHeader>
 

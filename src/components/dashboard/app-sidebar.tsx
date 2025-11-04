@@ -134,7 +134,7 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { userProfile, currentTenant } = useTenantContext()
   const { state } = useSidebar()
-  const { parameters, loading: parametersLoading } = useTenantParameters(currentTenant?.id)
+  const { parameters } = useTenantParameters(currentTenant?.id)
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')

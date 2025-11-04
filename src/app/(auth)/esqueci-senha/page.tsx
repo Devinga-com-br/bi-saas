@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
+import Image from 'next/image'
 
 function ForgotPasswordFormWrapper() {
   return (
@@ -25,10 +26,13 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         <Card className="w-full shadow-md rounded-xl bg-white">
           <CardHeader className="flex flex-col items-center pt-8 pb-2">
-            <img 
+            <Image 
               src="/logo_devinga_mobile.png" 
               alt="DevIngá" 
+              width={120}
+              height={40}
               className="h-10 w-auto mb-4"
+              priority
             />
             <h1 className="text-2xl font-semibold text-gray-900">Recuperar Senha</h1>
             <p className="text-sm text-gray-600 text-center mt-2">
