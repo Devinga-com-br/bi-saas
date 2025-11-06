@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, FileDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown, X } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
+import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 
 // Meses em português
 const MESES = [
@@ -80,16 +82,17 @@ interface ReportData {
 
 export default function DespesasPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { options: todasAsFiliais } = useBranchesOptions({
+  const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
-    enabled: !!currentTenant
+    enabled: !!currentTenant,
+    includeAll: false
   })
 
   // Estados dos filtros - filial, mês e ano (mês atual como padrão)
   const mesAtual = new Date().getMonth()
   const anoAtual = new Date().getFullYear()
   
-  const [filialId, setFilialId] = useState<string>('all')
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
   const [mes, setMes] = useState<number>(mesAtual)
   const [ano, setAno] = useState<number>(anoAtual)
 
@@ -101,6 +104,13 @@ export default function DespesasPage() {
   // Estados de expansão - Todos fechados por padrão
   const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({})
   const [expandedTipos, setExpandedTipos] = useState<Record<string, boolean>>({})
+
+  // Pré-selecionar todas as filiais ao carregar
+  useEffect(() => {
+    if (!isLoadingBranches && branches && branches.length > 0 && filiaisSelecionadas.length === 0) {
+      setFiliaisSelecionadas(branches)
+    }
+  }, [isLoadingBranches, branches, filiaisSelecionadas.length])
 
   // Log de acesso ao módulo
   useEffect(() => {
@@ -116,11 +126,11 @@ export default function DespesasPage() {
 
   // Buscar dados automaticamente quando filtros mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema) {
+    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && !isLoadingBranches) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, filialId, mes, ano])
+  }, [currentTenant?.supabase_schema, filiaisSelecionadas.map(f => f.value).join(','), mes, ano, isLoadingBranches])
 
   // Calcular datas com base em mês e ano
   const getDatasMesAno = (mesParam: number, anoParam: number) => {
@@ -143,11 +153,11 @@ export default function DespesasPage() {
     try {
       const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
 
-      // Para despesas, vamos buscar para todas as filiais
-      const filiaisParaBuscar = todasAsFiliais.map(f => parseInt(f.value)).filter(id => !isNaN(id))
+      // Para despesas, vamos buscar para as filiais selecionadas
+      const filiaisParaBuscar = filiaisSelecionadas.map(f => parseInt(f.value)).filter(id => !isNaN(id))
 
       if (filiaisParaBuscar.length === 0) {
-        setError('Nenhuma filial disponível')
+        setError('Nenhuma filial selecionada')
         setLoading(false)
         return
       }
@@ -346,7 +356,7 @@ export default function DespesasPage() {
   }
 
   const getFilialNome = (filialId: number) => {
-    const filial = todasAsFiliais.find(f => parseInt(f.value) === filialId)
+    const filial = filiaisSelecionadas.find(f => parseInt(f.value) === filialId)
     return filial?.label || `Filial ${filialId}`
   }
 
@@ -391,26 +401,19 @@ export default function DespesasPage() {
       <PageBreadcrumb />
 
       {/* Filtros */}
-      <div className='space-y-4'>
+      <div className='space-y-3'>
         <div className="rounded-md border p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-            {/* FILIAL */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label>Filial</Label>
-              <div className="h-10">
-                <Select value={filialId} onValueChange={setFilialId}>
-                  <SelectTrigger className="w-full sm:w-[200px] h-10">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {todasAsFiliais.map((filial) => (
-                      <SelectItem key={filial.value} value={filial.value}>
-                        {filial.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* FILIAIS */}
+            <div className="flex flex-col gap-2 flex-1 min-w-0">
+              <Label>Filiais</Label>
+              <MultiFilialFilter
+                filiais={branches}
+                selectedFiliais={filiaisSelecionadas}
+                onChange={setFiliaisSelecionadas}
+                disabled={isLoadingBranches}
+                placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
+              />
             </div>
 
             {/* MÊS */}
@@ -452,6 +455,32 @@ export default function DespesasPage() {
             </div>
           </div>
         </div>
+
+        {/* Badges de Filiais Selecionadas */}
+        {filiaisSelecionadas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-1">
+            {filiaisSelecionadas.map((filial: FilialOption) => (
+              <Badge
+                key={filial.value}
+                variant="secondary"
+                className="h-6 gap-1 pr-1 text-xs"
+              >
+                <span className="max-w-[150px] truncate">{filial.label}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFiliaisSelecionadas(prev => prev.filter(f => f.value !== filial.value))
+                  }}
+                  className="ml-1 rounded-sm hover:bg-secondary-foreground/20 focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={`Remover ${filial.label}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Mensagem de Erro */}
