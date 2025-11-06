@@ -1,5 +1,81 @@
 # Changelog - Sistema BI SaaS
 
+## [2025-11-06] - Correção Crítica: Recálculo de Metas com Múltiplas Filiais
+
+### 🐛 Correção Crítica
+
+#### Problema Resolvido: Metas não recalculavam ao filtrar filiais
+- **Sintoma**: Ao selecionar/desmarcar filiais no filtro, os totais (vendas realizadas, meta total, percentual) não atualizavam
+- **Causa**: API `/api/metas/report` aceitava apenas uma filial por vez, ignorando múltiplas seleções
+- **Impacto**: Usuários viam dados incorretos ao trabalhar com múltiplas filiais
+- **Status**: ✅ **RESOLVIDO**
+
+### 🔧 Implementação
+
+#### Backend (SQL)
+- ✅ Atualizada função `get_metas_mensais_report` para suportar array de filiais
+- ✅ Novo parâmetro `p_filial_ids bigint[]` para múltiplas filiais
+- ✅ Mantida retrocompatibilidade com `p_filial_id` (single value)
+- ✅ Query otimizada: `WHERE filial_id = ANY(p_filial_ids)`
+
+#### API Route
+- ✅ Parse de filiais separadas por vírgula: `?filial_id=1,2,3`
+- ✅ Conversão para array: `[1, 2, 3]`
+- ✅ Validação de permissões (authorized branches)
+- ✅ Logs detalhados para debugging
+
+#### Frontend
+- ✅ **Nenhuma mudança necessária** - já estava correto
+- ✅ useEffect monitora `filiaisSelecionadas` e recarrega automaticamente
+
+### 📋 Arquivos Criados/Modificados
+
+**Novos:**
+- `FIX_METAS_MENSAIS_MULTIPLE_FILIAIS.sql` - Script SQL de correção
+- `FIX_METAS_MULTIPLE_FILIAIS.md` - Documentação técnica detalhada
+- `CORRECAO_METAS_RESUMO.md` - Resumo executivo
+- `scripts/test-metas-multiple-filiais.sh` - Script de teste
+
+**Modificados:**
+- `src/app/api/metas/report/route.ts` - Parse de múltiplas filiais
+
+### ✅ Testes Realizados
+
+- [x] Selecionar todas as filiais → Totais corretos
+- [x] Desmarcar 1 filial → Recálculo automático
+- [x] Desmarcar várias filiais → Recálculo automático  
+- [x] Selecionar apenas 1 filial → Totais corretos
+- [x] Mudar mês/ano com filtros → Dados corretos
+- [x] Backward compatibility → Código antigo funciona
+- [x] Permissões de usuário → Respeitadas
+
+### 📊 Páginas Afetadas
+
+- ✅ `/metas/mensal` - **CORRIGIDO**
+- ✅ `/metas/setor` - Já estava correto (não precisou alteração)
+
+### 🚀 Deploy
+
+Para aplicar a correção:
+
+```bash
+# 1. Executar SQL no banco
+psql < FIX_METAS_MENSAIS_MULTIPLE_FILIAIS.sql
+
+# 2. Build e deploy
+npm run build
+npm start
+```
+
+### 💡 Notas Técnicas
+
+- **Performance**: Sem impacto negativo, usa índices existentes
+- **Multi-tenant**: Totalmente compatível, isolamento mantido
+- **Segurança**: Validação de permissões preservada
+- **Cache**: API já configurada com `dynamic = 'force-dynamic'`
+
+---
+
 ## [2025-10-16] - Melhorias no Módulo de Metas
 
 ### ✨ Novidades

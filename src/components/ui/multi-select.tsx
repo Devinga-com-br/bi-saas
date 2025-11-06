@@ -36,6 +36,8 @@ interface MultiSelectProps
   onValueChange: (value: Option[]) => void
   placeholder?: string
   disabled?: boolean
+  showSelectAll?: boolean
+  onSelectAll?: () => void
 }
 
 export const MultiSelect = React.forwardRef<
@@ -50,6 +52,8 @@ export const MultiSelect = React.forwardRef<
     placeholder = 'Selecione...',
     className,
     disabled,
+    showSelectAll = false,
+    onSelectAll,
   },
   ref
 ) => {
@@ -91,40 +95,56 @@ export const MultiSelect = React.forwardRef<
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
-        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-          {value.map((option) => (
-            <Badge
-              key={option.value}
-              className={cn(multiSelectVariants({ variant }))}
-            >
-              {option.label}
-              <button
-                className="ml-2 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleDeselect(option)
-                  }
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onClick={() => handleDeselect(option)}
-                disabled={disabled}
+        <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto flex-1">
+            {value.map((option) => (
+              <Badge
+                key={option.value}
+                className={cn(multiSelectVariants({ variant }))}
               >
-                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-              </button>
-            </Badge>
-          ))}
-          <CommandPrimitive.Input
-            placeholder={placeholder}
-            className="ml-2 flex-1 bg-transparent outline-none placeholder:text-muted-foreground min-w-[120px]"
-            value={inputValue}
-            onValueChange={setInputValue}
-            onBlur={() => setOpen(false)}
-            onFocus={() => !disabled && setOpen(true)}
-            disabled={disabled}
-          />
+                {option.label}
+                <button
+                  className="ml-2 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleDeselect(option)
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onClick={() => handleDeselect(option)}
+                  disabled={disabled}
+                >
+                  <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                </button>
+              </Badge>
+            ))}
+            <CommandPrimitive.Input
+              placeholder={placeholder}
+              className="ml-2 flex-1 bg-transparent outline-none placeholder:text-muted-foreground min-w-[120px]"
+              value={inputValue}
+              onValueChange={setInputValue}
+              onBlur={() => setOpen(false)}
+              onFocus={() => !disabled && setOpen(true)}
+              disabled={disabled}
+            />
+          </div>
+          {showSelectAll && onSelectAll && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onSelectAll()
+              }}
+              disabled={disabled}
+              className="text-xs text-primary hover:text-primary/80 font-medium whitespace-nowrap px-2 py-1 rounded hover:bg-accent transition-colors"
+            >
+              Todas
+            </button>
+          )}
         </div>
       </div>
       <div className="relative mt-2">

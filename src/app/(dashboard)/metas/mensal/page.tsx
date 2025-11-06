@@ -5,12 +5,13 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
@@ -18,7 +19,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
-import { MultiSelect } from '@/components/ui/multi-select'
+import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Meta {
@@ -58,15 +59,16 @@ interface GroupedByDate {
 
 export default function MetaMensalPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { options: todasAsFiliais, isLoading: isLoadingBranches, branchOptions: branches } = useBranchesOptions({
+  const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
-    enabled: !!currentTenant
+    enabled: !!currentTenant,
+    includeAll: false // Não incluir opção "Todas as Filiais"
   })
 
   const currentDate = new Date()
   const [mes, setMes] = useState(currentDate.getMonth() + 1)
   const [ano, setAno] = useState(currentDate.getFullYear())
-  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<MetasReport | null>(null)
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
@@ -79,7 +81,6 @@ export default function MetaMensalPage() {
   const [formMetaPercentual, setFormMetaPercentual] = useState('')
   const [formDataReferencia, setFormDataReferencia] = useState<Date | undefined>()
   const [generating, setGenerating] = useState(false)
-  const [updating, setUpdating] = useState(false)
 
   // Estados para edição inline
   const [editingCell, setEditingCell] = useState<{ id: number; field: 'percentual' | 'valor' } | null>(null)
@@ -105,12 +106,12 @@ export default function MetaMensalPage() {
     logAccess()
   }, [currentTenant, userProfile])
 
-  // Ao carregar filiais, selecionar todas por padrão
+  // Ao carregar filiais, selecionar todas por padrão (apenas filiais reais, sem "all")
   useEffect(() => {
-    if (!isLoadingBranches && todasAsFiliais.length > 0 && filiaisSelecionadas.length === 0) {
-      setFiliaisSelecionadas(todasAsFiliais)
+    if (!isLoadingBranches && branches && branches.length > 0 && filiaisSelecionadas.length === 0) {
+      setFiliaisSelecionadas(branches)
     }
-  }, [isLoadingBranches, todasAsFiliais, filiaisSelecionadas.length])
+  }, [isLoadingBranches, branches, filiaisSelecionadas.length])
 
   const loadReport = async () => {
     if (!currentTenant?.supabase_schema) return
@@ -123,18 +124,14 @@ export default function MetaMensalPage() {
         ano: ano.toString()
       })
 
-      // Se nenhuma filial selecionada, buscar todas
       // Se tiver filiais selecionadas, buscar apenas as selecionadas
+      // Senão, buscar todas
       if (filiaisSelecionadas.length > 0) {
-        // Filtrar "all" e pegar apenas os IDs numéricos das filiais
         const filialIds = filiaisSelecionadas
-          .filter(f => f.value !== 'all')
           .map(f => f.value)
           .join(',')
-        
-        if (filialIds) {
-          params.append('filial_id', filialIds)
-        }
+
+        params.append('filial_id', filialIds)
       }
 
       const response = await fetch(`/api/metas/report?${params}`)
@@ -165,11 +162,11 @@ export default function MetaMensalPage() {
 
   // Aplicar filtros automaticamente quando mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema && mes && ano) {
+    if (currentTenant?.supabase_schema && mes && ano && !isLoadingBranches) {
       loadReport()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, mes, ano, filiaisSelecionadas])
+  }, [currentTenant?.supabase_schema, mes, ano, filiaisSelecionadas.map(f => f.value).join(',')])
 
   const handleGenerateMetas = async () =>  {
     if (!currentTenant?.supabase_schema) return
@@ -210,38 +207,9 @@ export default function MetaMensalPage() {
     }
   }
 
-  const handleUpdateValues = async () => {
-    if (!currentTenant?.supabase_schema) return
-
-    setUpdating(true)
-    try {
-      const response = await fetch('/api/metas/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          schema: currentTenant.supabase_schema,
-          mes,
-          ano,
-          filial_id: filiaisSelecionadas.length > 0 
-            ? filiaisSelecionadas.filter(f => f.value !== 'all').map(f => f.value).join(',') 
-            : null
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        alert(data.message || 'Valores atualizados com sucesso')
-        loadReport()
-      } else {
-        alert(`Erro: ${data.error || 'Erro ao atualizar valores'}`)
-      }
-    } catch (error) {
-      console.error('Error updating values:', error)
-      alert('Erro ao atualizar valores')
-    } finally {
-      setUpdating(false)
-    }
+  const handleUpdateValues = () => {
+    // Simplesmente recarregar a página para atualizar os valores
+    window.location.reload()
   }
 
   useEffect(() => {
@@ -292,7 +260,7 @@ export default function MetaMensalPage() {
   }
 
   const getFilialName = (filial_id: number) => {
-    const branch = todasAsFiliais.find(f => f.value === filial_id.toString())
+    const branch = branches.find((f: { value: string; label: string }) => f.value === filial_id.toString())
     return branch ? branch.label : `Filial ${filial_id}`
   }
 
@@ -460,14 +428,15 @@ export default function MetaMensalPage() {
           <Button
             variant="outline"
             onClick={handleUpdateValues}
-            disabled={updating || loading}
+            disabled={loading}
+            className="h-10"
           >
-            {updating ? 'Atualizando...' : 'Atualizar Valores'}
+            Atualizar Valores
           </Button>
-          
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="h-10">
                 <PlusIcon className="mr-2 h-4 w-4" />
                 Cadastrar Meta
               </Button>
@@ -581,59 +550,84 @@ export default function MetaMensalPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
-        {/* FILIAIS */}
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
-          <Label>Filiais</Label>
-          <div className="h-10">
-            <MultiSelect
-              options={todasAsFiliais}
-              value={filiaisSelecionadas}
-              onValueChange={setFiliaisSelecionadas}
-              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
+          {/* FILIAIS */}
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <Label>Filiais</Label>
+            <MultiFilialFilter
+              filiais={branches}
+              selectedFiliais={filiaisSelecionadas}
+              onChange={setFiliaisSelecionadas}
               disabled={isLoadingBranches}
-              className="w-full h-10"
+              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
             />
           </div>
-        </div>
 
-        {/* MÊS */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Mês</Label>
-          <div className="h-10">
-            <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
-              <SelectTrigger className="w-full sm:w-[160px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <SelectItem key={m} value={m.toString()}>
-                    {format(new Date(2024, m - 1, 1), 'MMMM', { locale: ptBR })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* MÊS */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Mês</Label>
+            <div className="h-10">
+              <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
+                <SelectTrigger className="w-full sm:w-[160px] h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <SelectItem key={m} value={m.toString()}>
+                      {format(new Date(2024, m - 1, 1), 'MMMM', { locale: ptBR })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* ANO */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Ano</Label>
+            <div className="h-10">
+              <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
+                <SelectTrigger className="w-full sm:w-[120px] h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
-        {/* ANO */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Ano</Label>
-          <div className="h-10">
-            <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
-              <SelectTrigger className="w-full sm:w-[120px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map((y) => (
-                  <SelectItem key={y} value={y.toString()}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Badges de Filiais Selecionadas */}
+        {filiaisSelecionadas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-1">
+            {filiaisSelecionadas.map((filial: FilialOption) => (
+              <Badge
+                key={filial.value}
+                variant="secondary"
+                className="h-6 gap-1 pr-1 text-xs"
+              >
+                <span className="max-w-[150px] truncate">{filial.label}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFiliaisSelecionadas(prev => prev.filter(f => f.value !== filial.value))
+                  }}
+                  className="ml-1 rounded-sm hover:bg-secondary-foreground/20 focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={`Remover ${filial.label}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Cards resumo */}

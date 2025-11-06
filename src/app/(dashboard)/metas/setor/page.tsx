@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon, X } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -39,7 +39,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
-import { MultiSelect } from '@/components/ui/multi-select'
+import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Setor {
@@ -67,16 +67,17 @@ interface MetaSetor {
 
 export default function MetaSetorPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { options: todasAsFiliais, isLoading: isLoadingBranches, branchOptions: branches } = useBranchesOptions({
+  const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
-    enabled: !!currentTenant
+    enabled: !!currentTenant,
+    includeAll: false // Não incluir opção "Todas as Filiais"
   })
 
   const [setores, setSetores] = useState<Setor[]>([])
   const [selectedSetor, setSelectedSetor] = useState<string>('')
   const [mes, setMes] = useState(new Date().getMonth() + 1)
   const [ano, setAno] = useState(new Date().getFullYear())
-  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
+  const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
   const [metasData, setMetasData] = useState<Record<number, MetaSetor[]>>({})
   const [loading, setLoading] = useState(false)
   const [loadingSetores, setLoadingSetores] = useState(true)
@@ -111,12 +112,12 @@ export default function MetaSetorPage() {
     }
   }, [currentTenant, userProfile])
 
-  // Ao carregar filiais, selecionar todas por padrão
+  // Ao carregar filiais, selecionar todas por padrão (apenas filiais reais, sem "all")
   useEffect(() => {
-    if (!isLoadingBranches && todasAsFiliais.length > 0 && filiaisSelecionadas.length === 0) {
-      setFiliaisSelecionadas(todasAsFiliais)
+    if (!isLoadingBranches && branches && branches.length > 0 && filiaisSelecionadas.length === 0) {
+      setFiliaisSelecionadas(branches)
     }
-  }, [isLoadingBranches, todasAsFiliais, filiaisSelecionadas.length])
+  }, [isLoadingBranches, branches, filiaisSelecionadas.length])
 
   const loadSetores = useCallback(async () => {
     if (!currentTenant) return
@@ -152,15 +153,11 @@ export default function MetaSetorPage() {
 
       // Se tiver filiais selecionadas, buscar apenas as selecionadas
       if (filiaisSelecionadas.length > 0) {
-        // Filtrar "all" e pegar apenas os IDs numéricos das filiais
         const filialIds = filiaisSelecionadas
-          .filter(f => f.value !== 'all')
           .map(f => f.value)
           .join(',')
-        
-        if (filialIds) {
-          params.append('filial_id', filialIds)
-        }
+
+        params.append('filial_id', filialIds)
       }
 
       const response = await fetch(`/api/metas/setor/report?${params}`)
@@ -193,11 +190,11 @@ export default function MetaSetorPage() {
 
   // Carregar metas apenas quando filtros mudarem
   useEffect(() => {
-    if (selectedSetor && mes && ano) {
+    if (selectedSetor && mes && ano && !isLoadingBranches) {
       loadMetasPorSetor()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSetor, mes, ano, filiaisSelecionadas])
+  }, [selectedSetor, mes, ano, filiaisSelecionadas.map(f => f.value).join(',')])
 
   const handleGerarMeta = async () => {
     if (!currentTenant) return
@@ -455,7 +452,7 @@ export default function MetaSetorPage() {
   
   // Função para obter nome da filial
   const getFilialName = (filialId: number) => {
-    const branch = todasAsFiliais.find(f => f.value === filialId.toString())
+    const branch = branches.find((f: { value: string; label: string }) => f.value === filialId.toString())
     return branch ? branch.label : `Filial ${filialId}`
   }
 
@@ -474,10 +471,19 @@ export default function MetaSetorPage() {
       {/* Breadcrumb */}
       <PageBreadcrumb />
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          onClick={() => window.location.reload()}
+          disabled={loading}
+          className="h-10"
+        >
+          Atualizar Valores
+        </Button>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="h-10">
               <Plus className="mr-2 h-4 w-4" />
               Gerar Meta
             </Button>
@@ -737,79 +743,106 @@ export default function MetaSetorPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
-        {/* FILIAIS */}
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
-          <Label>Filiais</Label>
-          <MultiSelect
-            options={todasAsFiliais}
-            value={filiaisSelecionadas}
-            onValueChange={setFiliaisSelecionadas}
-            placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
-            disabled={isLoadingBranches}
-            className="w-full"
-          />
-        </div>
-
-        {/* MÊS */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Mês</Label>
-          <div className="h-10">
-            <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
-              <SelectTrigger className="w-full sm:w-[160px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <SelectItem key={i + 1} value={(i + 1).toString()}>
-                    {new Date(2000, i).toLocaleString('pt-BR', { month: 'long' })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="space-y-3">
+        <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
+          {/* FILIAIS */}
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <Label>Filiais</Label>
+            <MultiFilialFilter
+              filiais={branches}
+              selectedFiliais={filiaisSelecionadas}
+              onChange={setFiliaisSelecionadas}
+              disabled={isLoadingBranches}
+              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
+            />
           </div>
-        </div>
 
-        {/* ANO */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Ano</Label>
-          <div className="h-10">
-            <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
-              <SelectTrigger className="w-full sm:w-[120px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - 2 + i
-                  return (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
+          {/* MÊS */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Mês</Label>
+            <div className="h-10">
+              <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
+                <SelectTrigger className="w-full sm:w-[160px] h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
+                      {new Date(2000, i).toLocaleString('pt-BR', { month: 'long' })}
                     </SelectItem>
-                  )
-                  })}
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-        {/* SETOR */}
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
-          <Label>Setor</Label>
-          <div className="h-10">
-            <Select value={selectedSetor} onValueChange={setSelectedSetor}>
-              <SelectTrigger className="w-full sm:w-[200px] h-10">
-                <SelectValue placeholder="Selecione o setor" />
-              </SelectTrigger>
-              <SelectContent>
-                {setores.map((setor) => (
-                  <SelectItem key={setor.id} value={setor.id.toString()}>
-                    {setor.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* ANO */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Ano</Label>
+            <div className="h-10">
+              <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
+                <SelectTrigger className="w-full sm:w-[120px] h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - 2 + i
+                    return (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+          {/* SETOR */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <Label>Setor</Label>
+            <div className="h-10">
+              <Select value={selectedSetor} onValueChange={setSelectedSetor}>
+                <SelectTrigger className="w-full sm:w-[200px] h-10">
+                  <SelectValue placeholder="Selecione o setor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {setores.map((setor) => (
+                    <SelectItem key={setor.id} value={setor.id.toString()}>
+                      {setor.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
+
+        {/* Badges de Filiais Selecionadas */}
+        {filiaisSelecionadas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-1">
+            {filiaisSelecionadas.map((filial: FilialOption) => (
+              <Badge
+                key={filial.value}
+                variant="secondary"
+                className="h-6 gap-1 pr-1 text-xs"
+              >
+                <span className="max-w-[150px] truncate">{filial.label}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFiliaisSelecionadas(prev => prev.filter(f => f.value !== filial.value))
+                  }}
+                  className="ml-1 rounded-sm hover:bg-secondary-foreground/20 focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={`Remover ${filial.label}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabela de Metas */}
@@ -827,7 +860,7 @@ export default function MetaSetorPage() {
                 <Target className="h-5 w-5" />
                 {currentSetor?.nome}
               </CardTitle>
-              <Badge variant="secondary">
+              <Badge>
                 {filiaisSelecionadas.length === 0
                   ? 'Todas as Filiais'
                   : filiaisSelecionadas.length === 1

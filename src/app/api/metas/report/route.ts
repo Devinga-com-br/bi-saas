@@ -33,50 +33,53 @@ export async function GET(request: NextRequest) {
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
 
-    // Determine which filial to use
-    let finalFilialId: number | null = null
+    // Determine which filiais to use (can be array of IDs)
+    let finalFilialIds: number[] | null = null
 
     if (authorizedBranches === null) {
-      // User has no restrictions - use requested value
-      if (requestedFilialId && requestedFilialId !== 'all') {
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed)) {
-          finalFilialId = parsed
+      // User has no restrictions
+      if (requestedFilialId) {
+        // Parse comma-separated IDs or single ID
+        const ids = requestedFilialId.split(',')
+          .map(id => parseInt(id.trim(), 10))
+          .filter(id => !isNaN(id))
+
+        if (ids.length > 0) {
+          finalFilialIds = ids
         }
       }
     } else {
       // User has restrictions
-      if (!requestedFilialId || requestedFilialId === 'all') {
-        // Request for all - use first authorized branch
-        if (authorizedBranches.length > 0) {
-          const parsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(parsed)) {
-            finalFilialId = parsed
-          }
-        }
+      if (!requestedFilialId) {
+        // No filial requested - use all authorized
+        finalFilialIds = authorizedBranches
+          .map(id => parseInt(id, 10))
+          .filter(id => !isNaN(id))
       } else {
-        // Specific filial requested - check if authorized
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
-          finalFilialId = parsed
-        } else if (authorizedBranches.length > 0) {
-          // Not authorized - use first authorized
-          const firstParsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(firstParsed)) {
-            finalFilialId = firstParsed
-          }
+        // Specific filials requested - filter by authorized
+        const requestedIds = requestedFilialId.split(',')
+          .map(id => id.trim())
+          .filter(id => authorizedBranches.includes(id))
+          .map(id => parseInt(id, 10))
+          .filter(id => !isNaN(id))
+
+        if (requestedIds.length > 0) {
+          finalFilialIds = requestedIds
+        } else {
+          // None of requested are authorized - use all authorized
+          finalFilialIds = authorizedBranches
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id))
         }
       }
     }
 
-    const params: Record<string, number | string> = {
+    const params: Record<string, number | string | number[] | null> = {
       p_schema: schema,
       p_mes: parseInt(mes),
-      p_ano: parseInt(ano)
-    }
-
-    if (finalFilialId !== null) {
-      params.p_filial_id = finalFilialId
+      p_ano: parseInt(ano),
+      p_filial_id: null,
+      p_filial_ids: finalFilialIds
     }
 
     console.log('[API/METAS/REPORT] Calling RPC with params:', params)
