@@ -54,6 +54,7 @@ interface DescontoVenda {
   filial_nome?: string
   data_desconto: string
   valor_desconto: number
+  desconto_custo: number
   observacao: string | null
   created_at: string
   updated_at: string
@@ -98,6 +99,7 @@ export default function DescontosVendaPage() {
     filial_id: '',
     data_desconto: '',
     valor_desconto: '',
+    desconto_custo: '',
     observacao: '',
   })
 
@@ -160,6 +162,7 @@ export default function DescontosVendaPage() {
       filial_id: '',
       data_desconto: new Date().toISOString().split('T')[0],
       valor_desconto: '',
+      desconto_custo: '',
       observacao: '',
     })
     setShowModal(true)
@@ -172,6 +175,7 @@ export default function DescontosVendaPage() {
       filial_id: desconto.filial_id.toString(),
       data_desconto: desconto.data_desconto,
       valor_desconto: desconto.valor_desconto.toString(),
+      desconto_custo: (desconto.desconto_custo || 0).toString(),
       observacao: desconto.observacao || '',
     })
     setShowModal(true)
@@ -220,7 +224,7 @@ export default function DescontosVendaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.filial_id || !formData.data_desconto || !formData.valor_desconto) {
+    if (!formData.filial_id || !formData.data_desconto || !formData.valor_desconto || !formData.desconto_custo) {
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
@@ -237,6 +241,7 @@ export default function DescontosVendaPage() {
         filial_id: parseInt(formData.filial_id),
         data_desconto: formData.data_desconto,
         valor_desconto: parseFloat(formData.valor_desconto),
+        desconto_custo: parseFloat(formData.desconto_custo),
         observacao: formData.observacao || null,
         schema: currentTenant.supabase_schema,
       }
@@ -280,17 +285,17 @@ export default function DescontosVendaPage() {
   }
 
   // Formatar input com máscara de moeda
-  const handleCurrencyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCurrencyInput = (e: React.ChangeEvent<HTMLInputElement>, field: 'valor_desconto' | 'desconto_custo') => {
     const value = e.target.value.replace(/\D/g, '') // Remove tudo que não é dígito
     
     if (value === '') {
-      setFormData({ ...formData, valor_desconto: '' })
+      setFormData({ ...formData, [field]: '' })
       return
     }
     
     // Converte para número e formata
     const numberValue = parseFloat(value) / 100
-    setFormData({ ...formData, valor_desconto: numberValue.toString() })
+    setFormData({ ...formData, [field]: numberValue.toString() })
   }
 
   // Formatar valor para exibir no input
@@ -357,7 +362,8 @@ export default function DescontosVendaPage() {
                   <TableRow>
                     <TableHead>Data</TableHead>
                     <TableHead>Filial</TableHead>
-                    <TableHead className="text-right">Valor Desconto</TableHead>
+                    <TableHead className="text-right">Desconto Venda</TableHead>
+                    <TableHead className="text-right">Desconto Custo</TableHead>
                     <TableHead>Observação</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -373,6 +379,9 @@ export default function DescontosVendaPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency(desconto.valor_desconto)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(desconto.desconto_custo || 0)}
                       </TableCell>
                       <TableCell className="max-w-md truncate">
                         {desconto.observacao || '-'}
@@ -460,16 +469,36 @@ export default function DescontosVendaPage() {
 
               <div className="grid gap-2">
                 <Label htmlFor="valor_desconto">
-                  Valor do Desconto (R$) <span className="text-red-500">*</span>
+                  Desconto Venda (R$) <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="valor_desconto"
                   type="text"
                   placeholder="0,00"
                   value={getDisplayValue(formData.valor_desconto)}
-                  onChange={handleCurrencyInput}
+                  onChange={(e) => handleCurrencyInput(e, 'valor_desconto')}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Valor a ser deduzido das vendas
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="desconto_custo">
+                  Desconto Custo (R$) <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="desconto_custo"
+                  type="text"
+                  placeholder="0,00"
+                  value={getDisplayValue(formData.desconto_custo)}
+                  onChange={(e) => handleCurrencyInput(e, 'desconto_custo')}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Valor a ser deduzido do custo no cálculo de lucro bruto
+                </p>
               </div>
 
               <div className="grid gap-2">

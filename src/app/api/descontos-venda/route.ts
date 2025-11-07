@@ -60,12 +60,12 @@ export async function POST(request: Request) {
 
     // Obter dados do request
     const body = await request.json()
-    const { filial_id, data_desconto, valor_desconto, observacao, schema } = body
+    const { filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = body
 
     // Validar campos obrigatórios
-    if (!filial_id || !data_desconto || valor_desconto === undefined || !schema) {
+    if (!filial_id || !data_desconto || valor_desconto === undefined || desconto_custo === undefined || !schema) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: filial_id, data_desconto, valor_desconto, schema' },
+        { error: 'Campos obrigatórios: filial_id, data_desconto, valor_desconto, desconto_custo, schema' },
         { status: 400 }
       )
     }
@@ -78,12 +78,21 @@ export async function POST(request: Request) {
       )
     }
 
+    // Validar desconto_custo positivo
+    if (desconto_custo < 0) {
+      return NextResponse.json(
+        { error: 'Desconto custo deve ser maior ou igual a zero' },
+        { status: 400 }
+      )
+    }
+
     // Inserir desconto usando RPC
     const { data, error } = await (supabase as SupabaseClient).rpc('insert_desconto_venda', {
       p_schema: schema,
       p_filial_id: parseInt(filial_id),
       p_data_desconto: data_desconto,
       p_valor_desconto: parseFloat(valor_desconto),
+      p_desconto_custo: parseFloat(desconto_custo),
       p_observacao: observacao || null,
       p_created_by: user.id
     })
@@ -129,12 +138,12 @@ export async function PUT(request: Request) {
 
     // Obter dados do request
     const body = await request.json()
-    const { id, filial_id, data_desconto, valor_desconto, observacao, schema } = body
+    const { id, filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = body
 
     // Validar campos obrigatórios
-    if (!id || !filial_id || !data_desconto || valor_desconto === undefined || !schema) {
+    if (!id || !filial_id || !data_desconto || valor_desconto === undefined || desconto_custo === undefined || !schema) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: id, filial_id, data_desconto, valor_desconto, schema' },
+        { error: 'Campos obrigatórios: id, filial_id, data_desconto, valor_desconto, desconto_custo, schema' },
         { status: 400 }
       )
     }
@@ -147,6 +156,14 @@ export async function PUT(request: Request) {
       )
     }
 
+    // Validar desconto_custo positivo
+    if (desconto_custo < 0) {
+      return NextResponse.json(
+        { error: 'Desconto custo deve ser maior ou igual a zero' },
+        { status: 400 }
+      )
+    }
+
     // Atualizar desconto usando RPC
     const { data, error } = await (supabase as SupabaseClient).rpc('update_desconto_venda', {
       p_schema: schema,
@@ -154,6 +171,7 @@ export async function PUT(request: Request) {
       p_filial_id: parseInt(filial_id),
       p_data_desconto: data_desconto,
       p_valor_desconto: parseFloat(valor_desconto),
+      p_desconto_custo: parseFloat(desconto_custo),
       p_observacao: observacao || null
     })
 
