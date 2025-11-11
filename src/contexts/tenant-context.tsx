@@ -122,39 +122,55 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   const switchTenant = async (tenantId: string) => {
     const tenant = accessibleTenants.find(t => t.id === tenantId)
-    if (tenant) {
-      console.log('[TenantContext] Trocando tenant:', currentTenant?.name, '→', tenant.name)
-      
-      // 1. Salvar novo tenant no localStorage
+    if (!tenant) {
+      console.error('[TenantContext] Tenant não encontrado:', tenantId)
+      return
+    }
+    
+    console.log('[TenantContext] 🔄 Iniciando troca de tenant:', {
+      de: currentTenant?.name,
+      para: tenant.name,
+      tenantId
+    })
+    
+    try {
+      // 1. Salvar novo tenant no localStorage IMEDIATAMENTE
       localStorage.setItem(CURRENT_TENANT_KEY, tenantId)
+      console.log('[TenantContext] ✅ Tenant salvo no localStorage:', tenantId)
       
-      // 2. Limpar outros dados do localStorage relacionados ao tenant anterior
-      // Manter apenas o tenant_id e dados de autenticação
-      const itemsToKeep = ['bi_saas_current_tenant_id', 'supabase.auth.token']
+      // 2. Limpar sessionStorage completamente (pode ter dados cacheados)
+      sessionStorage.clear()
+      console.log('[TenantContext] ✅ SessionStorage limpo')
+      
+      // 3. Limpar dados específicos do localStorage (exceto auth)
+      const itemsToKeep = ['bi_saas_current_tenant_id']
       const allKeys = Object.keys(localStorage)
       
+      let removedCount = 0
       allKeys.forEach(key => {
-        // Remover itens que não devem ser mantidos
-        if (!itemsToKeep.some(keepKey => key.includes(keepKey))) {
-          localStorage.removeItem(key)
+        // Manter auth do Supabase e tenant_id
+        if (key.includes('supabase') || itemsToKeep.includes(key)) {
+          return
         }
+        localStorage.removeItem(key)
+        removedCount++
       })
+      console.log('[TenantContext] 🗑️ Removidos', removedCount, 'itens do localStorage')
       
-      // 3. Atualizar estado
+      // 4. Atualizar estado (para componentes que escutam)
       setCurrentTenant(tenant)
+      console.log('[TenantContext] ✅ Estado atualizado')
       
-      // 4. Forçar recarregamento completo da página para limpar todos os estados
-      // Isso garante que:
-      // - Todos os filtros de filiais sejam resetados
-      // - Todos os caches SWR sejam limpos
-      // - Todos os estados de componentes sejam reinicializados
-      // - Todas as queries sejam refeitas com o novo tenant
-      console.log('[TenantContext] Recarregando página para aplicar mudanças...')
+      // 5. Forçar reload TOTAL da página
+      console.log('[TenantContext] 🔄 RECARREGANDO PÁGINA em 50ms...')
       
-      // Pequeno delay para garantir que o localStorage foi atualizado
       setTimeout(() => {
-        window.location.href = '/dashboard'
-      }, 100)
+        // Usar reload(true) força bypass do cache do navegador
+        window.location.reload()
+      }, 50)
+      
+    } catch (error) {
+      console.error('[TenantContext] ❌ Erro ao trocar tenant:', error)
     }
   }
 
