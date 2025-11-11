@@ -41,6 +41,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
+import { RefreshCw } from 'lucide-react'
 
 interface Setor {
   id: number
@@ -78,10 +79,12 @@ export default function MetaSetorPage() {
   const [mes, setMes] = useState(new Date().getMonth() + 1)
   const [ano, setAno] = useState(new Date().getFullYear())
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
+  const [tempFiliaisSelecionadas, setTempFiliaisSelecionadas] = useState<FilialOption[]>([])
   const [metasData, setMetasData] = useState<Record<number, MetaSetor[]>>({})
   const [loading, setLoading] = useState(false)
   const [loadingSetores, setLoadingSetores] = useState(true)
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
+  const [isUpdatingValues, setIsUpdatingValues] = useState(false)
 
   // Estados para edição inline
   const [editingCell, setEditingCell] = useState<{ data: string; filialId: number; field: 'percentual' | 'valor' } | null>(null)
@@ -116,6 +119,7 @@ export default function MetaSetorPage() {
   useEffect(() => {
     if (!isLoadingBranches && branches && branches.length > 0 && filiaisSelecionadas.length === 0) {
       setFiliaisSelecionadas(branches)
+      setTempFiliaisSelecionadas(branches)
     }
   }, [isLoadingBranches, branches, filiaisSelecionadas.length])
 
@@ -139,11 +143,57 @@ export default function MetaSetorPage() {
     }
   }, [currentTenant, selectedSetor])
 
+  // Função para atualizar valores realizados de TODOS os setores
+  const atualizarValoresRealizados = async () => {
+    if (!currentTenant) return
+
+    console.log('[METAS_SETOR] 🔄 Atualizando valores realizados de todos os setores...')
+    setIsUpdatingValues(true)
+    
+    try {
+      const response = await fetch('/api/metas/setor/update-valores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schema: currentTenant.supabase_schema,
+          mes: mes,
+          ano: ano
+        }),
+      })
+
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao atualizar valores')
+      }
+
+      console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
+    } catch (error) {
+      console.error('[METAS_SETOR] ❌ Erro ao atualizar valores:', error)
+      // Não bloqueia o carregamento, apenas loga o erro
+    } finally {
+      setIsUpdatingValues(false)
+    }
+  }
+
   const loadMetasPorSetor = useCallback(async () => {
-    if (!currentTenant || !selectedSetor) return
+    if (!currentTenant || !selectedSetor || filiaisSelecionadas.length === 0) {
+      console.log('[METAS_SETOR] ⚠️ Não carregar: filiais vazias')
+      return
+    }
 
     setLoading(true)
     try {
+      console.log('[METAS_SETOR] 📥 Carregando metas do setor:', {
+        setor_id: selectedSetor,
+        mes,
+        ano,
+        filiais: filiaisSelecionadas.length
+      })
+
+      // Atualizar valores realizados primeiro
+      await atualizarValoresRealizados()
+
       const params = new URLSearchParams({
         schema: currentTenant.supabase_schema || '',
         setor_id: selectedSetor,
@@ -151,19 +201,24 @@ export default function MetaSetorPage() {
         ano: ano.toString(),
       })
 
-      // Se tiver filiais selecionadas, buscar apenas as selecionadas
-      if (filiaisSelecionadas.length > 0) {
-        const filialIds = filiaisSelecionadas
-          .map(f => f.value)
-          .join(',')
+      // Buscar apenas as filiais selecionadas
+      const filialIds = filiaisSelecionadas
+        .map(f => f.value)
+        .join(',')
 
-        params.append('filial_id', filialIds)
-      }
+      params.append('filial_id', filialIds)
 
       const response = await fetch(`/api/metas/setor/report?${params}`)
       if (!response.ok) throw new Error('Erro ao carregar metas')
 
       const data = await response.json()
+      
+      console.log('[METAS_SETOR] 📊 Metas carregadas:', {
+        total: data.length,
+        primeiraData: data[0]?.data,
+        ultimaData: data[data.length - 1]?.data
+      })
+
       setMetasData({ [parseInt(selectedSetor)]: data })
 
       // Manter todas as datas fechadas por padrão
@@ -173,7 +228,7 @@ export default function MetaSetorPage() {
       })
       setExpandedDates(newExpanded)
     } catch (error) {
-      console.error('Error loading metas:', error)
+      console.error('[METAS_SETOR] ❌ Error loading metas:', error)
       alert('Erro ao carregar metas do setor')
     } finally {
       setLoading(false)
@@ -188,13 +243,32 @@ export default function MetaSetorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.id])
 
-  // Carregar metas apenas quando filtros mudarem
+  // Carregar metas ao montar com todas as filiais
   useEffect(() => {
-    if (selectedSetor && mes && ano && !isLoadingBranches) {
+    if (selectedSetor && mes && ano && !isLoadingBranches && filiaisSelecionadas.length > 0) {
+      console.log('[METAS_SETOR] 📍 Carregamento inicial com todas as filiais')
       loadMetasPorSetor()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSetor, mes, ano, filiaisSelecionadas.map(f => f.value).join(',')])
+  }, [selectedSetor, mes, ano, isLoadingBranches, filiaisSelecionadas])
+
+  // Função para aplicar filtros
+  const handleFiltrar = () => {
+    console.log('[METAS_SETOR] 🔍 Aplicando filtro:', {
+      tempFiliais: tempFiliaisSelecionadas.length,
+      mes,
+      ano,
+      setor: selectedSetor
+    })
+    
+    if (tempFiliaisSelecionadas.length === 0) {
+      alert('Selecione pelo menos uma filial')
+      return
+    }
+    
+    setFiliaisSelecionadas(tempFiliaisSelecionadas)
+    // A atualização de filiaisSelecionadas vai disparar o useEffect acima
+  }
 
   const handleGerarMeta = async () => {
     if (!currentTenant) return
@@ -474,11 +548,21 @@ export default function MetaSetorPage() {
       <div className="flex items-center justify-end gap-2">
         <Button
           variant="outline"
-          onClick={() => window.location.reload()}
+          onClick={loadMetasPorSetor}
           disabled={loading}
           className="h-10"
         >
-          Atualizar Valores
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Atualizando...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Atualizar Valores
+            </>
+          )}
         </Button>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -743,24 +827,27 @@ export default function MetaSetorPage() {
       </div>
 
       {/* Filtros */}
-      <div className="space-y-3">
-        <div className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-end lg:gap-6">
-          {/* FILIAIS */}
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <Label>Filiais</Label>
-            <MultiFilialFilter
-              filiais={branches}
-              selectedFiliais={filiaisSelecionadas}
-              onChange={setFiliaisSelecionadas}
-              disabled={isLoadingBranches}
-              placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
-            />
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6">
+            {/* FILIAIS */}
+            <div className="flex flex-col gap-2 w-full lg:w-[200px]">
+              <Label>Filiais</Label>
+              <MultiFilialFilter
+                filiais={branches}
+                selectedFiliais={tempFiliaisSelecionadas}
+                onChange={setTempFiliaisSelecionadas}
+                disabled={isLoadingBranches}
+                placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
+              />
+            </div>
 
-          {/* MÊS */}
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Mês</Label>
-            <div className="h-10">
+            {/* MÊS */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label>Mês</Label>
               <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
                 <SelectTrigger className="w-full sm:w-[160px] h-10">
                   <SelectValue />
@@ -774,12 +861,10 @@ export default function MetaSetorPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {/* ANO */}
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Ano</Label>
-            <div className="h-10">
+            {/* ANO */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label>Ano</Label>
               <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
                 <SelectTrigger className="w-full sm:w-[120px] h-10">
                   <SelectValue />
@@ -792,16 +877,14 @@ export default function MetaSetorPage() {
                         {year}
                       </SelectItem>
                     )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+                  })}
+                </SelectContent>
+              </Select>
             </div>
 
-          {/* SETOR */}
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Label>Setor</Label>
-            <div className="h-10">
+            {/* SETOR */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label>Setor</Label>
               <Select value={selectedSetor} onValueChange={setSelectedSetor}>
                 <SelectTrigger className="w-full sm:w-[200px] h-10">
                   <SelectValue placeholder="Selecione o setor" />
@@ -815,35 +898,28 @@ export default function MetaSetorPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </div>
 
-        {/* Badges de Filiais Selecionadas */}
-        {filiaisSelecionadas.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-1">
-            {filiaisSelecionadas.map((filial: FilialOption) => (
-              <Badge
-                key={filial.value}
-                variant="secondary"
-                className="h-6 gap-1 pr-1 text-xs"
+            {/* BOTÃO FILTRAR */}
+            <div className="flex flex-col gap-2">
+              <Label className="invisible hidden sm:block">Ação</Label>
+              <Button 
+                onClick={handleFiltrar} 
+                disabled={loading || tempFiliaisSelecionadas.length === 0}
+                className="h-10 w-full sm:w-auto"
               >
-                <span className="max-w-[150px] truncate">{filial.label}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setFiliaisSelecionadas(prev => prev.filter(f => f.value !== filial.value))
-                  }}
-                  className="ml-1 rounded-sm hover:bg-secondary-foreground/20 focus:outline-none focus:ring-1 focus:ring-ring"
-                  aria-label={`Remover ${filial.label}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  'Filtrar'
+                )}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Tabela de Metas */}
       {loading ? (
