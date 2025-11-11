@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
 
     // Chamar função RPC para atualizar valores realizados de TODOS os setores
     // A função processa todos os setores ativos do schema
-    const { data, error } = await supabase.rpc('atualizar_valores_realizados_todos_setores', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('atualizar_valores_realizados_todos_setores', {
       p_schema: schema,
       p_mes: mes,
       p_ano: ano

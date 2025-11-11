@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -84,7 +84,7 @@ export default function MetaSetorPage() {
   const [loading, setLoading] = useState(false)
   const [loadingSetores, setLoadingSetores] = useState(true)
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
-  const [isUpdatingValues, setIsUpdatingValues] = useState(false)
+  // const [isUpdatingValues, setIsUpdatingValues] = useState(false) // Não usado na UI
 
   // Estados para edição inline
   const [editingCell, setEditingCell] = useState<{ data: string; filialId: number; field: 'percentual' | 'valor' } | null>(null)
@@ -143,40 +143,37 @@ export default function MetaSetorPage() {
     }
   }, [currentTenant, selectedSetor])
 
-  // Função para atualizar valores realizados de TODOS os setores
-  const atualizarValoresRealizados = async () => {
-    if (!currentTenant) return
-
-    console.log('[METAS_SETOR] 🔄 Atualizando valores realizados de todos os setores...')
-    setIsUpdatingValues(true)
-    
-    try {
-      const response = await fetch('/api/metas/setor/update-valores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          schema: currentTenant.supabase_schema,
-          mes: mes,
-          ano: ano
-        }),
-      })
-
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao atualizar valores')
-      }
-
-      console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
-    } catch (error) {
-      console.error('[METAS_SETOR] ❌ Erro ao atualizar valores:', error)
-      // Não bloqueia o carregamento, apenas loga o erro
-    } finally {
-      setIsUpdatingValues(false)
-    }
-  }
-
   const loadMetasPorSetor = useCallback(async () => {
+    // Função para atualizar valores realizados de TODOS os setores
+    const atualizarValoresRealizados = async () => {
+      if (!currentTenant) return
+
+      console.log('[METAS_SETOR] 🔄 Atualizando valores realizados de todos os setores...')
+      
+      try {
+        const response = await fetch('/api/metas/setor/update-valores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            schema: currentTenant.supabase_schema,
+            mes: mes,
+            ano: ano
+          }),
+        })
+
+        const result = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao atualizar valores')
+        }
+
+        console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
+      } catch (error) {
+        console.error('[METAS_SETOR] ❌ Erro ao atualizar valores:', error)
+        // Não bloqueia o carregamento, apenas loga o erro
+      }
+    }
+
     if (!currentTenant || !selectedSetor || filiaisSelecionadas.length === 0) {
       console.log('[METAS_SETOR] ⚠️ Não carregar: filiais vazias')
       return
