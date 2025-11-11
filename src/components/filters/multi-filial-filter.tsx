@@ -18,7 +18,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -76,13 +75,13 @@ export function MultiFilialFilter({
     [selectedFiliais, selectedSet, onChange]
   )
 
-  // Remover filial específica
-  const removeFilial = React.useCallback(
-    (value: string) => {
-      onChange(selectedFiliais.filter((f) => f.value !== value))
-    },
-    [selectedFiliais, onChange]
-  )
+  // Remover filial específica (não usado atualmente)
+  // const removeFilial = React.useCallback(
+  //   (value: string) => {
+  //     onChange(selectedFiliais.filter((f) => f.value !== value))
+  //   },
+  //   [selectedFiliais, onChange]
+  // )
 
   // Selecionar todas as filiais
   const selectAll = React.useCallback(() => {

@@ -39,9 +39,9 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
     }).format(value)
   }
 
-  const formatPercent = (value: number) => {
-    return `${value.toFixed(2)}%`
-  }
+  // const formatPercent = (value: number) => {
+  //   return `${value.toFixed(2)}%`
+  // }
 
   const calculateVariation = (current: number, previous: number) => {
     if (previous === 0) return { percent: 0, isPositive: false }
@@ -90,9 +90,9 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
   const variacaoPamDespesas = calculateVariation(current.totalDespesas, pam.data.totalDespesas)
   const variacaoPaaDespesas = calculateVariation(current.totalDespesas, paa.data.totalDespesas)
 
-  // Calcular variações para Lucro Líquido
-  const variacaoPamLucroLiquido = calculateVariation(current.lucroLiquido, pam.data.lucroLiquido)
-  const variacaoPaaLucroLiquido = calculateVariation(current.lucroLiquido, paa.data.lucroLiquido)
+  // Calcular variações para Lucro Líquido (não usado atualmente)
+  // const variacaoPamLucroLiquido = calculateVariation(current.lucroLiquido, pam.data.lucroLiquido)
+  // const variacaoPaaLucroLiquido = calculateVariation(current.lucroLiquido, paa.data.lucroLiquido)
 
   return (
     <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

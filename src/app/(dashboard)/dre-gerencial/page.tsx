@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -491,22 +491,22 @@ export default function DespesasPage() {
   }
 
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value)
-  }
+  // const formatCurrency = (value: number) => {
+  //   return new Intl.NumberFormat('pt-BR', {
+  //     style: 'currency',
+  //     currency: 'BRL',
+  //   }).format(value)
+  // }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-'
-    try {
-      const date = new Date(dateStr)
-      return format(date, 'dd/MM/yyyy')
-    } catch {
-      return dateStr
-    }
-  }
+  // const formatDate = (dateStr: string | null) => {
+  //   if (!dateStr) return '-'
+  //   try {
+  //     const date = new Date(dateStr)
+  //     return format(date, 'dd/MM/yyyy')
+  //   } catch {
+  //     return dateStr
+  //   }
+  // }
 
   const getFilialNome = (filialId: number) => {
     const filial = filiaisSelecionadas.find(f => parseInt(f.value) === filialId)

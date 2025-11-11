@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, FileText, FolderOpen, Layers, DollarSign } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
 
 interface SummaryStatsProps {
   valorTotal: number

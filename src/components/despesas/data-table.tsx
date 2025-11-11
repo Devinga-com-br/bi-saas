@@ -23,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChevronDown } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -68,7 +67,7 @@ export function DataTable<TData, TValue>({
   React.useEffect(() => {
     if (data.length > 0 && Object.keys(expanded).length === 0) {
       const firstLevelExpanded: ExpandedState = {}
-      table.getRowModel().rows.forEach((row, index) => {
+      table.getRowModel().rows.forEach((row) => {
         // Expandir apenas o primeiro nível (departamentos)
         if (row.depth === 0) {
           firstLevelExpanded[row.id] = true
@@ -76,7 +75,7 @@ export function DataTable<TData, TValue>({
       })
       setExpanded(firstLevelExpanded)
     }
-  }, [data])
+  }, [data, table, expanded])
 
   return (
     <div className="space-y-4">

@@ -69,12 +69,10 @@ export const createColumns = (
         
         let fontClass = "font-medium"
         let textSize = "text-sm"
-        let bgClass = ""
         
         if (tipo === 'total') {
           fontClass = "font-bold"
           textSize = "text-base"
-          bgClass = "bg-muted/50"
         }
         if (tipo === 'departamento') {
           fontClass = "font-semibold"
