@@ -82,7 +82,11 @@ export async function GET(request: NextRequest) {
       p_filial_ids: finalFilialIds
     }
 
-    console.log('[API/METAS/REPORT] Calling RPC with params:', params)
+    console.log('[API/METAS/REPORT] 📊 Calling RPC with params:', JSON.stringify(params, null, 2))
+    console.log('[API/METAS/REPORT] 🔍 Requested filial:', requestedFilialId)
+    console.log('[API/METAS/REPORT] 🔍 Final filial IDs:', finalFilialIds)
+    console.log('[API/METAS/REPORT] 🔍 Is single filial?', finalFilialIds?.length === 1)
+    console.log('[API/METAS/REPORT] 🔍 Authorized branches:', authorizedBranches)
 
     // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
     const { createClient: createDirectClient } = await import('@supabase/supabase-js')
@@ -95,7 +99,7 @@ export async function GET(request: NextRequest) {
     const { data, error} = await (directSupabase as any).rpc('get_metas_mensais_report', params)
 
     if (error) {
-      console.error('[API/METAS/REPORT] RPC Error:', {
+      console.error('[API/METAS/REPORT] ❌ RPC Error:', {
         code: error.code,
         message: error.message,
         details: error.details,
@@ -107,7 +111,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('[API/METAS/REPORT] Success, data type:', typeof data)
+    console.log('[API/METAS/REPORT] ✅ Success, data type:', typeof data)
+    console.log('[API/METAS/REPORT] 📋 Data structure:', {
+      hasMetas: !!data?.metas,
+      metasLength: data?.metas?.length,
+      firstDate: data?.metas?.[0]?.data,
+      lastDate: data?.metas?.[data?.metas?.length - 1]?.data,
+      totalRealizado: data?.total_realizado,
+      totalMeta: data?.total_meta
+    })
 
     return NextResponse.json(data || { metas: [], total_realizado: 0, total_meta: 0, percentual_atingido: 0 })
   } catch (error) {
