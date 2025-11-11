@@ -12,7 +12,6 @@ import {
   Package,
   TrendingUp,
   Target,
-  DollarSign,
   Cog,
   ChartBarBig,
   TrendingDown,
@@ -67,19 +66,14 @@ const visaoGeralNavigation: NavigationItem[] = [
 
 const gerencialNavigation: NavigationItem[] = [
   {
-    name: 'Despesas',
-    href: '/despesas',
-    icon: DollarSign,
+    name: 'DRE Gerêncial',
+    href: '/dre-gerencial',
+    icon: ChartBarBig,
   },
   {
     name: 'Descontos Venda',
     href: '/descontos-venda',
     icon: TrendingDown,
-  },
-  {
-    name: 'DRE Gerencial',
-    href: '/dre-gerencial',
-    icon: ChartBarBig,
   },
   {
     name: 'Metas',

@@ -94,6 +94,7 @@ export function MultiFilialFilter({
   const clearAll = React.useCallback(() => {
     onChange([])
     setSearchValue('')
+    // NÃO fecha o popover - usuário pode selecionar outras filiais
   }, [onChange])
 
   // Texto do botão principal
@@ -149,30 +150,32 @@ export function MultiFilialFilter({
 
               <CommandSeparator />
 
-              {/* Lista de filiais */}
+              {/* Lista de filiais - Limita a 5 visíveis com scroll */}
               <CommandGroup>
-                <ScrollArea className="h-[200px]">
-                  {filteredFiliais.map((filial) => {
-                    const isSelected = selectedSet.has(filial.value)
-                    return (
-                      <CommandItem
-                        key={filial.value}
-                        value={filial.value}
-                        onSelect={() => toggleFilial(filial)}
-                        className="cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          className="mr-2"
-                          onCheckedChange={() => toggleFilial(filial)}
-                        />
-                        <span className="flex-1">{filial.label}</span>
-                        {isSelected && (
-                          <Check className="ml-2 h-4 w-4 text-primary" />
-                        )}
-                      </CommandItem>
-                    )
-                  })}
+                <ScrollArea className="h-[220px]">
+                  <div className="pr-4">
+                    {filteredFiliais.map((filial) => {
+                      const isSelected = selectedSet.has(filial.value)
+                      return (
+                        <CommandItem
+                          key={filial.value}
+                          value={filial.value}
+                          onSelect={() => toggleFilial(filial)}
+                          className="cursor-pointer h-11"
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            className="mr-2"
+                            onCheckedChange={() => toggleFilial(filial)}
+                          />
+                          <span className="flex-1">{filial.label}</span>
+                          {isSelected && (
+                            <Check className="ml-2 h-4 w-4 text-primary" />
+                          )}
+                        </CommandItem>
+                      )
+                    })}
+                  </div>
                 </ScrollArea>
               </CommandGroup>
             </CommandList>

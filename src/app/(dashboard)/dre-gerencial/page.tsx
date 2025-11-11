@@ -1,40 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, FileDown, Receipt, SquarePercent, TrendingUp, TrendingDown, X } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MultiFilialFilter, type FilialOption } from '@/components/filters'
-
-// Meses em português
-const MESES = [
-  { value: 0, label: 'Janeiro' },
-  { value: 1, label: 'Fevereiro' },
-  { value: 2, label: 'Março' },
-  { value: 3, label: 'Abril' },
-  { value: 4, label: 'Maio' },
-  { value: 5, label: 'Junho' },
-  { value: 6, label: 'Julho' },
-  { value: 7, label: 'Agosto' },
-  { value: 8, label: 'Setembro' },
-  { value: 9, label: 'Outubro' },
-  { value: 10, label: 'Novembro' },
-  { value: 11, label: 'Dezembro' },
-]
-
-// Anos disponíveis (últimos 5 anos)
-const getAnosDisponiveis = () => {
-  const anoAtual = new Date().getFullYear()
-  return Array.from({ length: 5 }, (_, i) => anoAtual - i)
-}
+import { type FilialOption } from '@/components/filters'
+import { DataTable } from '@/components/despesas/data-table'
+import { createColumns, type DespesaRow } from '@/components/despesas/columns'
+import { DespesasFilters } from '@/components/despesas/filters'
+import { EmptyState } from '@/components/despesas/empty-state'
+import { LoadingState } from '@/components/despesas/loading-state'
+import { IndicatorsCards } from '@/components/despesas/indicators-cards'
+import { Separator } from '@/components/ui/separator'
+import { Receipt } from 'lucide-react'
 
 // Interfaces para dados estruturados por filial
 interface DespesaPorFilial {
@@ -91,9 +72,8 @@ interface IndicadoresData {
 }
 
 interface DashboardData {
-  receita_bruta?: number
-  lucro_bruto?: number
-  cmv?: number
+  total_vendas?: number
+  total_lucro?: number
   margem_lucro?: number
 }
 
@@ -109,7 +89,7 @@ interface ComparacaoIndicadores {
   }
 }
 
-export default function DREGerencialPage() {
+export default function DespesasPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
@@ -117,13 +97,14 @@ export default function DREGerencialPage() {
     includeAll: false
   })
 
-  // Estados dos filtros - filial, mês e ano (mês atual como padrão)
-  const mesAtual = new Date().getMonth()
-  const anoAtual = new Date().getFullYear()
+  // Estados dos filtros - filial, mês e ano (mês anterior como padrão)
+  const hoje = new Date()
+  const mesAnterior = hoje.getMonth() - 1 < 0 ? 11 : hoje.getMonth() - 1
+  const anoMesAnterior = hoje.getMonth() - 1 < 0 ? hoje.getFullYear() - 1 : hoje.getFullYear()
   
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
-  const [mes, setMes] = useState<number>(mesAtual)
-  const [ano, setAno] = useState<number>(anoAtual)
+  const [mes, setMes] = useState<number>(mesAnterior)
+  const [ano, setAno] = useState<number>(anoMesAnterior)
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -133,10 +114,6 @@ export default function DREGerencialPage() {
   const [loading, setLoading] = useState(false)
   const [loadingIndicadores, setLoadingIndicadores] = useState(false)
   const [error, setError] = useState('')
-
-  // Estados de expansão - Todos fechados por padrão
-  const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({})
-  const [expandedTipos, setExpandedTipos] = useState<Record<string, boolean>>({})
 
   // Pré-selecionar todas as filiais ao carregar
   useEffect(() => {
@@ -149,7 +126,7 @@ export default function DREGerencialPage() {
   useEffect(() => {
     if (userProfile?.id && currentTenant?.id) {
       logModuleAccess({
-        module: 'dre-gerencial',
+        module: 'despesas',
         tenantId: currentTenant.id,
         userName: userProfile.full_name || 'Usuário',
         userEmail: userProfile.id,
@@ -157,77 +134,63 @@ export default function DREGerencialPage() {
     }
   }, [userProfile?.id, currentTenant?.id, userProfile?.full_name])
 
-  // Buscar despesas e depois indicadores quando filtros mudarem
-  useEffect(() => {
-    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && !isLoadingBranches) {
-      // Primeiro busca despesas, depois indicadores
-      fetchAllDespesas().then(() => {
-        fetchIndicadores()
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant?.supabase_schema, filiaisSelecionadas.map(f => f.value).join(','), mes, ano, isLoadingBranches])
+  // Função para aplicar filtros (chamada pelo botão Filtrar)
+  const handleFilter = async (filiais: FilialOption[], mesParam: number, anoParam: number) => {
+    if (currentTenant?.supabase_schema && filiais.length > 0) {
+      setLoading(true)
+      setLoadingIndicadores(true)
+      setError('')
 
-  // Buscar despesas dos 3 períodos
-  const fetchAllDespesas = async () => {
-    setLoading(true)
-    setError('')
+      try {
+        // Período atual
+        const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
+        
+        // PAM - mês anterior
+        const mesPam = mesParam - 1 < 0 ? 11 : mesParam - 1
+        const anoPam = mesParam - 1 < 0 ? anoParam - 1 : anoParam
+        const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam)
+        
+        // PAA - mesmo mês ano passado
+        const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1)
 
-    try {
-      // Período atual
-      const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
-      
-      // PAM - mês anterior
-      const mesPam = mes - 1 < 0 ? 11 : mes - 1
-      const anoPam = mes - 1 < 0 ? ano - 1 : ano
-      const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam)
-      
-      // PAA - mesmo mês ano passado
-      const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mes, ano - 1)
+        // Buscar em paralelo
+        const [dataAtual, despesasPam, despesasPaa] = await Promise.all([
+          fetchDespesasPeriodo(filiais, dataInicio, dataFim),
+          fetchDespesasPeriodo(filiais, dataInicioPam, dataFimPam),
+          fetchDespesasPeriodo(filiais, dataInicioPaa, dataFimPaa)
+        ])
 
-      console.log('[DRE Frontend] Buscando despesas:', {
-        atual: `${dataInicio} a ${dataFim}`,
-        pam: `${dataInicioPam} a ${dataFimPam}`,
-        paa: `${dataInicioPaa} a ${dataFimPaa}`
-      })
+        setData(dataAtual)
+        setDataPam(despesasPam)
+        setDataPaa(despesasPaa)
+        setLoading(false)
 
-      // Buscar em paralelo
-      const [dataAtual, despesasPam, despesasPaa] = await Promise.all([
-        fetchDespesasPeriodo(dataInicio, dataFim),
-        fetchDespesasPeriodo(dataInicioPam, dataFimPam),
-        fetchDespesasPeriodo(dataInicioPaa, dataFimPaa)
-      ])
-
-      setData(dataAtual)
-      setDataPam(despesasPam)
-      setDataPaa(despesasPaa)
-    } catch (err) {
-      const error = err as Error
-      console.error('[DRE] Erro ao buscar despesas:', error)
-      setError(error.message || 'Erro ao carregar despesas')
-    } finally {
-      setLoading(false)
+        // Agora buscar indicadores com os dados de despesas já carregados
+        await fetchIndicadores(filiais, mesParam, anoParam, dataAtual, despesasPam, despesasPaa)
+      } catch (err) {
+        const error = err as Error
+        console.error('[Despesas] Erro ao buscar despesas:', error)
+        setError(error.message || 'Erro ao carregar despesas')
+        setLoading(false)
+        setLoadingIndicadores(false)
+      }
     }
   }
 
-  // Calcular datas com base em mês e ano
-  const getDatasMesAno = (mesParam: number, anoParam: number) => {
-    const dataInicio = startOfMonth(new Date(anoParam, mesParam))
-    const dataFim = endOfMonth(new Date(anoParam, mesParam))
-    return {
-      dataInicio: format(dataInicio, 'yyyy-MM-dd'),
-      dataFim: format(dataFim, 'yyyy-MM-dd')
-    }
-  }
+
 
   // Função auxiliar para buscar despesas de um período
-  const fetchDespesasPeriodo = async (dataInicio: string, dataFim: string): Promise<ReportData | null> => {
+  const fetchDespesasPeriodo = async (
+    filiais: FilialOption[],
+    dataInicio: string,
+    dataFim: string
+  ): Promise<ReportData | null> => {
     if (!currentTenant?.supabase_schema) {
       return null
     }
 
     try {
-      const filiaisParaBuscar = filiaisSelecionadas.map(f => parseInt(f.value)).filter(id => !isNaN(id))
+      const filiaisParaBuscar = filiais.map(f => parseInt(f.value)).filter(id => !isNaN(id))
 
       if (filiaisParaBuscar.length === 0) {
         return null
@@ -241,7 +204,7 @@ export default function DREGerencialPage() {
           data_final: dataFim,
         })
 
-        const response = await fetch(`/api/despesas/hierarquia?${params}`)
+        const response = await fetch(`/api/dre-gerencial/hierarquia?${params}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -254,12 +217,20 @@ export default function DREGerencialPage() {
       const results = await Promise.all(promises)
       return consolidateData(results)
     } catch (error) {
-      console.error('[DRE] Erro ao buscar despesas:', error)
+      console.error('[Despesas] Erro ao buscar despesas:', error)
       return null
     }
   }
 
-  const fetchIndicadores = async () => {
+  // Buscar indicadores (mesma API do DRE Gerencial)
+  const fetchIndicadores = async (
+    filiais: FilialOption[],
+    mesParam: number,
+    anoParam: number,
+    despesasAtual?: ReportData | null,
+    despesasPam?: ReportData | null,
+    despesasPaa?: ReportData | null
+  ) => {
     if (!currentTenant?.supabase_schema) {
       return
     }
@@ -267,44 +238,55 @@ export default function DREGerencialPage() {
     setLoadingIndicadores(true)
 
     try {
-      const { dataInicio, dataFim } = getDatasMesAno(mes, ano)
-
-      const filialIds = filiaisSelecionadas.map(f => f.value).join(',')
-      const params = new URLSearchParams({
-        schema: currentTenant.supabase_schema,
-        filiais: filialIds,
-        dataInicio: dataInicio,
-        dataFim: dataFim
-      })
-
-      console.log('[DRE Frontend] Buscando indicadores com:', { 
-        filiais: filialIds,
-        mes: MESES[mes].label,
-        ano,
-        dataInicio,
-        dataFim
-      })
-
-      const response = await fetch(`/api/dre-gerencial/indicadores?${params}`)
+      const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
+      const filialIds = filiais.map(f => f.value).join(',')
       
-      if (!response.ok) {
-        const text = await response.text()
-        console.error('[DRE Frontend] Erro na resposta:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: text
-        })
-        throw new Error(`Erro ${response.status}: ${text.substring(0, 100)}`)
+      // Buscar dados do período atual
+      const paramsAtual = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds || 'all'
+      })
+      const responseAtual = await fetch(`/api/dashboard?${paramsAtual}`)
+      if (!responseAtual.ok) throw new Error('Erro ao buscar dados atuais')
+      const dashboardAtual = await responseAtual.json()
+
+      // Buscar dados PAM (mesmo mês ano anterior)
+      const anoAnteriorPam = anoParam - 1
+      const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesParam, anoAnteriorPam)
+      const paramsPam = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        data_inicio: dataInicioPam,
+        data_fim: dataFimPam,
+        filiais: filialIds || 'all'
+      })
+      const responsePam = await fetch(`/api/dashboard?${paramsPam}`)
+      const dashboardPam = responsePam.ok ? await responsePam.json() : null
+
+      // Buscar dados PAA (acumulado ano até o mês)
+      const { dataInicio: dataInicioPaa } = getDatasMesAno(1, anoAnteriorPam) // Janeiro do ano anterior
+      const paramsPaa = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        data_inicio: dataInicioPaa,
+        data_fim: dataFimPam,
+        filiais: filialIds || 'all'
+      })
+      const responsePaa = await fetch(`/api/dashboard?${paramsPaa}`)
+      const dashboardPaa = responsePaa.ok ? await responsePaa.json() : null
+
+      const result = {
+        current: dashboardAtual,
+        pam: { data: dashboardPam, ano: anoAnteriorPam },
+        paa: { data: dashboardPaa, ano: anoAnteriorPam }
       }
 
-      const result = await response.json()
-      console.log('[DRE Frontend] Resultado recebido:', result)
-
       // Processar dados do dashboard para calcular indicadores (incluindo despesas)
-      const processIndicadores = (dashboardData: DashboardData, despesasData: ReportData | null): IndicadoresData => {
-        const receitaBruta = dashboardData?.receita_bruta || 0
-        const lucroBruto = dashboardData?.lucro_bruto || 0
-        const cmv = dashboardData?.cmv || 0
+      const processIndicadores = (dashboardData: DashboardData | null, despesasData: ReportData | null): IndicadoresData => {
+        const receitaBruta = dashboardData?.total_vendas || 0
+        const lucroBruto = dashboardData?.total_lucro || 0
+        // CMV = Receita Bruta - Lucro Bruto (custo das mercadorias vendidas)
+        const cmv = receitaBruta - lucroBruto
         const margemLucroBruto = dashboardData?.margem_lucro || 0
 
         // Calcular total de despesas
@@ -315,16 +297,6 @@ export default function DREGerencialPage() {
         
         // Calcular margem líquida: (Lucro Líquido / Receita Bruta) * 100
         const margemLucroLiquido = receitaBruta > 0 ? (lucroLiquido / receitaBruta) * 100 : 0
-
-        console.log('[DRE Frontend] Processando indicadores:', { 
-          receitaBruta, 
-          lucroBruto, 
-          cmv, 
-          totalDespesas,
-          lucroLiquido,
-          margemLucroBruto,
-          margemLucroLiquido
-        })
 
         return {
           receitaBruta,
@@ -338,27 +310,42 @@ export default function DREGerencialPage() {
       }
 
       const processedIndicadores = {
-        current: processIndicadores(result.current, data),
+        current: processIndicadores(result.current, despesasAtual || data),
         pam: {
-          data: processIndicadores(result.pam.data, dataPam),
+          data: processIndicadores(result.pam.data, despesasPam || dataPam),
           ano: result.pam.ano
         },
         paa: {
-          data: processIndicadores(result.paa.data, dataPaa),
+          data: processIndicadores(result.paa.data, despesasPaa || dataPaa),
           ano: result.paa.ano
         }
       }
 
-      console.log('[DRE Frontend] Indicadores processados:', processedIndicadores)
-
       setIndicadores(processedIndicadores)
     } catch (err) {
-      console.error('[DRE] Erro ao buscar indicadores:', err)
+      console.error('[Despesas] Erro ao buscar indicadores:', err)
     } finally {
       setLoadingIndicadores(false)
     }
   }
 
+  // Carregar dados inicialmente
+  useEffect(() => {
+    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && !isLoadingBranches && !data) {
+      handleFilter(filiaisSelecionadas, mes, ano)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant?.supabase_schema, filiaisSelecionadas.length, isLoadingBranches, data])
+
+  // Calcular datas com base em mês e ano
+  const getDatasMesAno = (mesParam: number, anoParam: number) => {
+    const dataInicio = startOfMonth(new Date(anoParam, mesParam))
+    const dataFim = endOfMonth(new Date(anoParam, mesParam))
+    return {
+      dataInicio: format(dataInicio, 'yyyy-MM-dd'),
+      dataFim: format(dataFim, 'yyyy-MM-dd')
+    }
+  }
 
   const consolidateData = (results: Array<{ filialId: number; data: ReportData }>): ReportData => {
     const deptMap = new Map<number, DepartamentoPorFilial>()
@@ -526,667 +513,177 @@ export default function DREGerencialPage() {
     return filial?.label || `Filial ${filialId}`
   }
 
-  const getTotalFilial = (valores: Record<number, number>, filialId: number) => {
-    return valores[filialId] || 0
-  }
-
-  const getTotalGeral = (valores: Record<number, number>) => {
-    return Object.values(valores).reduce((sum, val) => sum + val, 0)
-  }
-
-  const calculatePercentage = (valor: number, total: number) => {
-    if (total === 0) return '0,00%'
-    const percentage = (valor / total) * 100
-    return `${percentage.toFixed(2).replace('.', ',')}%`
-  }
-
-  // Calcula a diferença percentual de uma filial em relação à média (Total)
-  const calculateDifference = (valorFilial: number, valorTotal: number, qtdFiliais: number) => {
-    if (qtdFiliais === 0 || valorTotal === 0) return { diff: 0, isPositive: false }
+  // Transformar dados hierárquicos em formato plano para DataTable
+  const transformToTableData = (reportData: ReportData): DespesaRow[] => {
+    const rows: DespesaRow[] = []
     
-    const media = valorTotal / qtdFiliais
-    const diff = ((valorFilial - media) / media) * 100
-    
-    return {
-      diff: Math.abs(diff),
-      isPositive: valorFilial > media
+    // Linha de total
+    const totalRow: DespesaRow = {
+      id: 'total',
+      tipo: 'total',
+      descricao: 'TOTAL DESPESAS',
+      total: reportData.totalizador.valorTotal,
+      percentual: 100,
+      valores_filiais: reportData.departamentos.reduce((acc, dept) => {
+        reportData.filiais.forEach(filialId => {
+          acc[filialId] = (acc[filialId] || 0) + (dept.valores_filiais[filialId] || 0)
+        })
+        return acc
+      }, {} as Record<number, number>),
+      filiais: reportData.filiais,
+      subRows: []
     }
+    
+    // Departamentos
+    reportData.departamentos.forEach((dept) => {
+      const deptTotal = Object.values(dept.valores_filiais).reduce((sum, v) => sum + v, 0)
+      
+      const deptRow: DespesaRow = {
+        id: `dept_${dept.dept_id}`,
+        tipo: 'departamento',
+        descricao: dept.dept_descricao,
+        total: deptTotal,
+        percentual: (deptTotal / reportData.totalizador.valorTotal) * 100,
+        valores_filiais: dept.valores_filiais,
+        filiais: reportData.filiais,
+        subRows: []
+      }
+      
+      // Tipos
+      dept.tipos.forEach((tipo) => {
+        const tipoTotal = Object.values(tipo.valores_filiais).reduce((sum, v) => sum + v, 0)
+        
+        const tipoRow: DespesaRow = {
+          id: `tipo_${dept.dept_id}_${tipo.tipo_id}`,
+          tipo: 'tipo',
+          descricao: tipo.tipo_descricao,
+          total: tipoTotal,
+          percentual: (tipoTotal / reportData.totalizador.valorTotal) * 100,
+          valores_filiais: tipo.valores_filiais,
+          filiais: reportData.filiais,
+          subRows: []
+        }
+        
+        // Despesas
+        tipo.despesas.forEach((desp, idx) => {
+          const despTotal = Object.values(desp.valores_filiais).reduce((sum, v) => sum + v, 0)
+          
+          const despRow: DespesaRow = {
+            id: `desp_${dept.dept_id}_${tipo.tipo_id}_${idx}`,
+            tipo: 'despesa',
+            descricao: desp.descricao_despesa || 'Sem descrição',
+            data_despesa: desp.data_despesa,
+            data_emissao: desp.data_emissao || undefined,
+            numero_nota: desp.numero_nota,
+            serie_nota: desp.serie_nota,
+            observacao: desp.observacao,
+            total: despTotal,
+            percentual: (despTotal / reportData.totalizador.valorTotal) * 100,
+            valores_filiais: desp.valores_filiais,
+            filiais: reportData.filiais,
+          }
+          
+          tipoRow.subRows!.push(despRow)
+        })
+        
+        deptRow.subRows!.push(tipoRow)
+      })
+      
+      totalRow.subRows!.push(deptRow)
+    })
+    
+    rows.push(totalRow)
+    return rows
   }
 
   if (!currentTenant) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="text-muted-foreground">Carregando...</p>
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Filtros */}
-      <div className='space-y-3'>
-        <div className="rounded-md border p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-            {/* FILIAIS */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              <Label>Filiais</Label>
-              <MultiFilialFilter
-                filiais={branches}
-                selectedFiliais={filiaisSelecionadas}
-                onChange={setFiliaisSelecionadas}
-                disabled={isLoadingBranches}
-                placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione as filiais..."}
-              />
-            </div>
-
-            {/* MÊS */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label>Mês</Label>
-              <div className="h-10">
-                <Select value={mes.toString()} onValueChange={(value) => setMes(parseInt(value))}>
-                  <SelectTrigger className="w-full sm:w-[160px] h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MESES.map((mesItem) => (
-                      <SelectItem key={mesItem.value} value={mesItem.value.toString()}>
-                        {mesItem.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* ANO */}
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Label>Ano</Label>
-              <div className="h-10">
-                <Select value={ano.toString()} onValueChange={(value) => setAno(parseInt(value))}>
-                  <SelectTrigger className="w-full sm:w-[120px] h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAnosDisponiveis().map((anoItem) => (
-                      <SelectItem key={anoItem} value={anoItem.toString()}>
-                        {anoItem}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+    <div className="flex flex-col gap-4 pb-8 max-w-full overflow-x-hidden">
+      {/* Page Header */}
+      <div className="space-y-2">
+        <PageBreadcrumb />
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-primary/10 p-2">
+            <Receipt className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">DRE Gerencial</h1>
+            <p className="text-muted-foreground">
+              Análise comparativa de despesas entre filiais
+            </p>
           </div>
         </div>
-
-        {/* Badges de Filiais Selecionadas */}
-        {filiaisSelecionadas.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-1">
-            {filiaisSelecionadas.map((filial: FilialOption) => (
-              <Badge
-                key={filial.value}
-                variant="secondary"
-                className="h-6 gap-1 pr-1 text-xs"
-              >
-                <span className="max-w-[150px] truncate">{filial.label}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setFiliaisSelecionadas(prev => prev.filter(f => f.value !== filial.value))
-                  }}
-                  className="ml-1 rounded-sm hover:bg-secondary-foreground/20 focus:outline-none focus:ring-1 focus:ring-ring"
-                  aria-label={`Remover ${filial.label}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        )}
       </div>
 
+      <Separator />
+
+      {/* Filtros */}
+      <DespesasFilters
+        filiaisSelecionadas={filiaisSelecionadas}
+        setFiliaisSelecionadas={setFiliaisSelecionadas}
+        mes={mes}
+        setMes={setMes}
+        ano={ano}
+        setAno={setAno}
+        branches={branches}
+        isLoadingBranches={isLoadingBranches}
+        onFilter={handleFilter}
+      />
+
       {/* Cards de Indicadores */}
-      {loadingIndicadores ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-32 mb-2" />
-                <Skeleton className="h-3 w-20" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        indicadores && (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {/* Receita Bruta */}
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">Receita Bruta</CardTitle>
-              <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.receitaBruta)}</div>
-              <div className="mt-2 space-y-1">
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-                  <span>PAM ({indicadores.pam.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.pam.data.receitaBruta)}</span>
-                </div>
-                {indicadores.pam.data.receitaBruta > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.receitaBruta >= indicadores.pam.data.receitaBruta
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.receitaBruta >= indicadores.pam.data.receitaBruta ? (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((indicadores.current.receitaBruta - indicadores.pam.data.receitaBruta) / indicadores.pam.data.receitaBruta * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-                  <span>PAA ({indicadores.paa.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.paa.data.receitaBruta)}</span>
-                </div>
-                {indicadores.paa.data.receitaBruta > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.receitaBruta >= indicadores.paa.data.receitaBruta
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.receitaBruta >= indicadores.paa.data.receitaBruta ? (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((indicadores.current.receitaBruta - indicadores.paa.data.receitaBruta) / indicadores.paa.data.receitaBruta * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            </Card>
-
-          {/* CMV */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">CMV</CardTitle>
-              <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.cmv)}</div>
-              <div className="mt-2 space-y-1">
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-                  <span>PAM ({indicadores.pam.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.pam.data.cmv)}</span>
-                </div>
-                {indicadores.pam.data.cmv > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.cmv <= indicadores.pam.data.cmv
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.cmv <= indicadores.pam.data.cmv ? (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {Math.abs((indicadores.current.cmv - indicadores.pam.data.cmv) / indicadores.pam.data.cmv * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-                  <span>PAA ({indicadores.paa.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.paa.data.cmv)}</span>
-                </div>
-                {indicadores.paa.data.cmv > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.cmv <= indicadores.paa.data.cmv
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.cmv <= indicadores.paa.data.cmv ? (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {Math.abs((indicadores.current.cmv - indicadores.paa.data.cmv) / indicadores.paa.data.cmv * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            </Card>
-
-          {/* Lucro Bruto */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">Lucro Bruto</CardTitle>
-              <SquarePercent className="h-3.5 w-3.5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg lg:text-xl font-bold">{formatCurrency(indicadores.current.lucroBruto)}</div>
-              <div className="text-[10px] text-muted-foreground mb-2">
-                {indicadores.current.margemLucroBruto.toFixed(2)}% da Receita Bruta
-              </div>
-              <div className="mt-2 space-y-1">
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-                  <span>PAM ({indicadores.pam.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.pam.data.lucroBruto)}</span>
-                </div>
-                {indicadores.pam.data.lucroBruto > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.lucroBruto >= indicadores.pam.data.lucroBruto
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.lucroBruto >= indicadores.pam.data.lucroBruto ? (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((indicadores.current.lucroBruto - indicadores.pam.data.lucroBruto) / indicadores.pam.data.lucroBruto * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-                  <span>PAA ({indicadores.paa.ano}):</span>
-                  <span className="font-medium">{formatCurrency(indicadores.paa.data.lucroBruto)}</span>
-                </div>
-                {indicadores.paa.data.lucroBruto > 0 && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    indicadores.current.lucroBruto >= indicadores.paa.data.lucroBruto
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {indicadores.current.lucroBruto >= indicadores.paa.data.lucroBruto ? (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((indicadores.current.lucroBruto - indicadores.paa.data.lucroBruto) / indicadores.paa.data.lucroBruto * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            </Card>
-
-          {/* Total de Despesas */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">Total de Despesas</CardTitle>
-              <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg lg:text-xl font-bold">
-                {data ? formatCurrency(data.totalizador.valorTotal) : '-'}
-              </div>
-              {data && indicadores.current.receitaBruta > 0 && (
-                <div className="text-[10px] text-muted-foreground mb-2">
-                  {((data.totalizador.valorTotal / indicadores.current.receitaBruta) * 100).toFixed(2)}% da Receita Bruta
-                </div>
-              )}
-              <div className="mt-2 space-y-1">
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-                  <span>PAM ({indicadores.pam.ano}):</span>
-                  <span className="font-medium">
-                    {dataPam ? formatCurrency(dataPam.totalizador.valorTotal) : 'Carregando...'}
-                  </span>
-                </div>
-                {dataPam && dataPam.totalizador.valorTotal > 0 && data && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    data.totalizador.valorTotal <= dataPam.totalizador.valorTotal
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {data.totalizador.valorTotal <= dataPam.totalizador.valorTotal ? (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((data.totalizador.valorTotal - dataPam.totalizador.valorTotal) / dataPam.totalizador.valorTotal * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-                  <span>PAA ({indicadores.paa.ano}):</span>
-                  <span className="font-medium">
-                    {dataPaa ? formatCurrency(dataPaa.totalizador.valorTotal) : 'Carregando...'}
-                  </span>
-                </div>
-                {dataPaa && dataPaa.totalizador.valorTotal > 0 && data && (
-                  <div className={`text-[10px] flex items-center gap-1 ${
-                    data.totalizador.valorTotal <= dataPaa.totalizador.valorTotal
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {data.totalizador.valorTotal <= dataPaa.totalizador.valorTotal ? (
-                      <TrendingDown className="h-2.5 w-2.5" />
-                    ) : (
-                      <TrendingUp className="h-2.5 w-2.5" />
-                    )}
-                    <span>
-                      {((data.totalizador.valorTotal - dataPaa.totalizador.valorTotal) / dataPaa.totalizador.valorTotal * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Lucro Líquido */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">Lucro Líquido</CardTitle>
-              <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg lg:text-xl font-bold">
-                {data ? formatCurrency(indicadores.current.lucroBruto - data.totalizador.valorTotal) : '-'}
-              </div>
-              {data && indicadores.current.receitaBruta > 0 && (
-                <div className="text-[10px] text-muted-foreground mb-2">
-                  {(((indicadores.current.lucroBruto - data.totalizador.valorTotal) / indicadores.current.receitaBruta) * 100).toFixed(2)}% da Receita Bruta
-                </div>
-              )}
-              <div className="mt-2 space-y-1">
-                <div className="text-[10px] text-muted-foreground">
-                  Lucro Líquido = Lucro Bruto - Despesas
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          </div>
-        )
+      {!loading && (
+        <IndicatorsCards
+          indicadores={indicadores}
+          loading={loadingIndicadores}
+        />
       )}
 
-      {/* Mensagem de Erro */}
-      {error && (
-        <Card className="border-destructive">
-          <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
+      {/* Estados de Loading/Erro/Empty */}
+      {loading && <LoadingState />}
+      
+      {error && !loading && (
+        <EmptyState type="error" message={error} />
       )}
 
-      {/* Loading */}
-      {loading && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          </CardContent>
-        </Card>
+      {!loading && !error && filiaisSelecionadas.length === 0 && (
+        <EmptyState type="no-filters" />
+      )}
+
+      {!loading && !error && filiaisSelecionadas.length > 0 && !data && (
+        <EmptyState type="no-data" />
       )}
 
       {/* Dados */}
-      {!loading && data && (
-        <>
-          {/* Tabela de Comparação */}
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-xl sm:text-2xl">DRE Gerencial</CardTitle>
-              </div>
-              <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-                <FileDown className="h-4 w-4" />
-                Exportar
-              </button>
+      {!loading && !error && data && (
+        <div className="w-full min-w-0">
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-xl flex items-center gap-2">
+                Detalhamento de Despesas
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="p-3 border-b font-medium whitespace-nowrap">
-                        Descrição
-                      </th>
-                      <th className="p-3 border-b font-medium text-right whitespace-nowrap">
-                        Total
-                      </th>
-                      {data.filiais.map((filialId) => (
-                        <th
-                          key={filialId}
-                          className="p-3 border-b font-medium text-right whitespace-nowrap"
-                        >
-                          {getFilialNome(filialId)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Linha Total Despesas */}
-                    <tr className="bg-slate-100 dark:bg-slate-800 font-bold">
-                      <td className="p-3 border-b whitespace-nowrap">
-                        TOTAL DRE
-                      </td>
-                      <td className="p-3 border-b text-right whitespace-nowrap">
-                        {formatCurrency(data.totalizador.valorTotal)}
-                      </td>
-                      {data.filiais.map((filialId) => {
-                        // Calcular total da filial somando todos os departamentos
-                        const totalFilial = data.departamentos.reduce((sum, dept) => {
-                          return sum + (dept.valores_filiais[filialId] || 0)
-                        }, 0)
-
-                        return (
-                          <td
-                            key={filialId}
-                            className="p-3 border-b text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800"
-                          >
-                            {formatCurrency(totalFilial)}
-                          </td>
-                        )
-                      })}
-                    </tr>
-
-                    {data.departamentos.map((dept) => (
-                      <React.Fragment key={dept.dept_id}>
-                        {/* Linha do Departamento */}
-                        <tr className="hover:bg-muted/50 cursor-pointer">
-                          <td
-                            className="p-3 border-b whitespace-nowrap"
-                            onClick={() => setExpandedDepts(prev => ({ ...prev, [dept.dept_id]: !prev[dept.dept_id] }))}
-                          >
-                            <div className="flex items-center gap-2">
-                              {expandedDepts[dept.dept_id] ? (
-                                <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                              )}
-                              <span className="font-medium">{dept.dept_descricao}</span>
-                            </div>
-                          </td>
-                          <td className="p-3 border-b text-right whitespace-nowrap">
-                            <div className="font-bold">
-                              {formatCurrency(getTotalGeral(dept.valores_filiais))}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {calculatePercentage(getTotalGeral(dept.valores_filiais), data.totalizador.valorTotal)}
-                            </div>
-                          </td>
-                          {data.filiais.map((filialId) => {
-                            const valorFilial = getTotalFilial(dept.valores_filiais, filialId)
-                            const totalGeral = getTotalGeral(dept.valores_filiais)
-                            const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
-                            
-                            return (
-                              <td
-                                key={filialId}
-                                className="p-3 border-b text-right whitespace-nowrap"
-                              >
-                                <div className="font-medium">
-                                  {formatCurrency(valorFilial)}
-                                </div>
-                                {valorFilial > 0 && (
-                                  <div
-                                    className={`text-xs ${
-                                      isPositive ? 'text-red-500' : 'text-green-500'
-                                    }`}
-                                  >
-                                    {isPositive ? '+' : '-'}{diff.toFixed(1)}%
-                                  </div>
-                                )}
-                              </td>
-                            )
-                          })}
-                        </tr>
-
-                        {/* Tipos dentro do Departamento */}
-                        {expandedDepts[dept.dept_id] && dept.tipos.map((tipo) => {
-                          const tipoKey = `${dept.dept_id}-${tipo.tipo_id}`
-                          return (
-                            <React.Fragment key={tipoKey}>
-                              <tr className="hover:bg-muted/40 cursor-pointer">
-                                <td 
-                                  className="p-3 border-b bg-background sticky left-0 z-10 w-[250px] sm:w-[300px] lg:w-[400px] pl-8"
-                                  onClick={() => setExpandedTipos(prev => ({ ...prev, [tipoKey]: !prev[tipoKey] }))}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {expandedTipos[tipoKey] ? (
-                                      <ChevronDown className="h-3 w-3" />
-                                    ) : (
-                                      <ChevronRight className="h-3 w-3" />
-                                    )}
-                                    <span className="text-sm">{tipo.tipo_descricao}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3 border-b bg-background sticky left-[250px] sm:left-[300px] lg:left-[400px] z-10 w-[120px] sm:w-[150px]">
-                                  <div className="flex flex-col items-end">
-                                    <div className="text-sm font-semibold text-right">
-                                      {formatCurrency(getTotalGeral(tipo.valores_filiais))}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {calculatePercentage(getTotalGeral(tipo.valores_filiais), data.totalizador.valorTotal)}
-                                    </div>
-                                  </div>
-                                </td>
-                                {data.filiais.map((filialId) => {
-                                  const valorFilial = getTotalFilial(tipo.valores_filiais, filialId)
-                                  const totalGeral = getTotalGeral(tipo.valores_filiais)
-                                  const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
-                                  
-                                  return (
-                                    <td
-                                      key={filialId}
-                                      className="p-3 border-b text-right whitespace-nowrap"
-                                    >
-                                      <div className="flex flex-col items-end gap-0.5">
-                                        <div className="text-sm text-right">
-                                          {formatCurrency(valorFilial)}
-                                        </div>
-                                        {valorFilial > 0 ? (
-                                          <div 
-                                            className={`text-[10px] font-medium ${
-                                              isPositive ? 'text-red-500' : 'text-green-500'
-                                            }`}
-                                          >
-                                            {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
-                                          </div>
-                                        ) : (
-                                          <div className="text-[10px] text-muted-foreground">
-                                            -
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                  )
-                                })}
-                              </tr>
-
-                              {/* Despesas individuais */}
-                              {expandedTipos[tipoKey] && tipo.despesas.map((desp, idx) => (
-                                <tr key={idx} className="hover:bg-muted/20">
-                                  <td className="p-3 border-b bg-background sticky left-0 z-10 w-[250px] sm:w-[300px] lg:w-[400px] pl-16">
-                                    <div className="flex flex-col gap-0.5">
-                                      <span className="text-xs">{desp.descricao_despesa || 'Sem descrição'}</span>
-                                      <span className="text-[10px] text-muted-foreground">
-                                        {formatDate(desp.data_emissao)}
-                                        {desp.numero_nota && ` | Nota: ${desp.numero_nota}`}
-                                        {desp.serie_nota && `-${desp.serie_nota}`}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="p-3 border-b bg-background sticky left-[250px] sm:left-[300px] lg:left-[400px] z-10 w-[120px] sm:w-[150px]">
-                                    <div className="flex flex-col items-end">
-                                      <div className="text-xs text-right">
-                                        {formatCurrency(getTotalGeral(desp.valores_filiais))}
-                                      </div>
-                                      <div className="text-[10px] text-muted-foreground">
-                                        {calculatePercentage(getTotalGeral(desp.valores_filiais), data.totalizador.valorTotal)}
-                                      </div>
-                                    </div>
-                                  </td>
-                                  {data.filiais.map((filialId, colIdx) => {
-                                    const valorFilial = getTotalFilial(desp.valores_filiais, filialId)
-                                    const totalGeral = getTotalGeral(desp.valores_filiais)
-                                    const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, data.filiais.length)
-                                    
-                                    return (
-                                      <td 
-                                        key={filialId} 
-                                        className={`p-3 border-b ${
-                                          colIdx % 2 === 0 
-                                            ? 'bg-muted/30' 
-                                            : 'bg-background'
-                                        }`}
-                                      >
-                                        <div className="flex flex-col items-end gap-0.5">
-                                          <div className="text-xs text-right">
-                                            {valorFilial > 0 ? formatCurrency(valorFilial) : '-'}
-                                          </div>
-                                          {valorFilial > 0 && (
-                                            <div 
-                                              className={`text-[9px] font-medium ${
-                                                isPositive ? 'text-red-500' : 'text-green-500'
-                                              }`}
-                                            >
-                                              {isPositive ? '+' : '-'}{diff.toFixed(2).replace('.', ',')}%
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                    )
-                                  })}
-                                </tr>
-                              ))}
-                            </React.Fragment>
-                          )
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <CardContent className="overflow-x-hidden pt-2 pb-4">
+              <DataTable
+                columns={createColumns(data.filiais, getFilialNome)}
+                data={transformToTableData(data)}
+                getRowCanExpand={(row) => {
+                  return row.original.subRows !== undefined && row.original.subRows.length > 0
+                }}
+                getSubRows={(row) => row.subRows}
+              />
             </CardContent>
           </Card>
-        </>
+        </div>
       )}
     </div>
   )
 }
 
-// Necessário para React.Fragment
-import * as React from 'react'
+

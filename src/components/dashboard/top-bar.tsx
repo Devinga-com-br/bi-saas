@@ -9,7 +9,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/relatorios/venda-curva': 'Relatório de Venda por Curva',
   '/metas/mensal': 'Metas Mensais',
   '/metas/setor': 'Metas por Setor',
-  '/despesas': 'Despesas',
+  '/dre-gerencial': 'DRE Gerencial',
   '/configuracoes': 'Configurações',
   '/configuracoes/setores': 'Setores',
   '/usuarios': 'Usuários',

@@ -223,3 +223,16 @@
     @apply bg-gradient-to-b from-card to-background;
   }
 }
+
+/* Prevenir scroll horizontal global */
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Garantir que todos os containers principais respeitem largura */
+#__next {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
