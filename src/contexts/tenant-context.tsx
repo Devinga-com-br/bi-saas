@@ -123,8 +123,38 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const switchTenant = async (tenantId: string) => {
     const tenant = accessibleTenants.find(t => t.id === tenantId)
     if (tenant) {
-      setCurrentTenant(tenant)
+      console.log('[TenantContext] Trocando tenant:', currentTenant?.name, '→', tenant.name)
+      
+      // 1. Salvar novo tenant no localStorage
       localStorage.setItem(CURRENT_TENANT_KEY, tenantId)
+      
+      // 2. Limpar outros dados do localStorage relacionados ao tenant anterior
+      // Manter apenas o tenant_id e dados de autenticação
+      const itemsToKeep = ['bi_saas_current_tenant_id', 'supabase.auth.token']
+      const allKeys = Object.keys(localStorage)
+      
+      allKeys.forEach(key => {
+        // Remover itens que não devem ser mantidos
+        if (!itemsToKeep.some(keepKey => key.includes(keepKey))) {
+          localStorage.removeItem(key)
+        }
+      })
+      
+      // 3. Atualizar estado
+      setCurrentTenant(tenant)
+      
+      // 4. Forçar recarregamento completo da página para limpar todos os estados
+      // Isso garante que:
+      // - Todos os filtros de filiais sejam resetados
+      // - Todos os caches SWR sejam limpos
+      // - Todos os estados de componentes sejam reinicializados
+      // - Todas as queries sejam refeitas com o novo tenant
+      console.log('[TenantContext] Recarregando página para aplicar mudanças...')
+      
+      // Pequeno delay para garantir que o localStorage foi atualizado
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 100)
     }
   }
 

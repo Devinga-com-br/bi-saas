@@ -23,6 +23,7 @@ import { useIsSuperAdmin } from '@/hooks/use-permissions'
 
 export function CompanySwitcher() {
   const [open, setOpen] = React.useState(false)
+  const [switching, setSwitching] = React.useState(false)
   const { currentTenant, accessibleTenants, loading, switchTenant } = useTenantContext()
   const isSuperAdmin = useIsSuperAdmin()
 
@@ -85,18 +86,33 @@ export function CompanySwitcher() {
                 <CommandItem
                   key={tenant.id}
                   value={tenant.name}
-                  onSelect={() => {
-                    switchTenant(tenant.id)
+                  disabled={switching}
+                  onSelect={async () => {
+                    if (tenant.id === currentTenant.id) {
+                      setOpen(false)
+                      return
+                    }
+                    
+                    setSwitching(true)
                     setOpen(false)
+                    await switchTenant(tenant.id)
+                    // O switchTenant já faz o redirect, então não precisa setSwitching(false)
                   }}
                 >
-                  <Check
-                    className={cn(
-                      'mr-2 h-4 w-4',
-                      currentTenant.id === tenant.id ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
+                  {switching && tenant.id !== currentTenant.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check
+                      className={cn(
+                        'mr-2 h-4 w-4',
+                        currentTenant.id === tenant.id ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                  )}
                   <span className="font-medium">{tenant.name}</span>
+                  {tenant.id === currentTenant.id && (
+                    <Badge variant="secondary" className="ml-auto text-xs">Atual</Badge>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
