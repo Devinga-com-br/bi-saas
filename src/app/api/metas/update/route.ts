@@ -84,6 +84,17 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[API/METAS/UPDATE] Error:', error)
+      
+      // Se a tabela não existe, retornar sucesso silencioso (primeira vez)
+      if (error.message && error.message.includes('does not exist')) {
+        console.log('[API/METAS/UPDATE] ⚠️ Tabela não existe ainda, ignorando atualização')
+        return NextResponse.json({
+          message: 'Nenhuma meta para atualizar',
+          success: true,
+          registros_atualizados: 0
+        })
+      }
+      
       return NextResponse.json(
         { error: error.message || 'Erro ao atualizar valores' },
         { status: 500 }

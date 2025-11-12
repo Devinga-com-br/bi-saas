@@ -215,10 +215,21 @@ export default function MetaMensalPage() {
         match: data.metas?.[0]?.data === `${anoToUse}-${mesToUse.toString().padStart(2, '0')}-01`
       })
       
+      // Se não há metas, mostrar mensagem informativa
+      if (!data.metas || data.metas.length === 0) {
+        console.log('[METAS] ℹ️ Nenhuma meta encontrada para o período')
+      }
+      
       setReport(data)
     } catch (error) {
-      console.error('Error loading report:', error)
-      alert('Erro ao carregar relatório')
+      console.error('[METAS] ❌ Error loading report:', error)
+      // Não mostrar alert, apenas setar report vazio para permitir uso do módulo
+      setReport({
+        metas: [],
+        total_realizado: 0,
+        total_meta: 0,
+        percentual_atingido: 0
+      })
     } finally {
       setLoading(false)
     }

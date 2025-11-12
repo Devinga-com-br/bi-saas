@@ -1,6 +1,6 @@
 # Metas Mensal
 
-> Status: ✅ Implementado | Versão: 1.5.0
+> Status: ✅ Implementado | Versão: 1.5.1
 
 ## Visão Geral
 
@@ -201,6 +201,7 @@ Usuário → Duplo-clique em célula de meta
 - **v1.3.0** - Adicionada edição inline
 - **v1.4.0** - Implementado indicador D-1
 - **v1.5.0** - Auto-seleção de todas as filiais ao carregar
+- **v1.5.1** - Fix: Tratamento de erro quando tabela não existe (primeiro acesso)
 
 Ver [CHANGELOG.md](./CHANGELOG.md) para detalhes completos.
 
@@ -226,6 +227,6 @@ Ver [CHANGELOG.md](./CHANGELOG.md) para detalhes completos.
 
 ## Versão
 
-**Versão Atual**: 1.5.0
-**Última Atualização**: 2025-01-11
+**Versão Atual**: 1.5.1
+**Última Atualização**: 2025-01-12
 **Responsável**: Documentação Técnica

@@ -105,6 +105,21 @@ export async function GET(request: NextRequest) {
         details: error.details,
         hint: error.hint
       })
+      
+      // Se a tabela não existe (primeira vez), retornar dados vazios ao invés de erro
+      if (error.message && error.message.includes('does not exist')) {
+        console.log('[API/METAS/REPORT] ⚠️ Tabela não existe ainda, retornando dados vazios')
+        return NextResponse.json({
+          metas: [],
+          total_realizado: 0,
+          total_meta: 0,
+          percentual_atingido: 0,
+          meta_d1: 0,
+          realizado_d1: 0,
+          percentual_atingido_d1: 0
+        })
+      }
+      
       return NextResponse.json(
         { error: error.message || 'Erro ao buscar metas' },
         { status: 500 }
@@ -121,7 +136,15 @@ export async function GET(request: NextRequest) {
       totalMeta: data?.total_meta
     })
 
-    return NextResponse.json(data || { metas: [], total_realizado: 0, total_meta: 0, percentual_atingido: 0 })
+    return NextResponse.json(data || {
+      metas: [],
+      total_realizado: 0,
+      total_meta: 0,
+      percentual_atingido: 0,
+      meta_d1: 0,
+      realizado_d1: 0,
+      percentual_atingido_d1: 0
+    })
   } catch (error) {
     console.error('[API/METAS/REPORT] Unexpected error:', error)
     return NextResponse.json(

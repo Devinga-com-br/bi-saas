@@ -31,14 +31,16 @@ Para adicionar o schema `lucia` (ou qualquer novo schema de tenant), você preci
    - Procure por **"Exposed schemas"** ou **"DB Schemas"**
    - Adicione `lucia` à lista de schemas separados por vírgula
 
-   **Antes:**
+   **Exemplo - Adicionar schema 'lucia':**
    ```
-   public, graphql_public, okilao, saoluiz, paraiso
+   Antes: public, graphql_public, okilao, saoluiz, paraiso
+   Depois: public, graphql_public, okilao, saoluiz, paraiso, lucia
    ```
 
-   **Depois:**
+   **Exemplo - Adicionar schema 'sol':**
    ```
-   public, graphql_public, okilao, saoluiz, paraiso, lucia
+   Antes: public, graphql_public, okilao, saoluiz, paraiso, lucia
+   Depois: public, graphql_public, okilao, saoluiz, paraiso, lucia, sol
    ```
 
 4. **Salve as Configurações**
@@ -266,19 +268,58 @@ console.log('Schema being sent:', schema)
 - [PostgREST Schema Isolation](https://postgrest.org/en/stable/api.html#schema-isolation)
 - [Multi-tenant Architecture](https://supabase.com/docs/guides/database/multi-tenancy)
 
+## Verificação de Schemas
+
+### Como Verificar se Todos os Schemas Estão Expostos
+
+Execute esta query SQL no Supabase SQL Editor para listar todos os schemas de tenants:
+
+```sql
+-- Listar todos os schemas de tenants cadastrados
+SELECT
+  name as tenant_name,
+  supabase_schema
+FROM public.tenants
+ORDER BY created_at;
+```
+
+**Resultado esperado:**
+```
+tenant_name | supabase_schema
+------------|----------------
+Okilão      | okilao
+São Luiz    | saoluiz
+Paraíso     | paraiso
+Lucia       | lucia
+Sol         | sol
+```
+
+**Depois, verifique se TODOS os schemas da coluna `supabase_schema` estão na lista de "Exposed schemas".**
+
+### Lista Completa Atual (Atualizar conforme necessário)
+
+```
+public, graphql_public, okilao, saoluiz, paraiso, lucia, sol
+```
+
+⚠️ **Se algum schema da tabela `tenants` NÃO estiver nessa lista, adicione-o!**
+
+---
+
 ## Resumo Rápido
 
-Para o erro `PGRST106` com schema `lucia`:
+Para o erro `PGRST106`:
 
-1. Acesse **Supabase Dashboard** → **Settings** → **API**
-2. Encontre **"Exposed schemas"**
-3. Adicione `, lucia` à lista existente
-4. Salve
-5. Aguarde 1-2 minutos
+1. Identifique o schema faltante no erro (ex: `sol`)
+2. Acesse **Supabase Dashboard** → **Settings** → **API**
+3. Encontre **"Exposed schemas"**
+4. Adicione o schema faltante à lista existente
+5. Salve e aguarde 1-2 minutos
 6. Teste novamente
 
 ---
 
-**Status:** ✅ Solução Documentada  
-**Aplicável a:** Todos os novos tenants  
+**Status:** ✅ Solução Documentada
+**Aplicável a:** Todos os novos tenants
 **Prioridade:** Alta (bloqueia funcionalidade)
+**Última Atualização:** 2025-01-12 (adicionado schema 'sol')
