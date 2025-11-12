@@ -89,6 +89,11 @@ interface ComparacaoIndicadores {
   }
 }
 
+interface ReceitaBrutaPorFilial {
+  valores_filiais: Record<number, number> // { filial_id: receita_bruta }
+  total: number // Soma total de todas as filiais
+}
+
 export default function DespesasPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
@@ -111,6 +116,7 @@ export default function DespesasPage() {
   const [dataPam, setDataPam] = useState<ReportData | null>(null)
   const [dataPaa, setDataPaa] = useState<ReportData | null>(null)
   const [indicadores, setIndicadores] = useState<ComparacaoIndicadores | null>(null)
+  const [receitaPorFilial, setReceitaPorFilial] = useState<ReceitaBrutaPorFilial | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingIndicadores, setLoadingIndicadores] = useState(false)
   const [error, setError] = useState('')
@@ -134,6 +140,70 @@ export default function DespesasPage() {
     }
   }, [userProfile?.id, currentTenant?.id, userProfile?.full_name])
 
+  // Calcular datas com base em mês e ano
+  const getDatasMesAno = (mesParam: number, anoParam: number) => {
+    const dataInicio = startOfMonth(new Date(anoParam, mesParam))
+    const dataFim = endOfMonth(new Date(anoParam, mesParam))
+    return {
+      dataInicio: format(dataInicio, 'yyyy-MM-dd'),
+      dataFim: format(dataFim, 'yyyy-MM-dd')
+    }
+  }
+
+  // Função para buscar receita bruta por filial
+  const fetchReceitaBrutaPorFilial = async (
+    filiais: FilialOption[],
+    mesParam: number,
+    anoParam: number
+  ): Promise<ReceitaBrutaPorFilial | null> => {
+    if (!currentTenant?.supabase_schema || filiais.length === 0) {
+      return null
+    }
+
+    try {
+      const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
+
+      // Buscar receita bruta para cada filial individualmente
+      const promises = filiais.map(async (filial) => {
+        const filialId = parseInt(filial.value)
+        const params = new URLSearchParams({
+          schema: currentTenant.supabase_schema || '',
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          filiais: filial.value // Apenas uma filial por vez
+        })
+
+        const response = await fetch(`/api/dashboard?${params}`)
+        if (!response.ok) {
+          console.error(`[ReceitaBruta] Erro ao buscar filial ${filialId}`)
+          return { filialId, receita: 0 }
+        }
+
+        const dashboardData: DashboardData = await response.json()
+        return {
+          filialId,
+          receita: dashboardData.total_vendas || 0
+        }
+      })
+
+      const results = await Promise.all(promises)
+
+      // Montar objeto com valores por filial
+      const valores_filiais: Record<number, number> = {}
+      let total = 0
+
+      results.forEach(({ filialId, receita }) => {
+        valores_filiais[filialId] = receita
+        total += receita
+      })
+
+      return { valores_filiais, total }
+    } catch (err) {
+      console.error('[ReceitaBruta] Erro ao buscar receita bruta:', err)
+      return null
+    }
+  }
+
   // Função para aplicar filtros (chamada pelo botão Filtrar)
   const handleFilter = async (filiais: FilialOption[], mesParam: number, anoParam: number) => {
     if (currentTenant?.supabase_schema && filiais.length > 0) {
@@ -153,16 +223,18 @@ export default function DespesasPage() {
         // PAA - mesmo mês ano passado
         const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1)
 
-        // Buscar em paralelo
-        const [dataAtual, despesasPam, despesasPaa] = await Promise.all([
+        // Buscar em paralelo (despesas + receita bruta)
+        const [dataAtual, despesasPam, despesasPaa, receitaBruta] = await Promise.all([
           fetchDespesasPeriodo(filiais, dataInicio, dataFim),
           fetchDespesasPeriodo(filiais, dataInicioPam, dataFimPam),
-          fetchDespesasPeriodo(filiais, dataInicioPaa, dataFimPaa)
+          fetchDespesasPeriodo(filiais, dataInicioPaa, dataFimPaa),
+          fetchReceitaBrutaPorFilial(filiais, mesParam, anoParam)
         ])
 
         setData(dataAtual)
         setDataPam(despesasPam)
         setDataPaa(despesasPaa)
+        setReceitaPorFilial(receitaBruta)
         setLoading(false)
 
         // Agora buscar indicadores com os dados de despesas já carregados
@@ -337,16 +409,6 @@ export default function DespesasPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.supabase_schema, filiaisSelecionadas.length, isLoadingBranches, data])
 
-  // Calcular datas com base em mês e ano
-  const getDatasMesAno = (mesParam: number, anoParam: number) => {
-    const dataInicio = startOfMonth(new Date(anoParam, mesParam))
-    const dataFim = endOfMonth(new Date(anoParam, mesParam))
-    return {
-      dataInicio: format(dataInicio, 'yyyy-MM-dd'),
-      dataFim: format(dataFim, 'yyyy-MM-dd')
-    }
-  }
-
   const consolidateData = (results: Array<{ filialId: number; data: ReportData }>): ReportData => {
     const deptMap = new Map<number, DepartamentoPorFilial>()
     const tipoMap = new Map<string, TipoPorFilial>()
@@ -516,8 +578,22 @@ export default function DespesasPage() {
   // Transformar dados hierárquicos em formato plano para DataTable
   const transformToTableData = (reportData: ReportData): DespesaRow[] => {
     const rows: DespesaRow[] = []
-    
-    // Linha de total
+
+    // Linha de receita bruta (se disponível)
+    if (receitaPorFilial) {
+      const receitaRow: DespesaRow = {
+        id: 'receita',
+        tipo: 'receita',
+        descricao: 'RECEITA BRUTA',
+        total: receitaPorFilial.total,
+        percentual: 0, // Não tem percentual pois não faz parte da hierarquia de despesas
+        valores_filiais: receitaPorFilial.valores_filiais,
+        filiais: reportData.filiais,
+      }
+      rows.push(receitaRow)
+    }
+
+    // Linha de total despesas
     const totalRow: DespesaRow = {
       id: 'total',
       tipo: 'total',
@@ -663,8 +739,9 @@ export default function DespesasPage() {
       {/* Dados */}
       {!loading && !error && data && (() => {
         const tableData = transformToTableData(data)
-        // Extrair totais de cada filial da linha total
-        const branchTotals = tableData[0]?.valores_filiais || {}
+        // Extrair totais de cada filial da linha total (não da receita)
+        const totalRow = tableData.find(row => row.tipo === 'total')
+        const branchTotals = totalRow?.valores_filiais || {}
 
         return (
           <div className="w-full min-w-0">
@@ -676,7 +753,13 @@ export default function DespesasPage() {
               </CardHeader>
               <CardContent className="overflow-x-hidden pt-2 pb-4">
                 <DataTable
-                  columns={createColumns(data.filiais, getFilialNome, indicadores?.current?.receitaBruta || 0, branchTotals)}
+                  columns={createColumns(
+                    data.filiais,
+                    getFilialNome,
+                    indicadores?.current?.receitaBruta || 0,
+                    branchTotals,
+                    receitaPorFilial?.valores_filiais || {}
+                  )}
                   data={tableData}
                   getRowCanExpand={(row) => {
                     return row.original.subRows !== undefined && row.original.subRows.length > 0

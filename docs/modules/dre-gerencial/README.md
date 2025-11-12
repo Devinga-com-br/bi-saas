@@ -1,5 +1,12 @@
 # DRE Gerencial - Documentação Técnica
 
+**Versão**: 1.1.0
+**Última Atualização**: 2025-01-12
+**Status**: ✅ Produção
+
+> 🆕 **Novidades v1.1.0**: Linha de Receita Bruta na tabela + Cálculo % RB por filial
+> Ver [CHANGELOG.md](./CHANGELOG.md) para detalhes completos
+
 ## Índice
 
 1. [Visão Geral](#visão-geral)
@@ -9,6 +16,7 @@
 5. [Estruturas de Dados](./DATA_STRUCTURES.md)
 6. [Fluxo de Integração](./INTEGRATION_FLOW.md)
 7. [Funções RPC Supabase](./RPC_FUNCTIONS.md)
+8. [Changelog](./CHANGELOG.md) 🆕
 
 ---
 
@@ -16,6 +24,7 @@
 
 O **DRE Gerencial** (Demonstrativo de Resultado do Exercício) é um módulo avançado de análise financeira que permite visualizar e comparar:
 
+- **Receita Bruta** por filial (linha destacada na tabela) 🆕
 - **Despesas** organizadas em hierarquia (Departamento → Tipo → Despesa)
 - **Indicadores Financeiros** com comparações temporais (PAM e PAA)
 - **Análise Multi-Filial** consolidada ou individual
@@ -23,6 +32,8 @@ O **DRE Gerencial** (Demonstrativo de Resultado do Exercício) é um módulo ava
 
 ### Características Principais
 
+- ✅ **Linha de Receita Bruta**: Exibe receita total e por filial acima das despesas 🆕
+- ✅ **% RB Proporcional**: Cálculo de % em relação à receita da filial específica 🆕
 - ✅ **Análise Comparativa**: Compara período atual com PAM (Período Anterior Mesmo) e PAA (Período Anterior Acumulado)
 - ✅ **Multi-Filial**: Suporta visualização consolidada de múltiplas filiais
 - ✅ **Hierarquia 3 Níveis**: Departamento → Tipo de Despesa → Despesa Individual

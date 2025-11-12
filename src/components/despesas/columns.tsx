@@ -7,7 +7,7 @@ import { format } from "date-fns"
 
 export type DespesaRow = {
   id: string
-  tipo: 'total' | 'departamento' | 'tipo' | 'despesa'
+  tipo: 'receita' | 'total' | 'departamento' | 'tipo' | 'despesa'
   descricao: string
   data_despesa?: string
   data_emissao?: string
@@ -42,7 +42,8 @@ export const createColumns = (
   filiais: number[],
   getFilialNome: (id: number) => string,
   receitaBruta: number = 0,
-  branchTotals: Record<number, number> = {}
+  branchTotals: Record<number, number> = {},
+  receitaBrutaPorFilial: Record<number, number> = {}
 ): ColumnDef<DespesaRow>[] => {
   const columns: ColumnDef<DespesaRow>[] = [
     {
@@ -56,10 +57,14 @@ export const createColumns = (
         let paddingClass = "pl-3"
         if (tipo === 'tipo') paddingClass = "pl-10"
         if (tipo === 'despesa') paddingClass = "pl-16"
-        
+
         let fontClass = "font-medium"
         let textSize = "text-sm"
-        
+
+        if (tipo === 'receita') {
+          fontClass = "font-bold"
+          textSize = "text-base"
+        }
         if (tipo === 'total') {
           fontClass = "font-bold"
           textSize = "text-base"
@@ -94,7 +99,7 @@ export const createColumns = (
             ) : null}
             
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className={`${fontClass} ${textSize} ${tipo === 'total' ? 'text-primary' : ''}`}>
+              <span className={`${fontClass} ${textSize} ${tipo === 'receita' ? 'text-green-600 dark:text-green-400' : tipo === 'total' ? 'text-primary' : ''}`}>
                 {row.original.descricao}
               </span>
               {tipo === 'despesa' && (
@@ -126,12 +131,23 @@ export const createColumns = (
       },
       cell: ({ row }) => {
         const tipo = row.original.tipo
-        const fontClass = tipo === 'total' || tipo === 'departamento' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'total' || tipo === 'departamento' ? 'font-bold' :
                          tipo === 'tipo' ? 'font-semibold' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
 
         // Calcular % em relação à Receita Bruta
         const percentualRB = receitaBruta > 0 ? (row.original.total / receitaBruta) * 100 : 0
+
+        // Para linha de receita, não mostrar os percentuais
+        if (tipo === 'receita') {
+          return (
+            <div className="text-left">
+              <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
+                {formatCurrency(row.original.total)}
+              </div>
+            </div>
+          )
+        }
 
         return (
           <div className="text-left">
@@ -178,14 +194,26 @@ export const createColumns = (
         const totalFilial = branchTotals[filialId] || 0
 
         const tipo = row.original.tipo
-        const fontClass = tipo === 'total' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'total' ? 'font-bold' :
                          tipo === 'departamento' ? 'font-medium' :
                          tipo === 'tipo' ? 'font-normal' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
 
-        // Calcular % TDF (em relação ao total da filial) e % RB (em relação à receita bruta)
+        // Para linha de receita, não mostrar os percentuais
+        if (tipo === 'receita') {
+          return (
+            <div className={`text-left ${bgColorClass} px-2 py-1`}>
+              <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
+                {formatCurrency(valorFilial)}
+              </div>
+            </div>
+          )
+        }
+
+        // Calcular % TDF (em relação ao total da filial) e % RB (em relação à receita bruta da filial)
         const percentualTDF = totalFilial > 0 ? (valorFilial / totalFilial) * 100 : 0
-        const percentualRB = receitaBruta > 0 ? (valorFilial / receitaBruta) * 100 : 0
+        const receitaBrutaFilial = receitaBrutaPorFilial[filialId] || 0
+        const percentualRB = receitaBrutaFilial > 0 ? (valorFilial / receitaBrutaFilial) * 100 : 0
 
         // % TD da coluna Total (para comparação)
         const percentualTD = row.original.percentual

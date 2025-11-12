@@ -1,20 +1,35 @@
 # DRE Gerencial - Resumo Executivo
 
+**Versão**: 1.1.0 | **Atualizado em**: 2025-01-12
+
+> 🆕 **Novidades v1.1.0**: Linha de Receita Bruta + Cálculo % RB por filial
+
 ## 📊 Visão Geral
 
-O **DRE Gerencial** é um módulo completo de análise financeira que permite visualizar despesas organizadas em hierarquia de 3 níveis (Departamento → Tipo → Despesa) com comparações temporais automáticas e consolidação multi-filial.
+O **DRE Gerencial** é um módulo completo de análise financeira que permite visualizar:
+- **Receita Bruta** por filial (nova linha destacada em verde) 🆕
+- **Despesas** organizadas em hierarquia de 3 níveis (Departamento → Tipo → Despesa)
+- **Comparações temporais** automáticas e consolidação multi-filial
 
 ---
 
 ## 🎯 Funcionalidades Principais
 
-### 1. Análise Hierárquica de Despesas
+### 1. Linha de Receita Bruta 🆕 (v1.1.0)
+- ✅ **Exibição destacada**: Linha verde acima de "TOTAL DESPESAS"
+- ✅ **Valor total**: Soma da receita bruta de todas as filiais selecionadas
+- ✅ **Por filial**: Receita bruta individual de cada filial
+- ✅ **Análise proporcional**: Facilita comparar despesas vs receita
+- ✅ **% RB por filial**: Percentuais agora calculados em relação à receita da filial específica
+
+### 2. Análise Hierárquica de Despesas
 - ✅ Hierarquia de 3 níveis: Departamento → Tipo de Despesa → Despesa Individual
 - ✅ Valores detalhados por filial com comparação vs média
 - ✅ Percentuais de participação no total
+- ✅ Percentuais em relação à receita bruta da filial 🆕
 - ✅ Ordenação automática por valor (maior para menor)
 
-### 2. Consolidação Multi-Filial
+### 3. Consolidação Multi-Filial
 - ✅ Seleção de múltiplas filiais simultaneamente
 - ✅ Consolidação automática de dados
 - ✅ Visualização lado a lado por filial

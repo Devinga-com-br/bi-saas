@@ -361,10 +361,45 @@
 
 ### RE-011: Legenda no Rodapé do Card
 - **Regra**: Exibir legenda explicativa abaixo da tabela
-- **Conteúdo**: "Legenda: TD = Total de Despesas | RB = Receita Bruta"
+- **Conteúdo**: "Legenda: TD = Total de Despesas | TDF = Total Despesas da Filial | RB = Receita Bruta"
 - **Estilo**: Texto pequeno (`text-xs`) com cor muted
 - **Posicionamento**: Após a tabela, com borda superior
-- **Implementação**: [page.tsx](../../../src/app/(dashboard)/dre-gerencial/page.tsx:681-685)
+- **Implementação**: [page.tsx](../../../src/app/(dashboard)/dre-gerencial/page.tsx:763-767)
+
+### RE-012: Indicadores % TDF e % RB nas Colunas de Filiais
+- **Regra**: Exibe dois percentuais abaixo do valor em cada linha das colunas de filiais
+- **% TDF (Total Despesas da Filial)**:
+  - Cálculo: `(Valor da linha / Total de Despesas da Filial) × 100`
+  - Cor: Azul se abaixo da média (bom), Vermelho se acima (ruim), Cinza se igual
+  - Formato: "% TDF: 99,99%"
+  - Comparação: Compara com % TD da coluna Total para determinar cor
+- **% RB (Receita Bruta da Filial)**:
+  - Cálculo: `(Valor da linha / Receita Bruta da Filial Específica) × 100`
+  - Cor: Laranja (`text-orange-600 dark:text-orange-400`)
+  - Formato: "% RB: 99,99%"
+  - Validação: Se Receita Bruta da Filial = 0, exibe "0,00%"
+  - **Importante**: Usa receita bruta da **filial específica**, não do total
+- **Layout**: 2 linhas com espaçamento vertical (`space-y-0.5`)
+- **Font-size**: 10px (`text-[10px]`)
+- **Aplicação**: Todos os níveis (total, departamento, tipo, despesa)
+- **Background**: Cores alternadas por filial (azul/cinza)
+- **Implementação**: [columns.tsx](../../../src/components/despesas/columns.tsx:213-246)
+- **Versão**: Atualizado em 2025-01-12 (v1.1.0) - % RB agora usa receita da filial
+
+### RE-013: Linha de Receita Bruta
+- **Regra**: Exibir linha de "RECEITA BRUTA" acima da linha "TOTAL DESPESAS"
+- **Tipo**: `tipo: 'receita'`
+- **Estilo**:
+  - Font: `font-bold text-base`
+  - Cor: Verde (`text-green-600 dark:text-green-400`)
+  - Não expande (sem subRows)
+- **Coluna Total**: Soma da receita bruta de todas as filiais selecionadas
+- **Colunas de Filiais**: Receita bruta individual de cada filial
+- **Percentuais**: Não exibe % TD nem % RB (apenas o valor)
+- **Implementação**:
+  - [page.tsx](../../../src/app/(dashboard)/dre-gerencial/page.tsx:582-594)
+  - [columns.tsx](../../../src/components/despesas/columns.tsx:63-66, 141-149, 201-210)
+- **Versão**: Adicionado em 2025-01-12 (v1.1.0)
 
 ---
 
