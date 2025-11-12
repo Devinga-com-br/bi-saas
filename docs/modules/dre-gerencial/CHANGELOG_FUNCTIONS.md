@@ -262,6 +262,13 @@ Legenda:
 - Compatível com dados existentes
 - Melhora a legibilidade com informações consolidadas em todas as filiais
 - % TDF fornece análise mais precisa do peso de cada despesa dentro da filial específica
+- Cores do % TDF facilitam identificação rápida de despesas acima/abaixo da média
 - Remove comparação "vs média" (substituída por % TD/TDF e % RB)
 
-**Versão**: 2.2.0
+**Benefícios das Cores**:
+1. **Identificação Visual Rápida**: Cores permitem identificar imediatamente quais filiais têm despesas desproporcionais
+2. **Análise Comparativa**: Facilita comparação entre filiais e identificação de outliers
+3. **Tomada de Decisão**: Gestores podem priorizar ações em despesas vermelhas (acima da média)
+4. **Benchmarking**: Despesas azuis indicam filiais com melhor performance naquela categoria
+
+**Versão**: 2.3.0

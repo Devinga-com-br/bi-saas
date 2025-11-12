@@ -31,14 +31,12 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Target, Loader2, CalendarIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Target, Loader2 } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
-import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { RefreshCw } from 'lucide-react'
@@ -206,10 +204,35 @@ export default function MetaSetorPage() {
       params.append('filial_id', filialIds)
 
       const response = await fetch(`/api/metas/setor/report?${params}`)
-      if (!response.ok) throw new Error('Erro ao carregar metas')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+        console.error('[METAS_SETOR] ❌ Erro na API:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        })
+
+        // Se for 404 ou não houver dados, é um caso esperado
+        if (response.status === 404 || errorData.error?.includes('não encontrada')) {
+          console.log('[METAS_SETOR] ℹ️ Nenhuma meta encontrada para o período')
+          setMetasData({ [parseInt(selectedSetor)]: [] })
+          setExpandedDates({})
+          return
+        }
+
+        throw new Error(errorData.error || 'Erro ao carregar metas')
+      }
 
       const data = await response.json()
-      
+
+      // Se retornou array vazio, não é erro
+      if (Array.isArray(data) && data.length === 0) {
+        console.log('[METAS_SETOR] ℹ️ Nenhuma meta encontrada para o período')
+        setMetasData({ [parseInt(selectedSetor)]: [] })
+        setExpandedDates({})
+        return
+      }
+
       console.log('[METAS_SETOR] 📊 Metas carregadas:', {
         total: data.length,
         primeiraData: data[0]?.data,
@@ -226,7 +249,8 @@ export default function MetaSetorPage() {
       setExpandedDates(newExpanded)
     } catch (error) {
       console.error('[METAS_SETOR] ❌ Error loading metas:', error)
-      alert('Erro ao carregar metas do setor')
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      alert(`Erro ao carregar metas: ${errorMessage}\n\nDica: Certifique-se de ter gerado metas para este período.`)
     } finally {
       setLoading(false)
     }
@@ -745,28 +769,12 @@ export default function MetaSetorPage() {
 
               <div className="grid gap-2">
                 <Label>Data de Referência</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !generateForm.data_referencia && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {generateForm.data_referencia ? format(generateForm.data_referencia, "dd/MM/yyyy") : <span>Selecione...</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar 
-                      mode="single" 
-                      selected={generateForm.data_referencia} 
-                      onSelect={(date) => setGenerateForm({ ...generateForm, data_referencia: date })}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DatePicker
+                  value={generateForm.data_referencia}
+                  onChange={(date) => setGenerateForm({ ...generateForm, data_referencia: date })}
+                  placeholder="dd/mm/aaaa"
+                  className="w-full"
+                />
               </div>
 
               <div className="grid gap-2">

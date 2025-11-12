@@ -20,9 +20,11 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  fixedSize = false,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
+  fixedSize?: boolean
 }) {
   const defaultClassNames = getDefaultClassNames()
 
@@ -31,6 +33,7 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:2.5rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        fixedSize && "w-[280px] min-h-[320px]",
         String.raw`rtl:**:[.rdp-button_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button_previous>svg]:rotate-180`,
         className

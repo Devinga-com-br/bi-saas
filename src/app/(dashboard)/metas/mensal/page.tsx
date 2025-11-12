@@ -10,14 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
-import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import { type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { MetasFilters } from '@/components/metas/filters'
@@ -608,28 +606,12 @@ export default function MetaMensalPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="form-data-ref">Data de Referência Inicial</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !formDataReferencia && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formDataReferencia ? format(formDataReferencia, "dd/MM/yyyy") : <span>Selecione...</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar 
-                        mode="single" 
-                        selected={formDataReferencia} 
-                        onSelect={setFormDataReferencia}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <DatePicker
+                    value={formDataReferencia}
+                    onChange={setFormDataReferencia}
+                    placeholder="dd/mm/aaaa"
+                    className="w-full"
+                  />
                 </div>
                 <Button 
                   onClick={handleGenerateMetas} 
