@@ -1,0 +1,320 @@
+================================================================
+    DRE GERENCIAL - LISTA DE FUNÇÕES E COMPONENTES
+================================================================
+
+IMPORTANTE: Este arquivo contém a lista completa de funções, componentes
+e APIs que compõem o módulo DRE Gerencial. Use como referência ao
+solicitar alterações ou adicionar funcionalidades.
+
+================================================================
+1. FUNÇÕES RPC (SUPABASE POSTGRESQL)
+================================================================
+
+get_despesas_hierarquia(p_schema, p_filial_id, p_data_inicial, p_data_final, p_tipo_data)
+  → Busca despesas com hierarquia (Departamento → Tipo → Despesa)
+  → Arquivo: SQL Migration
+  → Retorno: TABLE (registros flat)
+
+get_dashboard_data(schema_name, p_data_inicio, p_data_fim, p_filiais_ids)
+  → Busca indicadores de vendas e lucros
+  → Arquivo: SQL Migration
+  → Retorno: TABLE (registro único com totais)
+
+================================================================
+2. API ROUTES (NEXT.JS)
+================================================================
+
+GET /api/dre-gerencial/hierarquia
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 5-251)
+  → Retorna hierarquia de despesas processada
+  → Parâmetros: schema, filial_id, data_inicial, data_final
+  → Chama: get_despesas_hierarquia RPC
+
+GET /api/dashboard
+  → Arquivo: src/app/api/dashboard/route.ts (linhas 52-131)
+  → Retorna indicadores do dashboard
+  → Parâmetros: schema, data_inicio, data_fim, filiais
+  → Chama: get_dashboard_data RPC
+
+================================================================
+3. PÁGINAS (NEXT.JS APP ROUTER)
+================================================================
+
+/dre-gerencial
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 92-690)
+  → Página principal do módulo DRE Gerencial
+  → Componente: DespesasPage (default export)
+
+================================================================
+4. COMPONENTES REACT
+================================================================
+
+DespesasFilters
+  → Arquivo: src/components/despesas/filters.tsx (linhas 43-184)
+  → Filtros de filiais, mês e ano com aplicação manual
+
+IndicatorsCards
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 34-346)
+  → Cards de indicadores financeiros com comparações PAM/PAA
+
+DataTable
+  → Arquivo: src/components/despesas/data-table.tsx
+  → Tabela hierárquica expansível com TanStack Table
+
+EmptyState
+  → Arquivo: src/components/despesas/empty-state.tsx
+  → Estados vazios (sem dados, sem filtros, erro)
+
+LoadingState
+  → Arquivo: src/components/despesas/loading-state.tsx
+  → Estado de carregamento com skeleton
+
+createColumns (function)
+  → Arquivo: src/components/despesas/columns.tsx (linhas 53-224)
+  → Factory de colunas dinâmicas para DataTable
+
+================================================================
+5. HOOKS
+================================================================
+
+useTenantContext()
+  → Arquivo: src/contexts/tenant-context.tsx
+  → Retorna: { currentTenant, userProfile }
+  → Contexto do tenant e usuário atual
+
+useBranchesOptions({ tenantId, enabled, includeAll })
+  → Arquivo: src/hooks/use-branches.ts
+  → Retorna: { branchOptions, isLoading }
+  → Busca lista de filiais disponíveis
+
+================================================================
+6. FUNÇÕES PRINCIPAIS DA PÁGINA
+================================================================
+
+handleFilter(filiais, mes, ano)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 138-178)
+  → Coordena busca de despesas e indicadores
+
+fetchDespesasPeriodo(filiais, dataInicio, dataFim)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 183-223)
+  → Busca despesas de múltiplas filiais em paralelo
+
+fetchIndicadores(filiais, mes, ano, despesasAtual, despesasPam, despesasPaa)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 226-330)
+  → Busca indicadores de dashboard com comparações
+
+consolidateData(results)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 350-491)
+  → Consolida dados de múltiplas filiais em hierarquia
+
+processIndicadores(dashboardData, despesasData)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 285-310)
+  → Calcula indicadores financeiros derivados
+
+transformToTableData(reportData)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 517-597)
+  → Transforma hierarquia em formato para DataTable
+
+getDatasMesAno(mes, ano)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 341-348)
+  → Calcula data inicial e final de um mês/ano
+
+getFilialNome(filialId)
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 511-514)
+  → Retorna nome da filial pelo ID
+
+================================================================
+7. FUNÇÕES DE FORMATAÇÃO
+================================================================
+
+formatCurrency(value)
+  → Arquivo: src/components/despesas/columns.tsx (linhas 24-29)
+  → Formata número para moeda brasileira (R$)
+
+formatDate(dateStr)
+  → Arquivo: src/components/despesas/columns.tsx (linhas 31-38)
+  → Formata string de data para DD/MM/YYYY
+
+calculateDifference(valorFilial, valorTotal, qtdFiliais)
+  → Arquivo: src/components/despesas/columns.tsx (linhas 41-51)
+  → Calcula diferença percentual vs média
+
+formatCurrency(value)
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 35-40)
+  → Formata número para moeda brasileira
+
+calculateVariation(current, previous)
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 46-53)
+  → Calcula variação percentual entre períodos
+
+================================================================
+8. FUNÇÕES DA API HIERARQUIA
+================================================================
+
+GET handler
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 5-251)
+  → Handler principal da rota
+
+Validação de autenticação
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 10-13)
+  → Verifica se usuário está autenticado
+
+Validação de parâmetros
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 23-28)
+  → Valida parâmetros obrigatórios
+
+Validação de autorização
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 30-94)
+  → Verifica acesso do usuário à filial
+
+Processamento hierárquico
+  → Arquivo: src/app/api/dre-gerencial/hierarquia/route.ts (linhas 125-203)
+  → Processa dados RPC em hierarquia
+
+================================================================
+9. FUNÇÕES DA API DASHBOARD
+================================================================
+
+GET handler
+  → Arquivo: src/app/api/dashboard/route.ts (linhas 52-131)
+  → Handler principal da rota
+
+validateSchemaAccess(supabase, user, requestedSchema)
+  → Arquivo: src/app/api/dashboard/route.ts (linhas 19-50)
+  → Valida acesso do usuário ao schema
+
+================================================================
+10. FUNÇÕES DE UTILIDADE (LIB)
+================================================================
+
+getUserAuthorizedBranchCodes(supabase, userId)
+  → Arquivo: src/lib/authorized-branches.ts
+  → Retorna códigos de filiais autorizadas para o usuário
+
+logModuleAccess({ module, tenantId, userName, userEmail })
+  → Arquivo: src/lib/audit.ts
+  → Registra log de acesso ao módulo
+
+================================================================
+11. INTERFACES TYPESCRIPT
+================================================================
+
+DespesaPorFilial
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 21-30)
+  → Despesa individual com valores por filial
+
+TipoPorFilial
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 32-37)
+  → Tipo de despesa com despesas agrupadas
+
+DepartamentoPorFilial
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 39-44)
+  → Departamento com tipos agrupados
+
+GraficoData
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 46-49)
+  → Dados do gráfico mensal
+
+ReportData
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 51-62)
+  → Estrutura completa do relatório
+
+IndicadoresData
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 64-72)
+  → Indicadores financeiros calculados
+
+DashboardData
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 74-78)
+  → Dados brutos do dashboard
+
+ComparacaoIndicadores
+  → Arquivo: src/app/(dashboard)/dre-gerencial/page.tsx (linhas 80-90)
+  → Comparação temporal de indicadores
+
+DespesaRow (interface de componente)
+  → Arquivo: src/components/despesas/columns.tsx (linhas 8-22)
+  → Linha da tabela hierárquica
+
+FilialOption
+  → Arquivo: src/components/filters/index.ts
+  → Opção de filial no multi-select
+
+IndicadoresData (IndicatorsCards)
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 7-15)
+  → Indicadores financeiros
+
+ComparacaoIndicadores (IndicatorsCards)
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 17-27)
+  → Comparação temporal
+
+IndicatorsCardsProps
+  → Arquivo: src/components/despesas/indicators-cards.tsx (linhas 29-32)
+  → Props do componente IndicatorsCards
+
+================================================================
+12. CONSTANTES
+================================================================
+
+MESES
+  → Arquivo: src/components/despesas/filters.tsx (linhas 11-24)
+  → Array de objetos: [{ value: 0, label: 'Janeiro' }, ...]
+
+================================================================
+13. FUNÇÕES DE GERAÇÃO
+================================================================
+
+getAnosDisponiveis()
+  → Arquivo: src/components/despesas/filters.tsx (linhas 26-29)
+  → Gera lista dos últimos 5 anos
+
+================================================================
+RESUMO ESTATÍSTICO
+================================================================
+
+Total de Funções RPC: 2
+Total de API Routes: 2
+Total de Páginas: 1
+Total de Componentes React: 5
+Total de Hooks: 2
+Total de Funções de Processamento: 6
+Total de Funções de Formatação: 5
+Total de Interfaces TypeScript: 13
+Total de Constantes: 1
+
+Linhas de Código (aproximado): ~1827
+
+================================================================
+COMO USAR ESTA LISTA
+================================================================
+
+1. Para solicitar alteração em uma função específica:
+   - Forneça o nome da função
+   - Referencie o arquivo e linha
+   - Descreva a mudança desejada
+
+2. Para adicionar nova funcionalidade:
+   - Liste quais funções existentes serão afetadas
+   - Descreva novas funções necessárias
+   - Indique onde devem ser criadas
+
+3. Para debugar problema:
+   - Identifique qual função está relacionada
+   - Consulte documentação detalhada correspondente
+   - Trace o fluxo de dados
+
+================================================================
+DOCUMENTAÇÃO COMPLETA
+================================================================
+
+README.md           - Visão geral e arquitetura
+SUMMARY.md          - Resumo executivo
+FUNCTIONS_INDEX.md  - Índice detalhado de todas as funções
+BUSINESS_RULES.md   - Regras de negócio (40+ regras)
+DATA_STRUCTURES.md  - Interfaces e estruturas (13 interfaces)
+INTEGRATION_FLOW.md - Fluxo de integração com diagramas
+RPC_FUNCTIONS.md    - Funções PostgreSQL detalhadas
+
+================================================================
+ÚLTIMA ATUALIZAÇÃO: 2025-01-11
+VERSÃO: 1.0.0
+================================================================

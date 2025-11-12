@@ -661,27 +661,38 @@ export default function DespesasPage() {
       )}
 
       {/* Dados */}
-      {!loading && !error && data && (
-        <div className="w-full min-w-0">
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-xl flex items-center gap-2">
-                Detalhamento de Despesas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-hidden pt-2 pb-4">
-              <DataTable
-                columns={createColumns(data.filiais, getFilialNome)}
-                data={transformToTableData(data)}
-                getRowCanExpand={(row) => {
-                  return row.original.subRows !== undefined && row.original.subRows.length > 0
-                }}
-                getSubRows={(row) => row.subRows}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {!loading && !error && data && (() => {
+        const tableData = transformToTableData(data)
+        // Extrair totais de cada filial da linha total
+        const branchTotals = tableData[0]?.valores_filiais || {}
+
+        return (
+          <div className="w-full min-w-0">
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  Detalhamento de Despesas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="overflow-x-hidden pt-2 pb-4">
+                <DataTable
+                  columns={createColumns(data.filiais, getFilialNome, indicadores?.current?.receitaBruta || 0, branchTotals)}
+                  data={tableData}
+                  getRowCanExpand={(row) => {
+                    return row.original.subRows !== undefined && row.original.subRows.length > 0
+                  }}
+                  getSubRows={(row) => row.subRows}
+                />
+                <div className="mt-4 pt-3 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">Legenda:</span> TD = Total de Despesas | TDF = Total Despesas da Filial | RB = Receita Bruta
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })()}
     </div>
   )
 }

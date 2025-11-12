@@ -1,0 +1,198 @@
+# Documentação de Módulos - BI SaaS
+
+Esta pasta contém a documentação técnica detalhada de cada módulo do sistema BI SaaS.
+
+## Estrutura
+
+Cada módulo possui sua própria pasta com documentação completa:
+
+```
+docs/modules/
+├── README.md (este arquivo)
+└── {nome-do-modulo}/
+    ├── README.md                # Visão geral e índice
+    ├── BUSINESS_RULES.md        # Regras de negócio
+    ├── DATA_STRUCTURES.md       # Interfaces e estruturas de dados
+    ├── INTEGRATION_FLOW.md      # Fluxo de integração e APIs
+    └── RPC_FUNCTIONS.md         # Funções RPC Supabase (se aplicável)
+```
+
+---
+
+## Módulos Documentados
+
+### 1. DRE Gerencial
+**Status**: ✅ Completo
+**Versão**: 1.0.0
+**Última atualização**: 2025-01-11
+
+Demonstrativo de Resultado do Exercício com análise comparativa de despesas entre filiais.
+
+**Documentação**:
+- [Visão Geral](./dre-gerencial/README.md)
+- [Regras de Negócio](./dre-gerencial/BUSINESS_RULES.md)
+- [Estruturas de Dados](./dre-gerencial/DATA_STRUCTURES.md)
+- [Fluxo de Integração](./dre-gerencial/INTEGRATION_FLOW.md)
+- [Funções RPC](./dre-gerencial/RPC_FUNCTIONS.md)
+
+**Características principais**:
+- Hierarquia 3 níveis (Departamento → Tipo → Despesa)
+- Análise multi-filial consolidada
+- Comparações temporais (PAM/PAA)
+- Indicadores financeiros em tempo real
+
+---
+
+## Como Usar Esta Documentação
+
+### Para Desenvolvedores
+
+1. **Antes de modificar um módulo**:
+   - Leia a [Visão Geral](./dre-gerencial/README.md)
+   - Revise as [Regras de Negócio](./dre-gerencial/BUSINESS_RULES.md)
+   - Consulte as [Estruturas de Dados](./dre-gerencial/DATA_STRUCTURES.md)
+
+2. **Ao implementar alterações**:
+   - Siga o [Fluxo de Integração](./dre-gerencial/INTEGRATION_FLOW.md)
+   - Atualize a documentação afetada
+   - Execute testes de integração
+
+3. **Ao trabalhar com banco de dados**:
+   - Consulte [Funções RPC](./dre-gerencial/RPC_FUNCTIONS.md)
+   - Verifique índices e performance
+
+### Para Novos Desenvolvedores
+
+1. Comece pela [Visão Geral do Projeto](../../CLAUDE.md)
+2. Leia a [Arquitetura Multi-Tenant](../../docs/SUPABASE_SCHEMA_CONFIGURATION.md)
+3. Estude um módulo completo (ex: DRE Gerencial)
+4. Consulte documentação específica conforme necessidade
+
+### Para Product Owners / Stakeholders
+
+- **[README.md](./dre-gerencial/README.md)**: Funcionalidades e capacidades
+- **[BUSINESS_RULES.md](./dre-gerencial/BUSINESS_RULES.md)**: Lógica de negócio e validações
+
+---
+
+## Padrão de Documentação
+
+Todos os módulos seguem o mesmo padrão de documentação:
+
+### README.md (Visão Geral)
+- Índice completo
+- Visão geral do módulo
+- Componentes e funções
+- Arquitetura
+- Fluxo de dados
+- Conceitos-chave
+- Links para documentos detalhados
+
+### BUSINESS_RULES.md (Regras de Negócio)
+- Regras de acesso
+- Regras de filtro
+- Regras de cálculo
+- Regras de consolidação
+- Regras de comparação temporal
+- Regras de exibição
+- Regras de log e auditoria
+- Validações de integridade
+
+### DATA_STRUCTURES.md (Estruturas de Dados)
+- Interfaces TypeScript
+- Tipos de dados
+- Schemas de validação (Zod)
+- Estruturas de resposta da API
+- Estruturas de banco de dados
+- Exemplos de uso
+- Diagramas de dados
+
+### INTEGRATION_FLOW.md (Fluxo de Integração)
+- Visão geral do fluxo
+- Fluxo de inicialização
+- Fluxo de aplicação de filtros
+- Fluxo de busca de dados
+- Fluxo de consolidação
+- Fluxo de renderização
+- Diagramas de sequência
+- Tratamento de erros
+
+### RPC_FUNCTIONS.md (Funções RPC)
+- Visão geral
+- Assinatura das funções
+- Parâmetros e retornos
+- Permissões e segurança
+- Exemplos de uso
+- Troubleshooting
+- Manutenção e versionamento
+
+---
+
+## Contribuindo com a Documentação
+
+### Criando Documentação para Novo Módulo
+
+1. Criar pasta do módulo:
+   ```bash
+   mkdir docs/modules/{nome-do-modulo}
+   ```
+
+2. Copiar template:
+   ```bash
+   cp -r docs/modules/dre-gerencial docs/modules/{nome-do-modulo}
+   ```
+
+3. Atualizar conteúdo de cada arquivo
+
+4. Adicionar entrada neste README.md
+
+### Atualizando Documentação Existente
+
+1. Identificar documento a ser atualizado
+2. Fazer alterações necessárias
+3. Atualizar data em "Última atualização"
+4. Se mudança significativa, incrementar versão
+5. Commitar com mensagem descritiva:
+   ```bash
+   git add docs/modules/{modulo}
+   git commit -m "docs: Atualiza {documento} do módulo {modulo}"
+   ```
+
+### Boas Práticas
+
+- ✅ Usar linguagem clara e objetiva
+- ✅ Incluir exemplos práticos
+- ✅ Adicionar diagramas quando útil
+- ✅ Manter consistência com padrão estabelecido
+- ✅ Documentar ANTES de implementar mudanças complexas
+- ✅ Revisar documentação após mudanças
+- ✅ Linkar arquivos de código com formato `[arquivo.ts](path/to/arquivo.ts:linha)`
+
+---
+
+## Próximos Módulos a Documentar
+
+1. **Ruptura ABCD** - Relatório de ruptura por curva ABC
+2. **Venda por Curva** - Análise de vendas por curva ABC
+3. **Metas Mensais** - Gestão de metas por filial
+4. **Metas por Setor** - Gestão de metas por setor de negócio
+5. **Dashboard Principal** - Visão geral de indicadores
+
+---
+
+## Suporte
+
+Para dúvidas sobre a documentação:
+- Abrir issue no GitHub
+- Consultar equipe de desenvolvimento
+- Revisar código-fonte correspondente
+
+---
+
+## Manutenção
+
+**Responsável**: Equipe de Desenvolvimento
+**Revisão**: Trimestral
+**Última revisão geral**: 2025-01-11
+
+Esta documentação é considerada **fonte de verdade** para o comportamento esperado dos módulos.

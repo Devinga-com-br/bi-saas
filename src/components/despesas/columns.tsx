@@ -38,21 +38,11 @@ const formatDate = (dateStr: string | null | undefined) => {
   }
 }
 
-const calculateDifference = (valorFilial: number, valorTotal: number, qtdFiliais: number) => {
-  if (qtdFiliais === 0 || valorTotal === 0) return { diff: 0, isPositive: false }
-  
-  const media = valorTotal / qtdFiliais
-  const diff = ((valorFilial - media) / media) * 100
-  
-  return {
-    diff: Math.abs(diff),
-    isPositive: valorFilial > media
-  }
-}
-
 export const createColumns = (
   filiais: number[],
-  getFilialNome: (id: number) => string
+  getFilialNome: (id: number) => string,
+  receitaBruta: number = 0,
+  branchTotals: Record<number, number> = {}
 ): ColumnDef<DespesaRow>[] => {
   const columns: ColumnDef<DespesaRow>[] = [
     {
@@ -136,17 +126,23 @@ export const createColumns = (
       },
       cell: ({ row }) => {
         const tipo = row.original.tipo
-        const fontClass = tipo === 'total' || tipo === 'departamento' ? 'font-bold' : 
+        const fontClass = tipo === 'total' || tipo === 'departamento' ? 'font-bold' :
                          tipo === 'tipo' ? 'font-semibold' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
-        
+
+        // Calcular % em relação à Receita Bruta
+        const percentualRB = receitaBruta > 0 ? (row.original.total / receitaBruta) * 100 : 0
+
         return (
           <div className="text-left">
             <div className={`${fontClass} ${textSize}`}>
               {formatCurrency(row.original.total)}
             </div>
-            <div className="text-[10px] text-muted-foreground">
-              {row.original.percentual.toFixed(2).replace('.', ',')}%
+            <div className="text-[10px] text-muted-foreground space-y-0.5">
+              <div>% TD: {row.original.percentual.toFixed(2).replace('.', ',')}%</div>
+              <div className="text-orange-600 dark:text-orange-400">
+                % RB: {percentualRB.toFixed(2).replace('.', ',')}%
+              </div>
             </div>
           </div>
         )
@@ -179,16 +175,29 @@ export const createColumns = (
       },
       cell: ({ row }) => {
         const valorFilial = row.original.valores_filiais[filialId] || 0
-        const totalGeral = row.original.total
-        const qtdFiliais = row.original.filiais.length
-        const { diff, isPositive } = calculateDifference(valorFilial, totalGeral, qtdFiliais)
-        
+        const totalFilial = branchTotals[filialId] || 0
+
         const tipo = row.original.tipo
-        const fontClass = tipo === 'total' ? 'font-bold' : 
-                         tipo === 'departamento' ? 'font-medium' : 
+        const fontClass = tipo === 'total' ? 'font-bold' :
+                         tipo === 'departamento' ? 'font-medium' :
                          tipo === 'tipo' ? 'font-normal' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
-        
+
+        // Calcular % TDF (em relação ao total da filial) e % RB (em relação à receita bruta)
+        const percentualTDF = totalFilial > 0 ? (valorFilial / totalFilial) * 100 : 0
+        const percentualRB = receitaBruta > 0 ? (valorFilial / receitaBruta) * 100 : 0
+
+        // % TD da coluna Total (para comparação)
+        const percentualTD = row.original.percentual
+
+        // Determinar cor do % TDF baseado na comparação com % TD
+        let tdfColorClass = 'text-muted-foreground'
+        if (percentualTDF < percentualTD) {
+          tdfColorClass = 'text-blue-600 dark:text-blue-400'
+        } else if (percentualTDF > percentualTD) {
+          tdfColorClass = 'text-red-600 dark:text-red-400'
+        }
+
         if (valorFilial === 0 && tipo === 'despesa') {
           return (
             <div className={`text-left text-xs text-muted-foreground ${bgColorClass} px-2 py-1`}>
@@ -196,21 +205,18 @@ export const createColumns = (
             </div>
           )
         }
-        
+
         return (
           <div className={`text-left ${bgColorClass} px-2 py-1`}>
             <div className={`${fontClass} ${textSize}`}>
               {formatCurrency(valorFilial)}
             </div>
-            {valorFilial > 0 && tipo !== 'total' && (
-              <div 
-                className={`text-[10px] font-medium ${
-                  isPositive ? 'text-red-500' : 'text-green-500'
-                }`}
-              >
-                {isPositive ? '+' : '-'}{diff.toFixed(1)}%
+            <div className="text-[10px] space-y-0.5">
+              <div className={tdfColorClass}>% TDF: {percentualTDF.toFixed(2).replace('.', ',')}%</div>
+              <div className="text-orange-600 dark:text-orange-400">
+                % RB: {percentualRB.toFixed(2).replace('.', ',')}%
               </div>
-            )}
+            </div>
           </div>
         )
       },
