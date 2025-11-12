@@ -7,6 +7,80 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.2.0] - 2025-01-12
+
+### ✨ Adicionado
+
+#### Linha de Lucro Líquido na Tabela
+- **Nova linha "LUCRO LÍQUIDO"** exibida ao final da tabela (após todas as despesas)
+- **Coluna Total**: Exibe lucro líquido consolidado de todas as filiais
+- **Colunas de Filiais**: Exibe lucro líquido individual de cada filial
+- **Cálculo**: Lucro Líquido = Lucro Bruto - Total Despesas
+- **Estilo**: Negrito, cor azul (`text-blue-600 dark:text-blue-400`)
+- **Não expansível**: Linha não tem subRows
+
+#### Margem de Lucro Líquido (%)
+- **Exibição**: Abaixo do valor em cada coluna (Total e Filiais)
+- **Formato**: `Margem: XX,XX%` (2 casas decimais, vírgula)
+- **Cálculo Total**: `(Lucro Líquido Total / Receita Bruta Total) × 100`
+- **Cálculo por Filial**: `(Lucro Líquido Filial / Receita Bruta Filial) × 100`
+- **Estilo**: Texto pequeno (`text-[10px]`), cor muted
+- **Espaçamento**: `mt-0.5` (2px entre valor e margem)
+
+#### Busca de Lucro Bruto por Filial
+- **Função `fetchReceitaBrutaPorFilial`**: Agora busca lucro bruto além da receita
+- **Interface `ReceitaBrutaPorFilial`**: Campo `lucro_bruto_filiais` totalmente implementado
+- **Total acumulado**: `total_lucro_bruto` calculado e retornado
+
+### 🔄 Modificado
+
+#### Tipo `DespesaRow`
+- Adicionado tipo `'lucro_liquido'` às opções válidas
+- Suporte completo em todas as renderizações de coluna
+
+#### Função `transformToTableData`
+- Adiciona linha de lucro líquido ao final do array de rows
+- Cálculo individual por filial: `Lucro Bruto - Total Despesas`
+- Condicional: só adiciona se `receitaPorFilial` estiver disponível
+
+### 📚 Documentação
+
+#### Novas Regras de Negócio
+- **RE-014**: Linha de Lucro Líquido (comportamento e estilo)
+- **RE-015**: Margem de Lucro Líquido (cálculo e exibição)
+
+#### Documentos Atualizados
+- `BUSINESS_RULES.md` - Novas regras RE-014 e RE-015
+- `CHANGELOG.md` - Este arquivo
+- `README.md` - Atualizado com nova funcionalidade
+- `SUMMARY.md` - Resumo executivo atualizado
+- `VERSAO_1.2.0.md` - Documento da versão criado
+
+### 🎯 Benefícios
+
+1. **Visão Completa**: Lucro líquido agora visível diretamente na tabela
+2. **Análise de Eficiência**: Margem por filial facilita comparação de rentabilidade
+3. **Consistência**: Valores da tabela batem com os cards de indicadores
+4. **Interpretação Rápida**: Percentual facilita entendimento do resultado
+5. **Identificação de Problemas**: Filiais com margem baixa ficam evidentes
+
+### ⚠️ Breaking Changes
+
+**Nenhum** - As mudanças são retrocompatíveis:
+- Nenhuma mudança em APIs
+- Nenhuma mudança em funções RPC
+- Nenhuma mudança em tabelas do banco
+- Apenas mudanças no frontend
+
+### 🔙 Rollback
+
+Se necessário reverter as mudanças:
+- Restaurar versão anterior de `page.tsx` e `columns.tsx`
+- Tempo estimado de rollback: 2-3 minutos
+- Sem necessidade de rollback no banco de dados
+
+---
+
 ## [1.1.0] - 2025-01-12
 
 ### ✨ Adicionado

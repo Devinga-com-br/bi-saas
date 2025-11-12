@@ -7,7 +7,7 @@ import { format } from "date-fns"
 
 export type DespesaRow = {
   id: string
-  tipo: 'receita' | 'total' | 'departamento' | 'tipo' | 'despesa'
+  tipo: 'receita' | 'total' | 'departamento' | 'tipo' | 'despesa' | 'lucro_liquido'
   descricao: string
   data_despesa?: string
   data_emissao?: string
@@ -69,6 +69,10 @@ export const createColumns = (
           fontClass = "font-bold"
           textSize = "text-base"
         }
+        if (tipo === 'lucro_liquido') {
+          fontClass = "font-bold"
+          textSize = "text-base"
+        }
         if (tipo === 'departamento') {
           fontClass = "font-semibold"
         }
@@ -99,7 +103,11 @@ export const createColumns = (
             ) : null}
             
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className={`${fontClass} ${textSize} ${tipo === 'receita' ? 'text-green-600 dark:text-green-400' : tipo === 'total' ? 'text-primary' : ''}`}>
+              <span className={`${fontClass} ${textSize} ${
+                tipo === 'receita' ? 'text-green-600 dark:text-green-400' :
+                tipo === 'lucro_liquido' ? 'text-blue-600 dark:text-blue-400' :
+                tipo === 'total' ? 'text-primary' : ''
+              }`}>
                 {row.original.descricao}
               </span>
               {tipo === 'despesa' && (
@@ -131,7 +139,7 @@ export const createColumns = (
       },
       cell: ({ row }) => {
         const tipo = row.original.tipo
-        const fontClass = tipo === 'receita' || tipo === 'total' || tipo === 'departamento' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'total' || tipo === 'departamento' || tipo === 'lucro_liquido' ? 'font-bold' :
                          tipo === 'tipo' ? 'font-semibold' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
 
@@ -144,6 +152,23 @@ export const createColumns = (
             <div className="text-left">
               <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
                 {formatCurrency(row.original.total)}
+              </div>
+            </div>
+          )
+        }
+
+        // Para linha de lucro líquido, mostrar margem de lucro líquido
+        if (tipo === 'lucro_liquido') {
+          // Calcular Margem de Lucro Líquido: (Lucro Líquido / Receita Bruta) × 100
+          const margemLucroLiquido = receitaBruta > 0 ? (row.original.total / receitaBruta) * 100 : 0
+
+          return (
+            <div className="text-left">
+              <div className={`${fontClass} ${textSize} text-blue-600 dark:text-blue-400`}>
+                {formatCurrency(row.original.total)}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                Margem: {margemLucroLiquido.toFixed(2).replace('.', ',')}%
               </div>
             </div>
           )
@@ -194,7 +219,7 @@ export const createColumns = (
         const totalFilial = branchTotals[filialId] || 0
 
         const tipo = row.original.tipo
-        const fontClass = tipo === 'receita' || tipo === 'total' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'total' || tipo === 'lucro_liquido' ? 'font-bold' :
                          tipo === 'departamento' ? 'font-medium' :
                          tipo === 'tipo' ? 'font-normal' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
@@ -205,6 +230,25 @@ export const createColumns = (
             <div className={`text-left ${bgColorClass} px-2 py-1`}>
               <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
                 {formatCurrency(valorFilial)}
+              </div>
+            </div>
+          )
+        }
+
+        // Para linha de lucro líquido, mostrar margem de lucro líquido
+        if (tipo === 'lucro_liquido') {
+          // Calcular Margem de Lucro Líquido: (Lucro Líquido / Receita Bruta) × 100
+          // Usar receita bruta da filial específica
+          const receitaBrutaFilial = receitaBrutaPorFilial[filialId] || 0
+          const margemLucroLiquido = receitaBrutaFilial > 0 ? (valorFilial / receitaBrutaFilial) * 100 : 0
+
+          return (
+            <div className={`text-left ${bgColorClass} px-2 py-1`}>
+              <div className={`${fontClass} ${textSize} text-blue-600 dark:text-blue-400`}>
+                {formatCurrency(valorFilial)}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                Margem: {margemLucroLiquido.toFixed(2).replace('.', ',')}%
               </div>
             </div>
           )

@@ -91,7 +91,9 @@ interface ComparacaoIndicadores {
 
 interface ReceitaBrutaPorFilial {
   valores_filiais: Record<number, number> // { filial_id: receita_bruta }
-  total: number // Soma total de todas as filiais
+  lucro_bruto_filiais: Record<number, number> // { filial_id: lucro_bruto }
+  total: number // Soma total de todas as filiais (receita bruta)
+  total_lucro_bruto: number // Soma total do lucro bruto
 }
 
 export default function DespesasPage() {
@@ -176,13 +178,14 @@ export default function DespesasPage() {
         const response = await fetch(`/api/dashboard?${params}`)
         if (!response.ok) {
           console.error(`[ReceitaBruta] Erro ao buscar filial ${filialId}`)
-          return { filialId, receita: 0 }
+          return { filialId, receita: 0, lucro_bruto: 0 }
         }
 
         const dashboardData: DashboardData = await response.json()
         return {
           filialId,
-          receita: dashboardData.total_vendas || 0
+          receita: dashboardData.total_vendas || 0,
+          lucro_bruto: dashboardData.total_lucro || 0
         }
       })
 
@@ -190,14 +193,18 @@ export default function DespesasPage() {
 
       // Montar objeto com valores por filial
       const valores_filiais: Record<number, number> = {}
+      const lucro_bruto_filiais: Record<number, number> = {}
       let total = 0
+      let total_lucro_bruto = 0
 
-      results.forEach(({ filialId, receita }) => {
+      results.forEach(({ filialId, receita, lucro_bruto }) => {
         valores_filiais[filialId] = receita
+        lucro_bruto_filiais[filialId] = lucro_bruto
         total += receita
+        total_lucro_bruto += lucro_bruto
       })
 
-      return { valores_filiais, total }
+      return { valores_filiais, lucro_bruto_filiais, total, total_lucro_bruto }
     } catch (err) {
       console.error('[ReceitaBruta] Erro ao buscar receita bruta:', err)
       return null
@@ -669,6 +676,34 @@ export default function DespesasPage() {
     })
     
     rows.push(totalRow)
+
+    // Linha de lucro líquido (se disponível)
+    if (receitaPorFilial) {
+      // Calcular lucro líquido por filial: Lucro Bruto - Total Despesas
+      const lucroLiquidoFiliais: Record<number, number> = {}
+      let totalLucroLiquido = 0
+
+      reportData.filiais.forEach(filialId => {
+        const lucroBruto = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
+        const totalDespesas = totalRow.valores_filiais[filialId] || 0
+        const lucroLiquido = lucroBruto - totalDespesas
+
+        lucroLiquidoFiliais[filialId] = lucroLiquido
+        totalLucroLiquido += lucroLiquido
+      })
+
+      const lucroLiquidoRow: DespesaRow = {
+        id: 'lucro_liquido',
+        tipo: 'lucro_liquido',
+        descricao: 'LUCRO LÍQUIDO',
+        total: totalLucroLiquido,
+        percentual: 0, // Não tem percentual pois não faz parte da hierarquia de despesas
+        valores_filiais: lucroLiquidoFiliais,
+        filiais: reportData.filiais,
+      }
+      rows.push(lucroLiquidoRow)
+    }
+
     return rows
   }
 
