@@ -4,11 +4,197 @@ Este documento registra todas as alterações, correções e novas features impl
 
 ## Índice
 
+- [2025-11-13 - Feature: Implementação completa de exclusão de usuários](#2025-11-13---feature-implementação-completa-de-exclusão-de-usuários)
 - [2025-01-12 - Documentação: Criação da documentação técnica completa](#2025-01-12---documentação-criação-da-documentação-técnica-completa)
 - [2025-01-10 - Feature: Sistema de Parâmetros por Tenant](#2025-01-10---feature-sistema-de-parâmetros-por-tenant)
 - [2025-01-05 - Feature: Módulo de Setores](#2025-01-05---feature-módulo-de-setores)
 - [2025-01-03 - Feature: Filiais Autorizadas](#2025-01-03---feature-filiais-autorizadas)
 - [2025-01-01 - Initial: Implementação inicial do módulo](#2025-01-01---initial-implementação-inicial-do-módulo)
+
+---
+
+## 2025-11-13 - Feature: Implementação completa de exclusão de usuários
+
+### Alteração Implementada
+
+**Tipo**: Feature + Refactor + Fix
+
+**Descrição**:
+Implementação completa da funcionalidade de exclusão de usuários no componente de Configurações, que estava com o botão desabilitado. Além disso, foi feita uma refatoração significativa na estrutura de rotas para eliminar duplicação de código, centralizando a listagem de usuários em Configurações.
+
+**Problema Identificado**:
+O botão de lixeira (exclusão) estava explicitamente desabilitado (`disabled`) no componente `UsuariosContent` (linha 228), que é acessado via Configurações → Usuários (rota `/configuracoes`). Havia também uma rota `/usuarios` duplicada com sua própria listagem, causando confusão e duplicação de código.
+
+**Arquivos Modificados**:
+
+1. **[src/components/configuracoes/usuarios-content.tsx](../../../src/components/configuracoes/usuarios-content.tsx)**
+   - ✅ Adicionados imports: `useRouter`, `AlertDialog`, `toast`
+   - ✅ Adicionados estados: `deleteDialogOpen`, `userToDelete`, `isDeleting`, `userEmail`
+   - ✅ Implementada função `handleDeleteClick()` - Abre dialog e busca email
+   - ✅ Implementada função `handleConfirmDelete()` - Chama API DELETE e recarrega lista
+   - ✅ Implementada função `handleCancelDelete()` - Fecha dialog e limpa estados
+   - ✅ Removido atributo `disabled` do botão de exclusão
+   - ✅ Adicionado `onClick={handleDeleteClick}` ao botão
+   - ✅ Adicionado `AlertDialog` de confirmação com informações do usuário
+   - ✅ Corrigido erro de hidratação (substituído `<p>` por `<div>` com `asChild`)
+
+2. **[src/app/api/users/delete/route.ts](../../../src/app/api/users/delete/route.ts)**
+   - ✅ Melhoradas mensagens de erro (traduzidas para português)
+   - ✅ Adicionados logs de debug (`console.log`)
+   - ✅ Captura de dados retornados pelo `deleteUser()`
+
+3. **[src/app/(dashboard)/usuarios/page.tsx](../../../src/app/(dashboard)/usuarios/page.tsx)** ⚠️ REFACTOR
+   - ✅ Removida listagem duplicada de usuários
+   - ✅ Criado redirect para `/configuracoes`
+   - ✅ Mantém comentário explicativo sobre a mudança
+
+4. **[src/components/usuarios/users-list.tsx](../../../src/components/usuarios/users-list.tsx)** ❌ REMOVIDO
+   - ✅ Componente removido (não era mais utilizado após redirect)
+   - ✅ Funcionalidade migrada para `usuarios-content.tsx`
+
+5. **[src/components/usuarios/users-list.tsx](../../../src/components/usuarios/users-list.tsx)** (cópia de backup)
+   - ✅ Também corrigido erro de hidratação (`asChild` no `AlertDialogDescription`)
+
+**Regras de Negócio Implementadas**:
+
+- **RN-USER-006**: Exclusão de Usuário
+  - Apenas admins e superadmins podem excluir usuários
+  - Admins não podem excluir superadmins
+  - Admins só podem excluir usuários do mesmo tenant
+  - Usuário não pode excluir a si mesmo
+  - Dialog de confirmação obrigatório com nome e email
+  - Exclusão em `auth.users` cascateia para `user_profiles` e tabelas relacionadas
+
+**Fluxo de Exclusão Implementado**:
+```
+Usuário clica no botão lixeira
+        ↓
+handleDeleteClick() disparado
+        ↓
+GET /api/users/get-email (busca email)
+        ↓
+AlertDialog abre com nome + email
+        ↓
+Usuário confirma exclusão
+        ↓
+handleConfirmDelete() disparado
+        ↓
+DELETE /api/users/delete?userId=X
+        ↓
+API valida permissões (admin/superadmin)
+        ↓
+API valida restrições (não pode deletar si mesmo, admin não deleta superadmin)
+        ↓
+Supabase Admin SDK: deleteUser(userId)
+        ↓
+CASCADE: user_profiles, user_authorized_branches, user_authorized_modules
+        ↓
+API retorna sucesso
+        ↓
+Frontend recarrega lista de usuários
+        ↓
+Toast de sucesso
+        ↓
+Dialog fecha
+```
+
+**Estrutura de Rotas Refatorada**:
+
+Antes:
+```
+/usuarios
+├── page.tsx (listagem duplicada)
+├── novo/page.tsx
+└── [id]/editar/page.tsx
+
+/configuracoes (UsuariosContent também tinha listagem)
+```
+
+Depois:
+```
+/usuarios
+├── page.tsx (REDIRECT para /configuracoes)
+├── novo/page.tsx (mantido - formulário criação)
+└── [id]/editar/page.tsx (mantido - formulário edição)
+
+/configuracoes → UsuariosContent (ÚNICA listagem)
+```
+
+**Componentes Removidos**:
+- ❌ `src/components/usuarios/users-list.tsx` (código duplicado)
+- ❌ `src/components/usuarios/test-button.tsx` (componente de teste temporário)
+
+**Componentes Mantidos**:
+- ✅ `src/components/users/user-form.tsx` (formulário reutilizável)
+- ✅ `src/components/usuarios/module-selector.tsx` (seletor de módulos)
+- ✅ `src/components/configuracoes/usuarios-content.tsx` (listagem única)
+
+**Fixes Adicionais**:
+
+1. **Erro de Hidratação (React 19 + Next.js 15)**:
+   - **Problema**: `<AlertDialogDescription>` renderiza `<p>`, mas tínhamos `<p>` dentro
+   - **Solução**: Uso de `asChild` + substituição de `<p>` por `<div>`
+   - **Arquivos corrigidos**: `usuarios-content.tsx` e `users-list.tsx`
+
+**API Endpoint Utilizado**:
+
+```typescript
+DELETE /api/users/delete?userId={uuid}
+
+// Headers: Cookie (sessão autenticada)
+
+// Response Success (200):
+{
+  "success": true,
+  "message": "User deleted successfully",
+  "userId": "uuid"
+}
+
+// Response Error (400/403/404/500):
+{
+  "error": "Mensagem de erro em português"
+}
+```
+
+**Validações da API**:
+1. ✅ Autenticação (cookie de sessão)
+2. ✅ Permissão (admin ou superadmin)
+3. ✅ userId obrigatório
+4. ✅ Não pode deletar a si mesmo
+5. ✅ Usuário existe
+6. ✅ Admin não deleta superadmin
+7. ✅ Admin só deleta do mesmo tenant
+8. ✅ `SUPABASE_SERVICE_ROLE_KEY` configurada
+
+**Impacto**: ⚠️ MÉDIO
+
+**Detalhamento do Impacto**:
+- ✅ Funcionalidade crítica implementada (exclusão de usuários)
+- ✅ Código limpo e organizado (remoção de duplicação)
+- ✅ Melhor UX (listagem centralizada em Configurações)
+- ⚠️ Redirect criado para compatibilidade com links antigos
+- ✅ Formulários de criar/editar mantidos em rotas limpas
+- ✅ Erro de hidratação corrigido (React 19)
+
+**Breaking Changes**: ✅ Não (com mitigação)
+
+**Mitigação de Breaking Changes**:
+- Rota `/usuarios` redireciona para `/configuracoes` (backward compatible)
+- Links para criar/editar usuários continuam funcionando
+- Estrutura de dados não foi alterada
+
+**Versão**: 1.3.0
+
+**Testes Recomendados**:
+1. ✅ Acessar `/configuracoes` → Usuários → Listar usuários
+2. ✅ Clicar em lixeira → Dialog abre com nome e email
+3. ✅ Confirmar exclusão → Usuário removido + toast sucesso
+4. ✅ Cancelar exclusão → Dialog fecha sem ação
+5. ✅ Tentar excluir como admin um superadmin → Erro 403
+6. ✅ Tentar excluir usuário de outro tenant como admin → Erro 403
+7. ✅ Acessar `/usuarios` → Redirect para `/configuracoes`
+8. ✅ Acessar `/usuarios/novo` → Formulário de criação
+9. ✅ Acessar `/usuarios/[id]/editar` → Formulário de edição
 
 ---
 

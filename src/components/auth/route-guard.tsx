@@ -26,39 +26,25 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
     if (isPublicRoute) {
-      console.log('[RouteGuard] Rota pública, permitindo acesso:', pathname)
       return
     }
 
     // Verificar se pode acessar a rota atual
     const hasAccess = canAccessRoute(pathname)
 
-    console.log('[RouteGuard] Verificando acesso:', {
-      pathname,
-      hasAccess,
-      hasFullAccess,
-      modules: modules.length
-    })
-
     if (!hasAccess) {
-      console.log('[RouteGuard] ❌ Acesso negado à rota:', pathname)
-
       // Se não tem acesso, redirecionar para o primeiro módulo autorizado
       if (modules.length > 0) {
         const firstModule = SYSTEM_MODULES.find(m => modules.includes(m.id))
 
         if (firstModule) {
-          console.log('[RouteGuard] 🔀 Redirecionando para:', firstModule.route)
           router.replace(firstModule.route)
           return
         }
       }
 
       // Se não tem nenhum módulo autorizado, redirecionar para configurações
-      console.log('[RouteGuard] 🔀 Sem módulos, redirecionando para /configuracoes')
       router.replace('/configuracoes')
-    } else {
-      console.log('[RouteGuard] ✅ Acesso permitido à rota:', pathname)
     }
   }, [pathname, isLoading, canAccessRoute, modules, hasFullAccess, router])
 

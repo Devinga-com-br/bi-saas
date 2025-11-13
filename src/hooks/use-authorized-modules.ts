@@ -25,19 +25,13 @@ export interface AuthorizedModulesState {
  * Hook principal para verificar módulos autorizados
  */
 export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
-  // Log FORA do useEffect para garantir que está sendo renderizado
-  console.log('[useAuthorizedModules] 🎯 HOOK RENDERIZADO - Este log deve aparecer!')
-
   const [modules, setModules] = useState<SystemModule[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasFullAccess, setHasFullAccess] = useState(false)
 
   useEffect(() => {
-    console.log('[useAuthorizedModules] 🚀 Hook INICIADO (useEffect)', { userId })
-
     async function loadAuthorizedModules() {
       try {
-        console.log('[useAuthorizedModules] 📥 Carregando módulos...')
         setIsLoading(true)
         const supabase = createClient()
 
@@ -45,9 +39,7 @@ export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
         let targetUserId = userId
         if (!targetUserId) {
           const { data: { user } } = await supabase.auth.getUser()
-          console.log('[useAuthorizedModules] 👤 Usuário autenticado:', user?.id)
           if (!user) {
-            console.log('[useAuthorizedModules] ❌ Sem usuário autenticado')
             setIsLoading(false)
             return
           }
@@ -61,8 +53,6 @@ export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
           .eq('id', targetUserId)
           .single() as { data: { role: string } | null }
 
-        console.log('[useAuthorizedModules] User profile:', { userId: targetUserId, profile })
-
         if (!profile) {
           setIsLoading(false)
           return
@@ -70,7 +60,6 @@ export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
 
         // Superadmin e Admin sempre têm acesso full
         if (['superadmin', 'admin'].includes(profile.role)) {
-          console.log('[useAuthorizedModules] Full access for role:', profile.role)
           setModules(ALL_MODULE_IDS)
           setHasFullAccess(true)
           setIsLoading(false)
@@ -85,32 +74,27 @@ export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
             .select('module')
             .eq('user_id', targetUserId)
 
-          console.log('[useAuthorizedModules] Query result:', { authorizedModules, error })
-
           if (error) {
-            console.error('[useAuthorizedModules] Error loading authorized modules:', error)
+            console.error('Error loading authorized modules:', error)
             setModules([])
             setHasFullAccess(false)
           } else {
             const moduleIds = authorizedModules?.map((am: { module: string }) => am.module as SystemModule) || []
-            console.log('[useAuthorizedModules] Loaded modules for user:', moduleIds)
             setModules(moduleIds)
             setHasFullAccess(false)
           }
         } else {
           // Viewer ou outros roles: sem acesso por padrão
-          console.log('[useAuthorizedModules] No access for role:', profile.role)
           setModules([])
           setHasFullAccess(false)
         }
 
       } catch (error) {
-        console.error('[useAuthorizedModules] ❌ ERRO:', error)
+        console.error('Error in useAuthorizedModules:', error)
         setModules([])
         setHasFullAccess(false)
       } finally {
         setIsLoading(false)
-        console.log('[useAuthorizedModules] ✅ Hook FINALIZADO')
       }
     }
 
@@ -119,13 +103,6 @@ export function useAuthorizedModules(userId?: string): AuthorizedModulesState {
 
   // Função para verificar se tem acesso a um módulo específico
   const hasModuleAccess = (moduleId: SystemModule): boolean => {
-    console.log('[hasModuleAccess] Verificando:', {
-      moduleId,
-      hasFullAccess,
-      modules,
-      includes: modules.includes(moduleId)
-    })
-
     // Superadmin e Admin sempre têm acesso
     if (hasFullAccess) return true
 

@@ -13,7 +13,7 @@ import type { Database } from '@/types/database.types'
 import { BranchSelector } from '@/components/users/branch-selector'
 import { ModuleSelector } from '@/components/usuarios/module-selector'
 import type { SystemModule } from '@/types/modules'
-import { DEFAULT_USER_MODULES } from '@/types/modules'
+import { ALL_MODULE_IDS } from '@/types/modules'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 type Tenant = Database['public']['Tables']['tenants']['Row']
@@ -41,7 +41,9 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
   const [authorizedBranches, setAuthorizedBranches] = useState<string[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
-  const [authorizedModules, setAuthorizedModules] = useState<SystemModule[]>(DEFAULT_USER_MODULES)
+  // Se for criação (não tem user), inicia com TODOS os módulos selecionados
+  // Se for edição (tem user), carrega do banco via useEffect
+  const [authorizedModules, setAuthorizedModules] = useState<SystemModule[]>(user ? [] : ALL_MODULE_IDS)
   const [loadingModules, setLoadingModules] = useState(false)
 
   // Quando role é superadmin, tenant_id deve ser null
@@ -132,11 +134,11 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           const response = await fetch(`/api/users/authorized-modules?userId=${user.id}`)
           if (response.ok) {
             const data = await response.json()
-            setAuthorizedModules(data.modules || DEFAULT_USER_MODULES)
+            setAuthorizedModules(data.modules || ALL_MODULE_IDS)
           }
         } catch (error) {
           console.error('Error loading authorized modules:', error)
-          setAuthorizedModules(DEFAULT_USER_MODULES)
+          setAuthorizedModules(ALL_MODULE_IDS)
         } finally {
           setLoadingModules(false)
         }

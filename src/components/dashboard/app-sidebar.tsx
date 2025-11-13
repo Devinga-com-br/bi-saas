@@ -145,38 +145,20 @@ export function AppSidebar() {
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
 
-  // Log when parameters change for debugging
-  React.useEffect(() => {
-    console.log('[AppSidebar] Parameters updated:', parameters, 'Tenant:', currentTenant?.id)
-  }, [parameters, currentTenant?.id])
-
-  // Log module access info
-  React.useEffect(() => {
-    console.log('[AppSidebar] Module access:', {
-      hasFullAccess,
-      role: userProfile?.role,
-      userId: userProfile?.id
-    })
-  }, [hasFullAccess, userProfile])
-
   // Filter navigation items based on user role, tenant parameters, and authorized modules
   const filterNavigation = (items: NavigationItem[]) => items.filter(item => {
     if (item.requiresSuperAdmin && !isSuperAdmin) {
-      console.log('[AppSidebar] Filtering out (superadmin required):', item.name)
       return false
     }
     if (item.requiresAdminOrAbove && !isAdminOrAbove) {
-      console.log('[AppSidebar] Filtering out (admin required):', item.name)
       return false
     }
     // Filter "Descontos Venda" based on tenant parameter
     if (item.href === '/descontos-venda' && !parameters.enable_descontos_venda) {
-      console.log('[AppSidebar] Filtering out (tenant param):', item.name)
       return false
     }
     // Filter based on authorized modules (only for users with role = 'user')
     if (item.moduleId && !hasFullAccess && !hasModuleAccess(item.moduleId)) {
-      console.log('[AppSidebar] Filtering out (no module access):', item.name, 'moduleId:', item.moduleId)
       return false
     }
     return true
@@ -187,16 +169,13 @@ export function AppSidebar() {
         ...item,
         items: item.items.filter(subItem => {
           if (subItem.requiresSuperAdmin && !isSuperAdmin) {
-            console.log('[AppSidebar] Filtering out subitem (superadmin required):', subItem.name)
             return false
           }
           if (subItem.requiresAdminOrAbove && !isAdminOrAbove) {
-            console.log('[AppSidebar] Filtering out subitem (admin required):', subItem.name)
             return false
           }
           // Filter subitems based on authorized modules
           if (subItem.moduleId && !hasFullAccess && !hasModuleAccess(subItem.moduleId)) {
-            console.log('[AppSidebar] Filtering out subitem (no module access):', subItem.name, 'moduleId:', subItem.moduleId)
             return false
           }
           return true

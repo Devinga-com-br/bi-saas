@@ -6,7 +6,7 @@ Este documento contém todas as regras de negócio do módulo de Configurações
 
 1. [Regras de Permissões](#regras-de-permissões)
 2. [Regras de Perfil](#regras-de-perfil)
-3. [Regras de Usuários](#regras-de-usuários)
+3. [Regras de Usuários](#regras-de-usuários) ✅ *Atualizado com RN-USER-006*
 4. [Regras de Parâmetros](#regras-de-parâmetros)
 5. [Regras de Setores](#regras-de-setores)
 6. [Regras de Empresas](#regras-de-empresas)
@@ -285,6 +285,127 @@ const { data } = await query.order('full_name')
 ```
 
 **Implementação**: [src/app/(dashboard)/usuarios/page.tsx:45-80](../../../src/app/(dashboard)/usuarios/page.tsx#L45-80)
+
+---
+
+### RN-USER-006: Exclusão de Usuário ✅ *Novo*
+
+**Descrição**: Apenas admins e superadmins podem excluir usuários, com restrições de segurança.
+
+**Permissões**: Admin ou Superadmin
+
+**Validações**:
+1. ✅ Usuário autenticado com role `admin` ou `superadmin`
+2. ✅ `userId` fornecido é válido (UUID)
+3. ✅ Usuário a ser deletado existe
+4. ✅ Usuário NÃO pode excluir a si mesmo
+5. ✅ Admin NÃO pode excluir superadmin
+6. ✅ Admin só pode excluir usuários do mesmo tenant
+7. ✅ Dialog de confirmação obrigatório no frontend
+
+**Fluxo**:
+```typescript
+// 1. Frontend: Usuário clica no botão lixeira
+const handleDeleteClick = async (user: UserProfile) => {
+  setUserToDelete(user)
+
+  // Buscar email para exibir no dialog
+  const response = await fetch(`/api/users/get-email?userId=${user.id}`)
+  const { email } = await response.json()
+  setUserEmail(email)
+
+  setDeleteDialogOpen(true)
+}
+
+// 2. Frontend: Usuário confirma exclusão
+const handleConfirmDelete = async () => {
+  const response = await fetch(`/api/users/delete?userId=${userToDelete.id}`, {
+    method: 'DELETE'
+  })
+
+  if (response.ok) {
+    toast.success('Usuário excluído com sucesso')
+    await loadUsers() // Recarrega lista
+  }
+}
+
+// 3. Backend: Validações e exclusão
+const { data: { user } } = await supabase.auth.getUser()
+
+// Validar que não está deletando a si mesmo
+if (userIdToDelete === user.id) {
+  return { error: 'Cannot delete your own account' }
+}
+
+// Validar restrições de role
+const { data: userToDelete } = await supabase
+  .from('user_profiles')
+  .select('role, tenant_id')
+  .eq('id', userIdToDelete)
+  .single()
+
+if (currentProfile.role === 'admin' && userToDelete.role === 'superadmin') {
+  return { error: 'Admins cannot delete superadmins' }
+}
+
+if (currentProfile.role === 'admin' && userToDelete.tenant_id !== currentProfile.tenant_id) {
+  return { error: 'You can only delete users from your own tenant' }
+}
+
+// 4. Deletar via Admin SDK (cascateia para tabelas relacionadas)
+const { error } = await supabaseAdmin.auth.admin.deleteUser(userIdToDelete)
+```
+
+**Cascade Automático** (ON DELETE CASCADE):
+- `user_profiles` (perfil do usuário)
+- `user_authorized_branches` (filiais autorizadas)
+- `user_authorized_modules` (módulos autorizados)
+- Outros registros com foreign key para `user_profiles.id`
+
+**UI/UX**:
+```jsx
+<AlertDialog>
+  <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+  <AlertDialogDescription>
+    Tem certeza que deseja excluir este usuário?
+
+    Nome: {userToDelete.full_name}
+    Email: {userEmail}
+
+    ⚠️ Esta ação não pode ser desfeita!
+    O usuário será permanentemente removido do sistema.
+  </AlertDialogDescription>
+  <AlertDialogFooter>
+    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+    <AlertDialogAction onClick={handleConfirmDelete}>
+      Excluir Usuário
+    </AlertDialogAction>
+  </AlertDialogFooter>
+</AlertDialog>
+```
+
+**Mensagens de Erro**:
+- `401`: "Not authenticated"
+- `400`: "User ID is required"
+- `400`: "Cannot delete your own account"
+- `403`: "Permission denied" (não é admin/superadmin)
+- `403`: "Admins cannot delete superadmins"
+- `403`: "You can only delete users from your own tenant"
+- `404`: "User not found"
+- `500`: "Server configuration incomplete" (sem SUPABASE_SERVICE_ROLE_KEY)
+- `500`: "Failed to delete user"
+
+**Implementação**:
+- **API**: [src/app/api/users/delete/route.ts](../../../src/app/api/users/delete/route.ts)
+- **Frontend**: [src/components/configuracoes/usuarios-content.tsx:118-206](../../../src/components/configuracoes/usuarios-content.tsx#L118-206)
+
+**Observações**:
+- ⚠️ **Operação irreversível** - Não há soft delete
+- Requer `SUPABASE_SERVICE_ROLE_KEY` configurada no `.env.local`
+- Usa Supabase Admin SDK (`supabase.auth.admin.deleteUser`)
+- DELETE em `auth.users` cascateia automaticamente para `user_profiles`
+- Frontend DEVE mostrar dialog de confirmação
+- Logs detalhados no console do servidor para auditoria
 
 ---
 

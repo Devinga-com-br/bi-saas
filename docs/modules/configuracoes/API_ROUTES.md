@@ -182,6 +182,148 @@ const response = await fetch('/api/users/update-email', {
 
 ---
 
+### DELETE /api/users/delete
+
+**Descrição**: Exclui um usuário do sistema (Auth + Profile + dados relacionados)
+
+**Arquivo**: [src/app/api/users/delete/route.ts](../../../src/app/api/users/delete/route.ts)
+
+**Permissões**: Admin ou Superadmin
+
+**Query Parameters**:
+- `userId` (string): UUID do usuário a ser excluído (obrigatório)
+
+**Response - Sucesso (200)**:
+```json
+{
+  "success": true,
+  "message": "User deleted successfully",
+  "userId": "123e4567-e89b-12d3-a456-426614174000"
+}
+```
+
+**Response - Erro (400)**:
+```json
+{
+  "error": "Cannot delete your own account"
+}
+```
+
+**Response - Erro (403)**:
+```json
+{
+  "error": "Admins cannot delete superadmins"
+}
+```
+
+**Response - Erro (404)**:
+```json
+{
+  "error": "User not found"
+}
+```
+
+**Response - Erro (500)**:
+```json
+{
+  "error": "Configuração do servidor incompleta"
+}
+```
+
+**Exemplo de Uso**:
+```typescript
+const response = await fetch(`/api/users/delete?userId=${userId}`, {
+  method: 'DELETE'
+})
+
+const result = await response.json()
+
+if (response.ok) {
+  console.log('Usuário excluído:', result.userId)
+} else {
+  console.error('Erro:', result.error)
+}
+```
+
+**Fluxo**:
+1. Valida autenticação (cookie de sessão)
+2. Verifica permissões (admin ou superadmin)
+3. Valida que `userId` foi fornecido
+4. Verifica que usuário não está tentando deletar a si mesmo
+5. Busca dados do usuário a ser deletado
+6. Valida regras de negócio:
+   - Admin não pode deletar superadmin
+   - Admin só pode deletar usuários do mesmo tenant
+7. Deleta usuário via Admin SDK (`supabase.auth.admin.deleteUser`)
+8. CASCADE automático deleta registros relacionados:
+   - `user_profiles`
+   - `user_authorized_branches`
+   - `user_authorized_modules`
+9. Retorna sucesso
+
+**Regras de Negócio (RN-USER-006)**:
+- ✅ Apenas admins e superadmins podem excluir usuários
+- ✅ Admins NÃO podem excluir superadmins
+- ✅ Admins só podem excluir usuários do mesmo tenant
+- ✅ Usuário NÃO pode excluir a si mesmo
+- ✅ Dialog de confirmação obrigatório no frontend
+- ✅ Exclusão em `auth.users` cascateia para todas as tabelas relacionadas
+
+**Validações da API**:
+1. `SUPABASE_SERVICE_ROLE_KEY` deve estar configurada no `.env.local`
+2. Usuário autenticado (sessão válida)
+3. Role = `admin` ou `superadmin`
+4. `userId` é obrigatório
+5. `userId` ≠ ID do usuário logado
+6. Usuário target existe
+7. Se admin: target não é superadmin
+8. Se admin: target é do mesmo tenant
+
+**Observações**:
+- ⚠️ **Operação irreversível** - Não há como desfazer
+- Usa Admin SDK (`supabase.auth.admin.deleteUser`)
+- DELETE em `auth.users` cascateia automaticamente
+- Frontend deve mostrar dialog de confirmação
+- Logs detalhados no console do servidor
+
+**Exemplo Completo (Frontend)**:
+```typescript
+// 1. Abrir dialog de confirmação
+const handleDeleteClick = async (user: UserProfile) => {
+  setUserToDelete(user)
+
+  // Buscar email do usuário
+  const response = await fetch(`/api/users/get-email?userId=${user.id}`)
+  const { email } = await response.json()
+  setUserEmail(email)
+
+  setDeleteDialogOpen(true)
+}
+
+// 2. Confirmar exclusão
+const handleConfirmDelete = async () => {
+  try {
+    const response = await fetch(`/api/users/delete?userId=${userToDelete.id}`, {
+      method: 'DELETE'
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
+      toast.success('Usuário excluído com sucesso')
+      // Recarregar lista de usuários
+      await loadUsers()
+    } else {
+      toast.error(data.error || 'Erro ao excluir usuário')
+    }
+  } catch (error) {
+    toast.error('Erro inesperado ao excluir usuário')
+  }
+}
+```
+
+---
+
 ### GET /api/users/authorized-branches
 
 **Descrição**: Lista as filiais autorizadas de um usuário

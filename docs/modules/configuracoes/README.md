@@ -28,11 +28,10 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
   - [src/components/configuracoes/empresas-content.tsx](../../../src/components/configuracoes/empresas-content.tsx)
 
 #### **Páginas de Usuários**
-- **Listagem**: [src/app/(dashboard)/usuarios/page.tsx](../../../src/app/(dashboard)/usuarios/page.tsx)
+- **Listagem**: [src/app/(dashboard)/usuarios/page.tsx](../../../src/app/(dashboard)/usuarios/page.tsx) ⚠️ *Redirect para `/configuracoes`*
 - **Criar Novo**: [src/app/(dashboard)/usuarios/novo/page.tsx](../../../src/app/(dashboard)/usuarios/novo/page.tsx)
 - **Editar**: [src/app/(dashboard)/usuarios/[id]/editar/page.tsx](../../../src/app/(dashboard)/usuarios/[id]/editar/page.tsx)
-- **Formulário**: [src/components/usuarios/user-form.tsx](../../../src/components/usuarios/user-form.tsx)
-- **Seletor de Filiais**: [src/components/usuarios/branch-selector.tsx](../../../src/components/usuarios/branch-selector.tsx)
+- **Formulário**: [src/components/users/user-form.tsx](../../../src/components/users/user-form.tsx)
 - **Seletor de Módulos**: [src/components/usuarios/module-selector.tsx](../../../src/components/usuarios/module-selector.tsx)
 
 #### **Páginas de Empresas**
@@ -47,12 +46,16 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - **Formulário de Nome**: [src/components/perfil/profile-form.tsx](../../../src/components/perfil/profile-form.tsx)
 - **Formulário de Senha**: [src/components/perfil/password-form.tsx](../../../src/components/perfil/password-form.tsx)
 
+#### **Componentes de Segurança**
+- **RouteGuard**: [src/components/auth/route-guard.tsx](../../../src/components/auth/route-guard.tsx) - Proteção de rotas baseada em módulos autorizados
+
 ### Backend
 
 #### **API Routes - Usuários**
 - **Criar**: [src/app/api/users/create/route.ts](../../../src/app/api/users/create/route.ts)
 - **Obter Email**: [src/app/api/users/get-email/route.ts](../../../src/app/api/users/get-email/route.ts)
 - **Atualizar Email**: [src/app/api/users/update-email/route.ts](../../../src/app/api/users/update-email/route.ts)
+- **Excluir**: [src/app/api/users/delete/route.ts](../../../src/app/api/users/delete/route.ts) ✅ *Novo*
 - **Filiais Autorizadas**: [src/app/api/users/authorized-branches/route.ts](../../../src/app/api/users/authorized-branches/route.ts)
 - **Módulos Autorizados**: [src/app/api/users/authorized-modules/route.ts](../../../src/app/api/users/authorized-modules/route.ts)
 
@@ -125,11 +128,12 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 **Descrição**: Gerenciamento completo de usuários do sistema, incluindo criação, edição, desativação e controle de filiais autorizadas.
 
 **Funcionalidades**:
-- Listar todos os usuários do tenant (com filtros e busca)
+- Listar todos os usuários do tenant (em Configurações → Usuários)
 - Criar novo usuário (via Admin SDK do Supabase)
 - Editar informações do usuário (nome, email, role)
+- ✅ **Excluir usuário** (com dialog de confirmação)
 - Desativar/ativar usuário
-- Definir filiais autorizadas (restrição de acesso)
+- Definir filiais autorizadas (restrição de acesso - descontinuado)
 - Definir módulos autorizados (obrigatório para role = user)
 - Visualizar status de ativação
 
@@ -141,6 +145,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - `POST /api/users/create`
 - `GET /api/users/get-email`
 - `POST /api/users/update-email`
+- ✅ `DELETE /api/users/delete` *(novo)*
 - `GET/POST/DELETE /api/users/authorized-branches`
 - `GET/POST /api/users/authorized-modules`
 
@@ -246,7 +251,8 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 ```
 /configuracoes (Hub)
 ├── Aba 1: Perfil
-├── Aba 2: Usuários → /usuarios
+├── Aba 2: Usuários (listagem única)
+│   ├── /usuarios → REDIRECT para /configuracoes
 │   ├── /usuarios/novo (criar)
 │   └── /usuarios/[id]/editar (editar)
 ├── Aba 3: Parâmetros
@@ -270,22 +276,38 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 ⚠️ **ATENÇÃO**:
 - Apenas superadmins podem acessar o módulo de Empresas
 - Admins não podem criar ou editar usuários com role "superadmin"
+- **Admins não podem excluir superadmins** ✅ *Novo*
+- **Usuário não pode excluir a si mesmo** ✅ *Novo*
+- **Exclusão de usuário é irreversível** - requer confirmação em dialog ✅ *Novo*
 - Schema de empresas deve estar em "Exposed schemas" no Supabase
 - Alterações em parâmetros refletem imediatamente no menu lateral
-- Filiais autorizadas: se vazio, usuário tem acesso a TODAS as filiais
+- Filiais autorizadas: se vazio, usuário tem acesso a TODAS as filiais (descontinuado)
 - Módulos autorizados: obrigatório para role = user, superadmin e admin têm acesso full automático
 - Sidebar filtra itens de menu baseado nos módulos autorizados do usuário
+- **Listagem de usuários centralizada em Configurações** → `/usuarios` redireciona para `/configuracoes` ✅ *Novo*
 
 ## Versão
 
-**Versão Atual**: 1.1.0
-**Última Atualização**: 2025-01-12
+**Versão Atual**: 1.3.0
+**Última Atualização**: 2025-11-13
 
-**Changelog 1.1.0**:
+**Changelog 1.3.0** (2025-11-13):
+- ✅ **Implementação completa de exclusão de usuários**
+- ✅ Dialog de confirmação com nome e email do usuário
+- ✅ Validações de segurança (não pode deletar si mesmo, admin não deleta superadmin)
+- ✅ API `DELETE /api/users/delete` com Supabase Admin SDK
+- ✅ Refatoração: listagem centralizada em Configurações
+- ✅ `/usuarios` agora redireciona para `/configuracoes`
+- ✅ Correção de erro de hidratação (React 19 + Next.js 15)
+- ✅ Código limpo e organizado (remoção de duplicação)
+
+**Changelog 1.1.0** (2025-01-12):
 - ✨ Adicionado controle de módulos autorizados para usuários (role = user)
 - ✨ Novo componente `ModuleSelector` com seleção via checkboxes
 - ✨ Nova API `/api/users/authorized-modules` (GET/POST)
 - ✨ Novo hook `useAuthorizedModules` para verificação de acesso a módulos
 - ✨ Sidebar atualizada para filtrar itens de menu baseado em módulos autorizados
+- ✨ Novo componente `RouteGuard` para proteção de rotas diretas
 - ✨ 7 módulos configuráveis: Dashboard, DRE Gerencial, Metas (Mensal e Setor), Relatórios (Ruptura ABCD, Venda por Curva, Ruptura 60d)
 - ✨ Superadmin e Admin têm acesso automático a todos os módulos
+- 🔒 Segurança: URLs digitadas manualmente redirecionam para primeiro módulo autorizado

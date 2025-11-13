@@ -107,7 +107,38 @@ export type SystemModule =
 
 ## Componentes
 
-### 1. ModuleSelector
+### 1. RouteGuard
+
+**Arquivo**: `src/components/auth/route-guard.tsx`
+
+**Funcionalidade**: Protege rotas do dashboard contra acesso direto não autorizado. Redireciona usuário para o primeiro módulo autorizado se tentar acessar rota não permitida.
+
+**Como funciona**:
+- Envolvido no layout do dashboard (`src/app/(dashboard)/layout.tsx`)
+- Verifica cada mudança de rota via `usePathname()`
+- Chama `canAccessRoute()` do hook `useAuthorizedModules`
+- Se acesso negado: redireciona para primeiro módulo autorizado
+- Rotas públicas (sempre acessíveis): `/configuracoes`, `/perfil`
+
+**Comportamento**:
+```typescript
+// Usuário com módulos: ['dashboard', 'metas_setor']
+// Tenta acessar: /dre-gerencial
+// → Redirecionado para: /dashboard (primeiro módulo autorizado)
+
+// Usuário sem módulos autorizados
+// Tenta acessar: /dashboard
+// → Redirecionado para: /configuracoes
+```
+
+**Proteção aplicada em**:
+- Sidebar: filtra itens de menu ✅
+- Rotas diretas: redireciona automaticamente ✅
+- URLs digitadas manualmente: redireciona automaticamente ✅
+
+---
+
+### 2. ModuleSelector
 
 **Arquivo**: `src/components/usuarios/module-selector.tsx`
 
@@ -130,12 +161,14 @@ interface ModuleSelectorProps {
 - ✅ Alerta quando nenhum módulo está selecionado
 - ✅ Contador de módulos selecionados
 - ✅ Mensagem de "Acesso Full Automático" para superadmin/admin
+- ✅ **Modo Criação**: Todos os módulos vêm pré-selecionados por padrão
+- ✅ **Modo Edição**: Carrega módulos atuais do banco de dados
 
 **Validação**:
 - Pelo menos 1 módulo deve ser selecionado para role = user
 - Alerta visual quando nenhum módulo está selecionado
 
-### 2. User Form (Atualizado)
+### 3. User Form (Atualizado)
 
 **Arquivo**: `src/components/usuarios/user-form.tsx`
 

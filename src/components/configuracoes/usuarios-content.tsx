@@ -2,11 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { UserPlus, Users, Shield, Pencil, Trash2, Building2 } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Database } from '@/types/database.types'
 import type { UserProfile as UP } from '@/types'
 
@@ -20,8 +32,13 @@ interface UsuariosContentProps {
 }
 
 export function UsuariosContent({ currentUserRole, currentUserTenantId }: UsuariosContentProps) {
+  const router = useRouter()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [userEmail, setUserEmail] = useState<string>('')
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -96,6 +113,96 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
         {labels[role as keyof typeof labels] || role}
       </Badge>
     )
+  }
+
+  const handleDeleteClick = async (user: UserProfile) => {
+    setUserToDelete(user)
+
+    // Buscar o email do usuário
+    try {
+      const response = await fetch(`/api/users/get-email?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserEmail(data.email || 'Email não encontrado')
+      } else {
+        setUserEmail('Email não encontrado')
+      }
+    } catch (error) {
+      console.error('Error fetching user email:', error)
+      setUserEmail('Email não encontrado')
+    }
+
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return
+
+    setIsDeleting(true)
+
+    try {
+      const response = await fetch(`/api/users/delete?userId=${userToDelete.id}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success('Usuário excluído com sucesso')
+        setDeleteDialogOpen(false)
+        setUserToDelete(null)
+        setUserEmail('')
+
+        // Recarregar lista de usuários
+        const supabase = createClient()
+        let usersQuery = supabase
+          .from('user_profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (currentUserRole === 'admin' && currentUserTenantId) {
+          usersQuery = usersQuery
+            .eq('tenant_id', currentUserTenantId)
+            .neq('role', 'superadmin')
+        }
+
+        const { data: userProfiles } = (await usersQuery) as { data: UP[] | null }
+
+        const tenantIds = [...new Set(userProfiles?.map(u => u.tenant_id).filter(Boolean) as string[])]
+        const tenantsMap = new Map()
+
+        if (tenantIds.length > 0) {
+          const { data: tenants } = (await supabase
+            .from('tenants')
+            .select('id, name, slug')
+            .in('id', tenantIds)) as { data: { id: string; name: string; slug: string }[] | null }
+
+          tenants?.forEach(tenant => {
+            tenantsMap.set(tenant.id, tenant)
+          })
+        }
+
+        const usersWithTenants: UserProfile[] = userProfiles?.map(profile => ({
+          ...profile,
+          tenants: profile.tenant_id ? tenantsMap.get(profile.tenant_id) : null
+        })) || []
+
+        setUsers(usersWithTenants)
+      } else {
+        toast.error(data.error || 'Erro ao excluir usuário')
+      }
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error)
+      toast.error('Erro inesperado ao excluir usuário')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false)
+    setUserToDelete(null)
+    setUserEmail('')
   }
 
   if (loading) {
@@ -225,7 +332,12 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
                         <Pencil className="h-3.5 w-3.5" />
                       </Link>
                     </Button>
-                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:border-destructive" disabled>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:border-destructive"
+                      onClick={() => handleDeleteClick(user)}
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -249,6 +361,44 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <div>Tem certeza que deseja excluir este usuário?</div>
+                <div className="bg-muted p-3 rounded-lg mt-2">
+                  <div className="font-medium text-foreground">{userToDelete?.full_name}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {userEmail || 'Carregando email...'}
+                  </div>
+                </div>
+                <div className="text-destructive font-medium mt-3">
+                  ⚠️ Esta ação não pode ser desfeita!
+                </div>
+                <div className="text-sm">
+                  O usuário será permanentemente removido do sistema e não poderá mais fazer login.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDelete} disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir Usuário'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
