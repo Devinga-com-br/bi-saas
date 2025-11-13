@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { email, password, full_name, role, tenant_id, is_active, authorized_branches } = body
+    const { email, password, full_name, role, tenant_id, is_active, authorized_branches, authorized_modules } = body
 
     // Validate required fields
     if (!email || !password || !full_name || !role) {
@@ -34,6 +34,11 @@ export async function POST(request: Request) {
     // Validate tenant_id (obrigatório exceto para superadmin)
     if (role !== 'superadmin' && !tenant_id) {
       return NextResponse.json({ error: 'tenant_id é obrigatório para este tipo de usuário' }, { status: 400 })
+    }
+
+    // Validate authorized modules for role = user
+    if (role === 'user' && (!authorized_modules || !Array.isArray(authorized_modules) || authorized_modules.length === 0)) {
+      return NextResponse.json({ error: 'Pelo menos um módulo deve ser selecionado para usuários' }, { status: 400 })
     }
 
     // Validate role permissions
@@ -156,6 +161,23 @@ export async function POST(request: Request) {
 
       if (branchError) {
         console.error('Error inserting authorized branches:', branchError)
+        // Don't fail the entire request, just log the error
+      }
+    }
+
+    // Insert authorized modules if provided (only for role = user)
+    if (role === 'user' && authorized_modules && Array.isArray(authorized_modules) && authorized_modules.length > 0) {
+      const moduleRecords = authorized_modules.map((module: string) => ({
+        user_id: authData.user.id,
+        module: module,
+      }))
+
+      const { error: moduleError } = await supabaseAdmin
+        .from('user_authorized_modules')
+        .insert(moduleRecords)
+
+      if (moduleError) {
+        console.error('Error inserting authorized modules:', moduleError)
         // Don't fail the entire request, just log the error
       }
     }

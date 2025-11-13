@@ -1,10 +1,10 @@
 # DRE Gerencial - Documentação Técnica
 
-**Versão**: 1.1.0
+**Versão**: 1.2.0
 **Última Atualização**: 2025-01-12
 **Status**: ✅ Produção
 
-> 🆕 **Novidades v1.1.0**: Linha de Receita Bruta na tabela + Cálculo % RB por filial
+> 🆕 **Novidades v1.2.0**: Linha de Lucro Líquido + Margem de Lucro Líquido (%) por filial
 > Ver [CHANGELOG.md](./CHANGELOG.md) para detalhes completos
 
 ## Índice
@@ -32,8 +32,10 @@ O **DRE Gerencial** (Demonstrativo de Resultado do Exercício) é um módulo ava
 
 ### Características Principais
 
-- ✅ **Linha de Receita Bruta**: Exibe receita total e por filial acima das despesas 🆕
-- ✅ **% RB Proporcional**: Cálculo de % em relação à receita da filial específica 🆕
+- ✅ **Linha de Receita Bruta**: Exibe receita total e por filial acima das despesas
+- ✅ **Linha de Lucro Líquido**: Exibe lucro líquido total e por filial ao final da tabela 🆕
+- ✅ **Margem de Lucro Líquido**: Percentual (%) exibido abaixo do valor em cada coluna 🆕
+- ✅ **% RB Proporcional**: Cálculo de % em relação à receita da filial específica
 - ✅ **Análise Comparativa**: Compara período atual com PAM (Período Anterior Mesmo) e PAA (Período Anterior Acumulado)
 - ✅ **Multi-Filial**: Suporta visualização consolidada de múltiplas filiais
 - ✅ **Hierarquia 3 Níveis**: Departamento → Tipo de Despesa → Despesa Individual

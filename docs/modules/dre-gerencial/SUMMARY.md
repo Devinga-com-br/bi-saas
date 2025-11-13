@@ -1,8 +1,8 @@
 # DRE Gerencial - Resumo Executivo
 
-**Versão**: 1.1.0 | **Atualizado em**: 2025-01-12
+**Versão**: 1.2.0 | **Atualizado em**: 2025-01-12
 
-> 🆕 **Novidades v1.1.0**: Linha de Receita Bruta + Cálculo % RB por filial
+> 🆕 **Novidades v1.2.0**: Linha de Lucro Líquido + Margem de Lucro Líquido (%)
 
 ## 📊 Visão Geral
 
@@ -15,33 +15,42 @@ O **DRE Gerencial** é um módulo completo de análise financeira que permite vi
 
 ## 🎯 Funcionalidades Principais
 
-### 1. Linha de Receita Bruta 🆕 (v1.1.0)
+### 1. Linha de Receita Bruta (v1.1.0)
 - ✅ **Exibição destacada**: Linha verde acima de "TOTAL DESPESAS"
 - ✅ **Valor total**: Soma da receita bruta de todas as filiais selecionadas
 - ✅ **Por filial**: Receita bruta individual de cada filial
 - ✅ **Análise proporcional**: Facilita comparar despesas vs receita
 - ✅ **% RB por filial**: Percentuais agora calculados em relação à receita da filial específica
 
-### 2. Análise Hierárquica de Despesas
+### 2. Linha de Lucro Líquido 🆕 (v1.2.0)
+- ✅ **Exibição destacada**: Linha azul ao final da tabela (após todas as despesas)
+- ✅ **Valor total**: Lucro líquido consolidado de todas as filiais
+- ✅ **Por filial**: Lucro líquido individual de cada filial
+- ✅ **Cálculo**: Lucro Bruto - Total Despesas (por filial)
+- ✅ **Margem %**: Margem de lucro líquido exibida abaixo do valor
+- ✅ **Formato margem**: `Margem: XX,XX%` (calculado por filial)
+- ✅ **Consistência**: Valores batem com os cards de indicadores
+
+### 3. Análise Hierárquica de Despesas
 - ✅ Hierarquia de 3 níveis: Departamento → Tipo de Despesa → Despesa Individual
 - ✅ Valores detalhados por filial com comparação vs média
 - ✅ Percentuais de participação no total
 - ✅ Percentuais em relação à receita bruta da filial 🆕
 - ✅ Ordenação automática por valor (maior para menor)
 
-### 3. Consolidação Multi-Filial
+### 4. Consolidação Multi-Filial
 - ✅ Seleção de múltiplas filiais simultaneamente
 - ✅ Consolidação automática de dados
 - ✅ Visualização lado a lado por filial
 - ✅ Indicadores de diferença vs média (verde/vermelho)
 
-### 3. Comparações Temporais
+### 5. Comparações Temporais
 - ✅ **PAM** (Período Anterior Mesmo): compara com mês anterior
 - ✅ **PAA** (Período Anterior Acumulado): compara com mesmo mês do ano anterior
 - ✅ Variações percentuais automáticas
 - ✅ Indicadores visuais de tendência (↑↓)
 
-### 4. Indicadores Financeiros
+### 6. Indicadores Financeiros
 - ✅ Receita Bruta
 - ✅ CMV (Custo das Mercadorias Vendidas)
 - ✅ Lucro Bruto
@@ -49,7 +58,7 @@ O **DRE Gerencial** é um módulo completo de análise financeira que permite vi
 - ✅ Lucro Líquido
 - ✅ Margens Bruta e Líquida (%)
 
-### 5. Controles de Acesso
+### 7. Controles de Acesso
 - ✅ Restrições por filial (usuário vê apenas filiais autorizadas)
 - ✅ Validação de schema (multi-tenant)
 - ✅ Log de auditoria de acessos

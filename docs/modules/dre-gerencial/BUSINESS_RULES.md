@@ -401,6 +401,48 @@
   - [columns.tsx](../../../src/components/despesas/columns.tsx:63-66, 141-149, 201-210)
 - **Versão**: Adicionado em 2025-01-12 (v1.1.0)
 
+### RE-014: Linha de Lucro Líquido
+- **Regra**: Exibir linha de "LUCRO LÍQUIDO" ao final da tabela (após "TOTAL DESPESAS" e todas as despesas)
+- **Tipo**: `tipo: 'lucro_liquido'`
+- **Estilo**:
+  - Font: `font-bold text-base`
+  - Cor: Azul (`text-blue-600 dark:text-blue-400`)
+  - Não expande (sem subRows)
+- **Coluna Total**: Soma do lucro líquido de todas as filiais selecionadas
+- **Colunas de Filiais**: Lucro líquido individual de cada filial
+- **Cálculo por Filial**: `Lucro Líquido = Lucro Bruto - Total Despesas`
+- **Cálculo Total**: `Lucro Líquido Total = Σ Lucro Líquido de todas as filiais`
+- **Condicional**: Linha só é exibida se `receitaPorFilial` estiver disponível
+- **Percentuais**: Não exibe % TD nem % RB (apenas o valor + margem)
+- **Implementação**:
+  - [page.tsx](../../../src/app/(dashboard)/dre-gerencial/page.tsx:680-705)
+  - [columns.tsx](../../../src/components/despesas/columns.tsx:72-75, 160-175, 238-255)
+- **Versão**: Adicionado em 2025-01-12 (v1.2.0)
+
+### RE-015: Margem de Lucro Líquido
+- **Regra**: Exibir margem de lucro líquido (%) abaixo do valor na linha de Lucro Líquido
+- **Formato**: `Margem: XX,XX%` (2 casas decimais, vírgula como separador)
+- **Estilo**:
+  - Font-size: `text-[10px]` (10px)
+  - Cor: `text-muted-foreground`
+  - Espaçamento: `mt-0.5` (2px acima)
+- **Cálculo na Coluna Total**:
+  - Fórmula: `(Lucro Líquido Total / Receita Bruta Total) × 100`
+  - Validação: Se Receita Bruta = 0, exibe "0,00%"
+- **Cálculo nas Colunas de Filiais**:
+  - Fórmula: `(Lucro Líquido Filial / Receita Bruta Filial) × 100`
+  - Validação: Usa receita bruta da **filial específica**
+  - Validação: Se Receita Bruta da Filial = 0, exibe "0,00%"
+- **Interpretação**:
+  - Margem > 50%: Excelente rentabilidade
+  - Margem 30-50%: Boa rentabilidade
+  - Margem < 30%: Atenção necessária
+  - Margem negativa: Prejuízo (despesas > lucro bruto)
+- **Consistência**: Valor deve bater com o card "Margem Líquida" nos indicadores
+- **Implementação**:
+  - [columns.tsx](../../../src/components/despesas/columns.tsx:160-175, 238-255)
+- **Versão**: Adicionado em 2025-01-12 (v1.2.0)
+
 ---
 
 ## Regras de Log e Auditoria

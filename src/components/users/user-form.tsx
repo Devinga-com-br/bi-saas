@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import { BranchSelector } from '@/components/users/branch-selector'
+import { ModuleSelector } from '@/components/usuarios/module-selector'
+import type { SystemModule } from '@/types/modules'
+import { DEFAULT_USER_MODULES } from '@/types/modules'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 type Tenant = Database['public']['Tables']['tenants']['Row']
@@ -38,6 +41,8 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
   const [authorizedBranches, setAuthorizedBranches] = useState<string[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
+  const [authorizedModules, setAuthorizedModules] = useState<SystemModule[]>(DEFAULT_USER_MODULES)
+  const [loadingModules, setLoadingModules] = useState(false)
 
   // Quando role é superadmin, tenant_id deve ser null
   const shouldShowTenantField = role !== 'superadmin'
@@ -118,6 +123,29 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
     loadAuthorizedBranches()
   }, [user, supabase])
 
+  // Load authorized modules when editing
+  useEffect(() => {
+    async function loadAuthorizedModules() {
+      if (user && user.role === 'user') {
+        setLoadingModules(true)
+        try {
+          const response = await fetch(`/api/users/authorized-modules?userId=${user.id}`)
+          if (response.ok) {
+            const data = await response.json()
+            setAuthorizedModules(data.modules || DEFAULT_USER_MODULES)
+          }
+        } catch (error) {
+          console.error('Error loading authorized modules:', error)
+          setAuthorizedModules(DEFAULT_USER_MODULES)
+        } finally {
+          setLoadingModules(false)
+        }
+      }
+    }
+
+    loadAuthorizedModules()
+  }, [user])
+
   // Get available roles based on current user role
   const getAvailableRoles = () => {
     if (currentUserRole === 'superadmin') {
@@ -163,6 +191,13 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           return
         }
 
+        // Validate authorized modules for role = user
+        if (role === 'user' && authorizedModules.length === 0) {
+          setError('Pelo menos um módulo deve ser selecionado para usuários')
+          setLoading(false)
+          return
+        }
+
         // Call API route to create user (requires admin API)
         const response = await fetch('/api/users/create', {
           method: 'POST',
@@ -177,6 +212,7 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
             tenant_id: role === 'superadmin' ? null : tenantId,
             is_active: isActive,
             authorized_branches: authorizedBranches,
+            authorized_modules: role === 'user' ? authorizedModules : [],
           }),
         })
 
@@ -194,6 +230,13 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
         // Updating existing user
         if (!fullName.trim()) {
           setError('Nome completo é obrigatório')
+          setLoading(false)
+          return
+        }
+
+        // Validate authorized modules for role = user
+        if (role === 'user' && authorizedModules.length === 0) {
+          setError('Pelo menos um módulo deve ser selecionado para usuários')
           setLoading(false)
           return
         }
@@ -284,6 +327,26 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
 
           if (insertError) {
             setError('Erro ao salvar filiais autorizadas')
+            setLoading(false)
+            return
+          }
+        }
+
+        // Update authorized modules (only for role = user)
+        if (role === 'user') {
+          const modulesResponse = await fetch('/api/users/authorized-modules', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+              modules: authorizedModules,
+            }),
+          })
+
+          if (!modulesResponse.ok) {
+            setError('Erro ao atualizar módulos autorizados')
             setLoading(false)
             return
           }
@@ -463,6 +526,30 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           onChange={setAuthorizedBranches}
           disabled={loading || loadingBranches}
         />
+      )}
+
+      {/* Módulos Autorizados - Apenas para role = user */}
+      {role === 'user' && (
+        <div className="space-y-2 border-t pt-6">
+          <ModuleSelector
+            selectedModules={authorizedModules}
+            onChange={setAuthorizedModules}
+            disabled={loading || loadingModules}
+            showFullAccessMessage={false}
+          />
+        </div>
+      )}
+
+      {/* Mensagem de Acesso Full para Superadmin e Admin */}
+      {(role === 'superadmin' || role === 'admin') && (
+        <div className="border-t pt-6">
+          <ModuleSelector
+            selectedModules={[]}
+            onChange={() => {}}
+            disabled={true}
+            showFullAccessMessage={true}
+          />
+        </div>
       )}
 
       <div className="flex gap-4">

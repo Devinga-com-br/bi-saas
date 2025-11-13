@@ -9,7 +9,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 ## Funcionalidades
 
 - ✅ **Perfil**: Gerenciamento de dados pessoais (nome, senha)
-- ✅ **Usuários**: CRUD completo de usuários com controle de permissões e filiais autorizadas
+- ✅ **Usuários**: CRUD completo de usuários com controle de permissões, filiais autorizadas e módulos autorizados
 - ✅ **Parâmetros**: Configuração de parâmetros do tenant (ex: habilitar/desabilitar módulos)
 - ✅ **Setores**: CRUD de setores de negócio com associação de departamentos
 - ✅ **Empresas**: CRUD completo de empresas (tenants) e suas filiais (superadmin only)
@@ -33,6 +33,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - **Editar**: [src/app/(dashboard)/usuarios/[id]/editar/page.tsx](../../../src/app/(dashboard)/usuarios/[id]/editar/page.tsx)
 - **Formulário**: [src/components/usuarios/user-form.tsx](../../../src/components/usuarios/user-form.tsx)
 - **Seletor de Filiais**: [src/components/usuarios/branch-selector.tsx](../../../src/components/usuarios/branch-selector.tsx)
+- **Seletor de Módulos**: [src/components/usuarios/module-selector.tsx](../../../src/components/usuarios/module-selector.tsx)
 
 #### **Páginas de Empresas**
 - **Listagem**: [src/app/(dashboard)/empresas/page.tsx](../../../src/app/(dashboard)/empresas/page.tsx)
@@ -53,6 +54,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - **Obter Email**: [src/app/api/users/get-email/route.ts](../../../src/app/api/users/get-email/route.ts)
 - **Atualizar Email**: [src/app/api/users/update-email/route.ts](../../../src/app/api/users/update-email/route.ts)
 - **Filiais Autorizadas**: [src/app/api/users/authorized-branches/route.ts](../../../src/app/api/users/authorized-branches/route.ts)
+- **Módulos Autorizados**: [src/app/api/users/authorized-modules/route.ts](../../../src/app/api/users/authorized-modules/route.ts)
 
 #### **API Routes - Setores**
 - **CRUD**: [src/app/api/setores/route.ts](../../../src/app/api/setores/route.ts)
@@ -65,6 +67,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - **Parâmetros do Tenant**: [src/hooks/use-tenant-parameters.ts](../../../src/hooks/use-tenant-parameters.ts)
 - **Filiais**: [src/hooks/use-branches.ts](../../../src/hooks/use-branches.ts)
 - **Filiais Autorizadas**: [src/hooks/use-authorized-branches.ts](../../../src/hooks/use-authorized-branches.ts)
+- **Módulos Autorizados**: [src/hooks/use-authorized-modules.ts](../../../src/hooks/use-authorized-modules.ts)
 
 ### Database
 
@@ -73,6 +76,7 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - `public.user_profiles` - Perfis de usuários com roles
 - `public.branches` - Filiais das empresas
 - `public.user_authorized_branches` - Restrições de acesso por filial
+- `public.user_authorized_modules` - Módulos autorizados por usuário (role = user)
 - `public.tenant_parameters` - Parâmetros configuráveis por tenant
 - `{schema}.setores` - Setores de negócio (isolado por tenant)
 
@@ -126,22 +130,26 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - Editar informações do usuário (nome, email, role)
 - Desativar/ativar usuário
 - Definir filiais autorizadas (restrição de acesso)
+- Definir módulos autorizados (obrigatório para role = user)
 - Visualizar status de ativação
 
 **Acesso**: Admin e Superadmin
 
-**Componentes**: `usuarios-content.tsx`, `user-form.tsx`, `branch-selector.tsx`
+**Componentes**: `usuarios-content.tsx`, `user-form.tsx`, `branch-selector.tsx`, `module-selector.tsx`
 
 **APIs**:
 - `POST /api/users/create`
 - `GET /api/users/get-email`
 - `POST /api/users/update-email`
 - `GET/POST/DELETE /api/users/authorized-branches`
+- `GET/POST /api/users/authorized-modules`
 
 **Regras**:
 - Admin não pode criar/editar superadmins
 - Email deve ser único
 - Role padrão é "user"
+- Pelo menos um módulo deve ser selecionado para role = user
+- Superadmin e Admin têm acesso automático a todos os módulos
 
 ---
 
@@ -265,8 +273,19 @@ O módulo de Configurações é o centro de gerenciamento administrativo do BI S
 - Schema de empresas deve estar em "Exposed schemas" no Supabase
 - Alterações em parâmetros refletem imediatamente no menu lateral
 - Filiais autorizadas: se vazio, usuário tem acesso a TODAS as filiais
+- Módulos autorizados: obrigatório para role = user, superadmin e admin têm acesso full automático
+- Sidebar filtra itens de menu baseado nos módulos autorizados do usuário
 
 ## Versão
 
-**Versão Atual**: 1.0.0
+**Versão Atual**: 1.1.0
 **Última Atualização**: 2025-01-12
+
+**Changelog 1.1.0**:
+- ✨ Adicionado controle de módulos autorizados para usuários (role = user)
+- ✨ Novo componente `ModuleSelector` com seleção via checkboxes
+- ✨ Nova API `/api/users/authorized-modules` (GET/POST)
+- ✨ Novo hook `useAuthorizedModules` para verificação de acesso a módulos
+- ✨ Sidebar atualizada para filtrar itens de menu baseado em módulos autorizados
+- ✨ 7 módulos configuráveis: Dashboard, DRE Gerencial, Metas (Mensal e Setor), Relatórios (Ruptura ABCD, Venda por Curva, Ruptura 60d)
+- ✨ Superadmin e Admin têm acesso automático a todos os módulos

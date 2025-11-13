@@ -37,6 +37,8 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { Badge } from '@/components/ui/badge'
 import { CompanySwitcher } from './company-switcher'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
+import { useAuthorizedModules } from '@/hooks/use-authorized-modules'
+import type { SystemModule } from '@/types/modules'
 
 interface NavigationSubItem {
   name: string
@@ -44,6 +46,7 @@ interface NavigationSubItem {
   icon: LucideIcon
   requiresSuperAdmin?: boolean
   requiresAdminOrAbove?: boolean
+  moduleId?: SystemModule
 }
 
 interface NavigationItem {
@@ -54,6 +57,7 @@ interface NavigationItem {
   requiresAdminOrAbove?: boolean
   badge?: string
   items?: NavigationSubItem[]
+  moduleId?: SystemModule
 }
 
 const visaoGeralNavigation: NavigationItem[] = [
@@ -61,6 +65,7 @@ const visaoGeralNavigation: NavigationItem[] = [
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
+    moduleId: 'dashboard',
   },
 ]
 
@@ -69,6 +74,7 @@ const gerencialNavigation: NavigationItem[] = [
     name: 'DRE Gerêncial',
     href: '/dre-gerencial',
     icon: ChartBarBig,
+    moduleId: 'dre_gerencial',
   },
   {
     name: 'Descontos Venda',
@@ -84,11 +90,13 @@ const gerencialNavigation: NavigationItem[] = [
         name: 'Meta Mensal',
         href: '/metas/mensal',
         icon: TrendingUp,
+        moduleId: 'metas_mensal',
       },
       {
         name: 'Meta por Setor',
         href: '/metas/setor',
         icon: Target,
+        moduleId: 'metas_setor',
       },
     ],
   },
@@ -101,16 +109,19 @@ const gerencialNavigation: NavigationItem[] = [
         name: 'Ruptura ABCD',
         href: '/relatorios/ruptura-abcd',
         icon: Package,
+        moduleId: 'relatorios_ruptura_abcd',
       },
       {
         name: 'Venda por Curva',
         href: '/relatorios/venda-curva',
         icon: TrendingUp,
+        moduleId: 'relatorios_venda_curva',
       },
       {
         name: 'Ruptura Venda 60d',
         href: '/relatorios/ruptura-venda-60d',
         icon: Package,
+        moduleId: 'relatorios_ruptura_60d',
       },
     ],
   },
@@ -129,6 +140,7 @@ export function AppSidebar() {
   const { userProfile, currentTenant } = useTenantContext()
   const { state } = useSidebar()
   const { parameters } = useTenantParameters(currentTenant?.id)
+  const { hasModuleAccess, hasFullAccess } = useAuthorizedModules()
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
@@ -138,29 +150,53 @@ export function AppSidebar() {
     console.log('[AppSidebar] Parameters updated:', parameters, 'Tenant:', currentTenant?.id)
   }, [parameters, currentTenant?.id])
 
-  // Filter navigation items based on user role and tenant parameters
+  // Log module access info
+  React.useEffect(() => {
+    console.log('[AppSidebar] Module access:', {
+      hasFullAccess,
+      role: userProfile?.role,
+      userId: userProfile?.id
+    })
+  }, [hasFullAccess, userProfile])
+
+  // Filter navigation items based on user role, tenant parameters, and authorized modules
   const filterNavigation = (items: NavigationItem[]) => items.filter(item => {
     if (item.requiresSuperAdmin && !isSuperAdmin) {
+      console.log('[AppSidebar] Filtering out (superadmin required):', item.name)
       return false
     }
     if (item.requiresAdminOrAbove && !isAdminOrAbove) {
+      console.log('[AppSidebar] Filtering out (admin required):', item.name)
       return false
     }
     // Filter "Descontos Venda" based on tenant parameter
     if (item.href === '/descontos-venda' && !parameters.enable_descontos_venda) {
+      console.log('[AppSidebar] Filtering out (tenant param):', item.name)
+      return false
+    }
+    // Filter based on authorized modules (only for users with role = 'user')
+    if (item.moduleId && !hasFullAccess && !hasModuleAccess(item.moduleId)) {
+      console.log('[AppSidebar] Filtering out (no module access):', item.name, 'moduleId:', item.moduleId)
       return false
     }
     return true
   }).map(item => {
-    // Filter subitems based on role if the item has subitems
+    // Filter subitems based on role and authorized modules if the item has subitems
     if (item.items) {
       return {
         ...item,
         items: item.items.filter(subItem => {
           if (subItem.requiresSuperAdmin && !isSuperAdmin) {
+            console.log('[AppSidebar] Filtering out subitem (superadmin required):', subItem.name)
             return false
           }
           if (subItem.requiresAdminOrAbove && !isAdminOrAbove) {
+            console.log('[AppSidebar] Filtering out subitem (admin required):', subItem.name)
+            return false
+          }
+          // Filter subitems based on authorized modules
+          if (subItem.moduleId && !hasFullAccess && !hasModuleAccess(subItem.moduleId)) {
+            console.log('[AppSidebar] Filtering out subitem (no module access):', subItem.name, 'moduleId:', subItem.moduleId)
             return false
           }
           return true
