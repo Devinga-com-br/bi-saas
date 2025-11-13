@@ -155,13 +155,11 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
         { value: 'superadmin', label: 'Super Admin' },
         { value: 'admin', label: 'Admin' },
         { value: 'user', label: 'Usuário' },
-        { value: 'viewer', label: 'Visualizador' },
       ]
     } else if (currentUserRole === 'admin') {
       return [
         { value: 'admin', label: 'Admin' },
         { value: 'user', label: 'Usuário' },
-        { value: 'viewer', label: 'Visualizador' },
       ]
     }
     return []
