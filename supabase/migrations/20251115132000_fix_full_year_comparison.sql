@@ -1,121 +1,9 @@
 -- =====================================================
--- Migration: RPC Functions for DRE Gerencial Module
--- Created: 2025-01-11
--- Description: Creates the two main RPC functions used by the DRE Gerencial module
---   1. get_despesas_hierarquia - Retrieves hierarchical expense data
---   2. get_dashboard_data - Retrieves dashboard indicators with temporal comparisons
--- =====================================================
-
--- =====================================================
--- FUNCTION 1: get_despesas_hierarquia
--- =====================================================
--- Purpose: Fetches expense data organized by 3-level hierarchy:
---   Department (nivel1) → Expense Type → Individual Expense
---
--- Parameters:
---   p_schema: Schema name of the tenant (e.g., 'okilao', 'saoluiz')
---   p_filial_id: Branch ID filter
---   p_data_inicial: Start date for filtering
---   p_data_final: End date for filtering
---   p_tipo_data: NOT USED (kept for backward compatibility)
---
--- Returns: Flat table with expense records (max 1000 rows per call)
---
--- Tables used:
---   - {schema}.despesas
---   - {schema}.tipos_despesa (singular)
---   - {schema}.departamentos_nivel1
---
--- Important notes:
---   - ALWAYS filters by despesas.data_despesa (ignores p_tipo_data parameter)
---   - LIMIT 1000 rows (pagination may be needed for large datasets)
---   - Uses departamentalizacao_nivel1 for department association
--- =====================================================
-
-CREATE OR REPLACE FUNCTION public.get_despesas_hierarquia(
-  p_schema TEXT,
-  p_filial_id INTEGER,
-  p_data_inicial DATE,
-  p_data_final DATE,
-  p_tipo_data TEXT DEFAULT 'data_emissao'
-)
-RETURNS TABLE (
-  dept_id INTEGER,
-  dept_descricao TEXT,
-  tipo_id INTEGER,
-  tipo_descricao TEXT,
-  data_emissao DATE,
-  descricao_despesa TEXT,
-  id_fornecedor INTEGER,
-  numero_nota BIGINT,
-  serie_nota VARCHAR,
-  valor NUMERIC,
-  usuario VARCHAR,
-  observacao TEXT
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  RETURN QUERY EXECUTE format('
-    SELECT
-      d.id AS dept_id,
-      d.descricao AS dept_descricao,
-      td.id AS tipo_id,
-      td.descricao AS tipo_descricao,
-      desp.data_emissao,
-      desp.descricao_despesa AS descricao_despesa,
-      desp.id_fornecedor,
-      desp.numero_nota,
-      desp.serie_nota,
-      desp.valor,
-      desp.usuario,
-      desp.observacao
-    FROM %I.despesas desp
-    INNER JOIN %I.tipos_despesa td ON desp.id_tipo_despesa = td.id
-    INNER JOIN %I.departamentos_nivel1 d ON td.departamentalizacao_nivel1 = d.id
-    WHERE desp.filial_id = $1
-      AND desp.data_despesa BETWEEN $2 AND $3
-    ORDER BY d.descricao, td.descricao, desp.data_despesa DESC
-    LIMIT 1000
-  ', p_schema, p_schema, p_schema)
-  USING p_filial_id, p_data_inicial, p_data_final;
-END;
-$$;
-
--- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.get_despesas_hierarquia(TEXT, INTEGER, DATE, DATE, TEXT) TO anon, authenticated, service_role;
-
--- =====================================================
--- FUNCTION 2: get_dashboard_data
--- =====================================================
--- Purpose: Fetches comprehensive dashboard indicators with automatic temporal comparisons
---
--- Parameters:
---   schema_name: Schema name of the tenant
---   p_data_inicio: Start date of current period
---   p_data_fim: End date of current period
---   p_filiais_ids: Array of branch IDs (NULL = all branches)
---
--- Returns: Single row with 21 columns:
---   - Current period metrics (4): total_vendas, total_lucro, ticket_medio, margem_lucro
---   - PAM - Previous Month (4): pa_vendas, pa_lucro, pa_ticket_medio, pa_margem_lucro
---   - Month-over-month variations (4): variacao_vendas_mes, variacao_lucro_mes, variacao_ticket_mes, variacao_margem_mes
---   - Year-over-year variations (4): variacao_vendas_ano, variacao_lucro_ano, variacao_ticket_ano, variacao_margem_ano
---   - YTD metrics (3): ytd_vendas, ytd_vendas_ano_anterior, ytd_variacao_percent
---   - Chart data (1): grafico_vendas (JSONB array)
---   - Reserved (1): reserved
---
--- Tables used:
---   - {schema}.vendas_diarias_por_filial (aggregated sales data)
---   - {schema}.descontos_venda (optional - if exists, discounts are subtracted)
---
--- Important notes:
---   - Automatically calculates PAM (previous month) and PAA (previous year) comparisons
---   - Handles discounts if descontos_venda table exists
---   - Generates JSONB chart data for daily comparisons
---   - DRE Gerencial module uses only 3 of 21 fields (total_vendas, total_lucro, margem_lucro)
---   - Other modules (Dashboard Principal) can use all 21 fields
+-- Migration: Fix Full Year Comparison
+-- Created: 2025-11-15
+-- Description: Modifies get_dashboard_data to compare full year with previous full year
+--              When filtering by full year (01/Jan to 31/Dec), the PAA comparison
+--              should show the complete previous year (not just the same period)
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.get_dashboard_data(
@@ -201,14 +89,36 @@ DECLARE
   v_descontos_ytd_ano_anterior NUMERIC := 0;
 
   v_table_exists BOOLEAN;
+  v_is_full_year BOOLEAN := FALSE;
 BEGIN
+  -- ============================================
+  -- NEW: Detect if the period is a full year
+  -- ============================================
+  -- Check if period is exactly 01/Jan to 31/Dec of the same year
+  IF EXTRACT(MONTH FROM p_data_inicio) = 1 
+     AND EXTRACT(DAY FROM p_data_inicio) = 1
+     AND EXTRACT(MONTH FROM p_data_fim) = 12
+     AND EXTRACT(DAY FROM p_data_fim) = 31
+     AND EXTRACT(YEAR FROM p_data_inicio) = EXTRACT(YEAR FROM p_data_fim) THEN
+    v_is_full_year := TRUE;
+  END IF;
+
   -- Calculate PAM (Período Anterior Mesmo) dates
   v_data_inicio_pa := (p_data_inicio - INTERVAL '1 month')::DATE;
   v_data_fim_pa := (p_data_fim - INTERVAL '1 month')::DATE;
 
-  -- Calculate PAA (Período Anterior Acumulado / Ano anterior) dates
-  v_data_inicio_paa := (p_data_inicio - INTERVAL '1 year')::DATE;
-  v_data_fim_paa := (p_data_fim - INTERVAL '1 year')::DATE;
+  -- ============================================
+  -- MODIFIED: Calculate PAA dates differently for full year
+  -- ============================================
+  IF v_is_full_year THEN
+    -- For full year: compare with complete previous year (01/Jan to 31/Dec)
+    v_data_inicio_paa := DATE_TRUNC('year', p_data_inicio - INTERVAL '1 year')::DATE;
+    v_data_fim_paa := (DATE_TRUNC('year', p_data_inicio - INTERVAL '1 year') + INTERVAL '1 year - 1 day')::DATE;
+  ELSE
+    -- For other periods: use same logic as before (same period, one year ago)
+    v_data_inicio_paa := (p_data_inicio - INTERVAL '1 year')::DATE;
+    v_data_fim_paa := (p_data_fim - INTERVAL '1 year')::DATE;
+  END IF;
 
   -- Calculate YTD dates
   v_data_inicio_ytd := DATE_TRUNC('year', p_data_inicio)::DATE;
@@ -297,7 +207,7 @@ BEGIN
     v_pa_margem_lucro := (v_pa_lucro / v_pa_vendas) * 100;
   END IF;
 
-  -- Get PAA data
+  -- Get PAA data (with new full year logic)
   EXECUTE format('
     SELECT
       COALESCE(SUM(valor_total), 0),
@@ -419,36 +329,24 @@ BEGIN
     v_ytd_variacao_percent := ((v_ytd_vendas - v_ytd_vendas_ano_anterior) / v_ytd_vendas_ano_anterior) * 100;
   END IF;
 
-  -- Generate chart data (daily comparison)
+  -- Generate chart data (daily sales comparison)
   EXECUTE format('
-    SELECT COALESCE(
-      json_agg(
-        json_build_object(
-          ''mes'', TO_CHAR(data_venda, ''DD/MM''),
-          ''ano_atual'', vendas_atual,
-          ''ano_anterior'', vendas_anterior
-        ) ORDER BY data_venda
-      ),
-      ''[]''::JSON
-    )
+    SELECT COALESCE(json_agg(row_to_json(t)), ''[]''::json)
     FROM (
       SELECT
-        v1.data_venda,
-        COALESCE(SUM(v1.valor_total), 0) as vendas_atual,
-        COALESCE(SUM(v2.valor_total), 0) as vendas_anterior
-      FROM %I.vendas_diarias_por_filial v1
-      LEFT JOIN %I.vendas_diarias_por_filial v2
-        ON v2.data_venda = (v1.data_venda - INTERVAL ''1 year'')::DATE
-        AND ($3 IS NULL OR v2.filial_id = ANY($3::INTEGER[]))
-      WHERE v1.data_venda BETWEEN $1 AND $2
-        AND ($3 IS NULL OR v1.filial_id = ANY($3::INTEGER[]))
-      GROUP BY v1.data_venda
-    ) dados
-  ', schema_name, schema_name)
+        TO_CHAR(data_venda, ''DD/MM'') as mes,
+        COALESCE(SUM(CASE WHEN EXTRACT(YEAR FROM data_venda) = EXTRACT(YEAR FROM $2) THEN valor_total ELSE 0 END), 0) as ano_atual,
+        COALESCE(SUM(CASE WHEN EXTRACT(YEAR FROM data_venda) = EXTRACT(YEAR FROM $2) - 1 THEN valor_total ELSE 0 END), 0) as ano_anterior
+      FROM %I.vendas_diarias_por_filial
+      WHERE data_venda BETWEEN $1 AND $2
+        AND ($3 IS NULL OR filial_id = ANY($3::INTEGER[]))
+      GROUP BY data_venda
+      ORDER BY data_venda
+    ) t
+  ', schema_name)
   USING p_data_inicio, p_data_fim, p_filiais_ids
   INTO v_grafico_vendas;
 
-  -- Return all metrics
   RETURN QUERY SELECT
     v_total_vendas,
     v_total_lucro,
@@ -478,5 +376,5 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_data(TEXT, DATE, DATE, TEXT[]) TO anon, authenticated, service_role;
 
 -- =====================================================
--- End of migration
+-- END OF MIGRATION
 -- =====================================================

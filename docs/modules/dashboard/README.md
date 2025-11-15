@@ -1,21 +1,29 @@
 # Dashboard Principal
 
-> Status: ✅ Implementado | Versão: 1.0.0 | Última Atualização: 2025-01-14
+> Status: ✅ Implementado | Versão: 2.0.2 | Última Atualização: 2025-11-15
 
 ## Visão Geral
 
-O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão consolidada dos principais indicadores de desempenho do negócio. Apresenta métricas de vendas, lucro, margem e ticket médio com comparações temporais automáticas (mês anterior e ano anterior), além de análise detalhada por filial.
+O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão consolidada dos principais indicadores de desempenho do negócio. Apresenta métricas de Receita Bruta, Lucro Bruto e Margem Bruta com comparações temporais inteligentes (ano anterior e YTD), além de análise detalhada por filial.
 
 ## Funcionalidades
 
-- ✅ **Indicadores KPI**: Vendas totais, lucro, margem e ticket médio
-- ✅ **Comparações Temporais**: Automático vs. Período Anterior Mesmo (PAM) e Período Anterior do Ano (PAA)
-- ✅ **YTD (Year to Date)**: Acumulado do ano atual vs. ano anterior
-- ✅ **Gráfico de Vendas**: Visualização mensal com vendas, despesas e lucro
+- ✅ **Indicadores KPI**: Receita Bruta, Lucro Bruto, Margem Bruta, Ticket Médio
+- ✅ **Comparações Inteligentes**: 
+  - Comparação com ano anterior completo
+  - YTD (Year to Date): Compara período equivalente do ano anterior
+  - Ajuste automático baseado no tipo de filtro aplicado
+- ✅ **Filtros Avançados**: 
+  - Filtro por Mês (seletor de mês + ano)
+  - Filtro por Ano (ano completo)
+  - Período Customizado (datas livres)
+  - Seleção múltipla de filiais com largura de 600px
+- ✅ **Gráfico de Vendas**: Visualização com comparativo ano atual vs. ano anterior
 - ✅ **Análise por Filial**: Tabela detalhada com métricas por filial e variações
-- ✅ **Filtros Dinâmicos**: Período customizável e seleção múltipla de filiais
+- ✅ **YTD para Lucro e Margem**: Métricas YTD calculadas separadamente via função dedicada
 - ✅ **Auditoria**: Log de acesso ao módulo
 - ✅ **Autorização por Filial**: Respeita restrições de acesso do usuário
+- ✅ **Descontos**: Subtração automática de descontos da receita e lucro
 
 ## Componentes Principais
 
@@ -23,10 +31,11 @@ O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão con
 
 - **Página Principal**: [src/app/(dashboard)/dashboard/page.tsx](../../../src/app/(dashboard)/dashboard/page.tsx)
 - **Componentes**:
-  - `CardMetric`: [src/components/dashboard/card-metric.tsx](../../../src/components/dashboard/card-metric.tsx)
+  - `CardMetric`: [src/components/dashboard/card-metric.tsx](../../../src/components/dashboard/card-metric.tsx) - Card com suporte a YTD
   - `ChartVendas`: [src/components/dashboard/chart-vendas.tsx](../../../src/components/dashboard/chart-vendas.tsx)
   - `DashboardShell`: [src/components/dashboard/dashboard-shell.tsx](../../../src/components/dashboard/dashboard-shell.tsx)
-  - `PeriodFilter`: [src/components/despesas/period-filter.tsx](../../../src/components/despesas/period-filter.tsx)
+  - `DashboardFilter`: [src/components/dashboard/dashboard-filter.tsx](../../../src/components/dashboard/dashboard-filter.tsx) - **NOVO** Filtro inteligente (Mês/Ano/Customizado)
+  - `MultiSelect`: Seleção múltipla de filiais com largura 600px
 - **Hooks**:
   - `useTenantContext`: Contexto do tenant
   - `useBranchesOptions`: Opções de filiais
@@ -37,12 +46,14 @@ O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão con
 - **API Routes**:
   - `/api/dashboard` - Dados principais do dashboard: [src/app/api/dashboard/route.ts](../../../src/app/api/dashboard/route.ts)
   - `/api/dashboard/vendas-por-filial` - Análise detalhada por filial: [src/app/api/dashboard/vendas-por-filial/route.ts](../../../src/app/api/dashboard/vendas-por-filial/route.ts)
+  - `/api/dashboard/ytd-metrics` - **NOVO** Métricas YTD de Lucro e Margem: [src/app/api/dashboard/ytd-metrics/route.ts](../../../src/app/api/dashboard/ytd-metrics/route.ts)
   - `/api/charts/sales-by-month` - Dados do gráfico: [src/app/api/charts/sales-by-month/route.ts](../../../src/app/api/charts/sales-by-month/route.ts)
 
 ### Database
 
 - **RPC Functions**:
-  - `get_dashboard_data` - Indicadores principais com comparações temporais
+  - `get_dashboard_data` - Indicadores principais com comparações temporais e detecção de ano completo
+  - `get_dashboard_ytd_metrics` - **NOVO** Cálculo dedicado de YTD para Lucro e Margem
   - `get_vendas_por_filial` - Análise detalhada por filial
   - `get_sales_by_month_chart` - Dados de vendas mensais para gráfico
   - `get_expenses_by_month_chart` - Dados de despesas mensais para gráfico
@@ -78,12 +89,15 @@ Usuário → Dashboard Page → SWR → API Routes → RPC Functions → Databas
 Ver detalhes completos em [BUSINESS_RULES.md](./BUSINESS_RULES.md)
 
 Principais regras:
-- **RN-TEMP-001**: Cálculo automático de PAM (Período Anterior Mesmo)
-- **RN-TEMP-002**: Cálculo automático de PAA (Período Anterior do Ano)
-- **RN-YTD-001**: Year to Date - acumulado do início do ano
-- **RN-FILT-001**: Filtro por período customizável
-- **RN-FILT-002**: Filtro múltiplo de filiais
+- **RN-TEMP-002**: Cálculo automático de PAA (Período Anterior do Ano) com detecção de ano completo
+- **RN-YTD-001**: Year to Date - acumulado do início do ano até data atual
+- **RN-YTD-002**: YTD para Lucro e Margem calculado via função dedicada
+- **RN-FILT-NEW-001**: Filtro inteligente com 3 modos (Mês/Ano/Customizado)
+- **RN-FILT-NEW-002**: Seleção de mês com ano independente
+- **RN-FILT-NEW-003**: Filtro de ano completo (01/Jan a 31/Dez)
+- **RN-FILT-004**: Filtro múltiplo de filiais com largura fixa 600px
 - **RN-AUTH-001**: Autorização por filiais do usuário
+- **RN-CALC-NEW-001**: Descontos subtraídos de Receita e Lucro Bruto
 
 ## Funções RPC
 
@@ -117,6 +131,7 @@ Funções principais:
 4. [INTEGRATION_FLOW.md](./INTEGRATION_FLOW.md) - Fluxo completo de integração
 5. [RPC_FUNCTIONS.md](./RPC_FUNCTIONS.md) - Documentação das funções RPC
 6. [CHANGELOG_FUNCTIONS.md](./CHANGELOG_FUNCTIONS.md) - Histórico de alterações
+7. [FILTER_UPDATE_FINAL.md](./FILTER_UPDATE_FINAL.md) - **NOVO** Detalhes da atualização de filtros v2.0
 
 ## Tecnologias
 
@@ -152,6 +167,16 @@ Funções principais:
 - Verificar se as funções RPC de gráfico existem
 - Verificar logs da API: `/api/charts/sales-by-month`
 
+### Erro: "COALESCE could not convert type jsonb to json"
+- **Causa**: Tipo incompatível na função `get_dashboard_data`
+- **Solução**: Aplicar SQL em `fix_dashboard_jsonb_NOW.sql`
+- **Detalhes**: Linha 334 da função usa `jsonb` mas deveria ser `json`
+
+### YTD não aparece para Lucro/Margem
+- Verificar se função `get_dashboard_ytd_metrics` existe
+- Verificar API: `/api/dashboard/ytd-metrics`
+- Garantir que filtro está configurado como "Ano"
+
 ## Referências
 
 - [Padrão de Filtros](../../FILTER_PATTERN_STANDARD.md)
@@ -160,8 +185,43 @@ Funções principais:
 
 ---
 
-**Versão**: 1.0.0  
+**Versão**: 2.0.0  
 **Data de Criação**: 2025-01-14  
-**Última Atualização**: 2025-01-14  
+**Última Atualização**: 2025-11-15  
 **Autor**: Documentação Técnica  
 **Módulo**: Dashboard Principal
+
+## Mudanças na Versão 2.0.0 (2025-11-15)
+
+### 🆕 Novo Sistema de Filtros
+- Substituição do componente `PeriodFilter` por `DashboardFilter`
+- 3 modos de filtro: Mês, Ano, Período Customizado
+- Seletor de mês independente do ano
+- Filtro de filiais com largura fixa de 600px no desktop
+- Largura do filtro "Filtrar por" fixada em 250px
+
+### 🆕 Métricas YTD Aprimoradas
+- Nova função `get_dashboard_ytd_metrics` dedicada
+- YTD para Lucro Bruto e Margem Bruta
+- Comparação inteligente (mesmo período do ano anterior)
+- Exibição apenas quando filtro por "Ano" está ativo
+
+### 🔄 Alterações de Nomenclatura
+- "Total de Vendas" → "Receita Bruta"
+- "Total de Lucro" → "Lucro Bruto"
+- "Margem de Lucro" → "Margem Bruta"
+- Removido card "Total Vendas (Acum. Ano)"
+- Fonte dos títulos dos cards alterada para `text-lg`
+
+### 🐛 Correções
+- Fix: Tipo JSONB/JSON incompatível em `get_dashboard_data`
+- Fix: Cálculo YTD para Lucro e Margem agora correto
+- Fix: Comparação de ano completo (01/Jan a 31/Dez)
+- Fix: Larguras dos filtros agora são consistentes
+
+### 📚 Documentação
+- Atualização completa seguindo `DOCUMENTATION_STANDARDS.md`
+- Novos arquivos: `FILTER_UPDATE_FINAL.md`
+- Atualização de `BUSINESS_RULES.md` com novas regras
+- Atualização de `RPC_FUNCTIONS.md` com `get_dashboard_ytd_metrics`
+- Atualização de `DATA_STRUCTURES.md` com `YTDMetrics`

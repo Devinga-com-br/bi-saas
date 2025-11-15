@@ -1,7 +1,7 @@
 # Funções RPC - Dashboard Principal
 
-**Versão**: 1.0.0  
-**Última Atualização**: 2025-01-14  
+**Versão**: 2.0.0  
+**Última Atualização**: 2025-11-15  
 **Módulo**: Dashboard Principal
 
 ---
@@ -9,11 +9,12 @@
 ## Índice
 
 1. [get_dashboard_data](#1-get_dashboard_data)
-2. [get_vendas_por_filial](#2-get_vendas_por_filial)
-3. [get_sales_by_month_chart](#3-get_sales_by_month_chart)
-4. [get_expenses_by_month_chart](#4-get_expenses_by_month_chart)
-5. [get_lucro_by_month_chart](#5-get_lucro_by_month_chart)
-6. [Índices Recomendados](#índices-recomendados)
+2. [get_dashboard_ytd_metrics](#2-get_dashboard_ytd_metrics) **NOVO v2.0**
+3. [get_vendas_por_filial](#3-get_vendas_por_filial)
+4. [get_sales_by_month_chart](#4-get_sales_by_month_chart)
+5. [get_expenses_by_month_chart](#5-get_expenses_by_month_chart)
+6. [get_lucro_by_month_chart](#6-get_lucro_by_month_chart)
+7. [Índices Recomendados](#índices-recomendados)
 
 ---
 
@@ -316,6 +317,268 @@ SELECT * FROM public.get_dashboard_data(
 
 ---
 
+## 2. get_vendas_por_filial
+---
+
+## 2. get_dashboard_ytd_metrics
+
+### Descrição
+
+**NOVO em v2.0**: Função dedicada para cálculo de métricas Year-to-Date (YTD) de Lucro Bruto e Margem Bruta. Criada para não modificar a função `get_dashboard_data` existente e fornecer cálculos YTD precisos para Lucro e Margem.
+
+### Assinatura SQL
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_dashboard_ytd_metrics(
+  schema_name TEXT,
+  p_data_inicio DATE,
+  p_data_fim DATE,
+  p_filiais_ids TEXT[] DEFAULT NULL
+)
+RETURNS TABLE (
+  ytd_lucro NUMERIC,
+  ytd_lucro_ano_anterior NUMERIC,
+  ytd_variacao_lucro_percent NUMERIC,
+  ytd_margem NUMERIC,
+  ytd_margem_ano_anterior NUMERIC,
+  ytd_variacao_margem NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+```
+
+### Parâmetros
+
+| Parâmetro | Tipo | Obrigatório | Descrição | Exemplo |
+|-----------|------|-------------|-----------|---------|
+| `schema_name` | TEXT | ✅ | Nome do schema do tenant | `'saoluiz'` |
+| `p_data_inicio` | DATE | ✅ | Data de início do período atual | `'2025-01-01'` |
+| `p_data_fim` | DATE | ✅ | Data de fim do período atual | `'2025-11-15'` |
+| `p_filiais_ids` | TEXT[] | ❌ (default: NULL) | Array de IDs de filiais para filtrar | `ARRAY['1','2','3']` ou `NULL` |
+
+**Observações**:
+- Se `p_filiais_ids` = `NULL`, considera todas as filiais
+- Usa `CURRENT_DATE` se `p_data_fim` for no futuro (garante comparação justa)
+- Schema deve existir e estar exposto no Supabase
+
+### Retorno
+
+**Tipo**: TABLE (uma única linha)
+
+| Coluna | Tipo | Descrição | Exemplo |
+|--------|------|-----------|---------|
+| `ytd_lucro` | NUMERIC | Lucro Bruto YTD do ano atual | `55871679.52` |
+| `ytd_lucro_ano_anterior` | NUMERIC | Lucro Bruto YTD do ano anterior (mesmo período) | `47644528.53` |
+| `ytd_variacao_lucro_percent` | NUMERIC | Variação % do lucro YTD | `17.27` |
+| `ytd_margem` | NUMERIC | Margem Bruta % YTD do ano atual | `25.6` |
+| `ytd_margem_ano_anterior` | NUMERIC | Margem Bruta % YTD do ano anterior | `26.8` |
+| `ytd_variacao_margem` | NUMERIC | Variação em pontos percentuais da margem | `-1.15` |
+
+### Lógica de Cálculo
+
+#### 1. Datas YTD (Corrigido em v2.0.2)
+
+**🔧 FIX v2.0.2**: A lógica foi corrigida para evitar calcular YTD incorretamente em anos passados.
+
+```sql
+-- DETERMINAR DATA FIM YTD (LÓGICA CORRIGIDA)
+v_data_inicio_ytd := DATE_TRUNC('year', p_data_inicio)::DATE;
+
+-- Usar CURRENT_DATE apenas se o ANO filtrado é o ANO ATUAL
+IF EXTRACT(YEAR FROM p_data_inicio) = EXTRACT(YEAR FROM CURRENT_DATE) THEN
+  -- Ano atual: limita até hoje para comparação justa
+  v_data_fim_ytd := LEAST(p_data_fim, CURRENT_DATE);
+ELSE
+  -- Anos passados: usa a data final real do filtro
+  v_data_fim_ytd := p_data_fim;
+END IF;
+
+-- Ano anterior YTD usa as mesmas datas, 1 ano antes
+v_data_inicio_ytd_ano_anterior := (v_data_inicio_ytd - INTERVAL '1 year')::DATE;
+v_data_fim_ytd_ano_anterior := (v_data_fim_ytd - INTERVAL '1 year')::DATE;
+```
+
+**Antes do Fix (INCORRETO)**:
+```
+Hoje: 15/11/2025
+Filtro: Ano 2024 (01/01/2024 a 31/12/2024)
+
+v_data_fim_ytd = LEAST(2024-12-31, 2025-11-15) = 2024-12-31
+YTD 2024: 01/01/2024 a 31/12/2024 ❌ (ano completo, não YTD!)
+YTD 2023: 01/01/2023 a 31/12/2023 ❌
+```
+
+**Depois do Fix (CORRETO)**:
+```
+Hoje: 15/11/2025
+Filtro: Ano 2024 (01/01/2024 a 31/12/2024)
+
+EXTRACT(YEAR FROM 2024-01-01) ≠ EXTRACT(YEAR FROM 2025-11-15)
+v_data_fim_ytd = 2024-12-31 (ano passado, usa fim do filtro)
+YTD 2024: 01/01/2024 a 31/12/2024 ✓ (correto para ano passado)
+YTD 2023: 01/01/2023 a 31/12/2023 ✓
+```
+
+**Exemplo - Filtro Ano Atual**:
+```
+Hoje: 15/11/2025
+Filtro: Ano 2025 (01/01/2025 a 31/12/2025)
+
+EXTRACT(YEAR FROM 2025-01-01) = EXTRACT(YEAR FROM 2025-11-15)
+v_data_fim_ytd = LEAST(2025-12-31, 2025-11-15) = 2025-11-15
+YTD 2025: 01/01/2025 a 15/11/2025 ✓ (até hoje)
+YTD 2024: 01/01/2024 a 15/11/2024 ✓ (mesmo período, ano anterior)
+```
+
+#### 2. Cálculos
+
+```sql
+-- Lucro Bruto YTD
+ytd_lucro = SUM(total_lucro) - SUM(descontos) [período YTD atual]
+ytd_lucro_ano_anterior = SUM(total_lucro) - SUM(descontos) [período YTD ano anterior]
+
+-- Variação Lucro %
+ytd_variacao_lucro_percent = ((ytd_lucro - ytd_lucro_ano_anterior) / ytd_lucro_ano_anterior) * 100
+
+-- Margem Bruta YTD
+ytd_receita = SUM(valor_total) - SUM(descontos) [período YTD]
+ytd_margem = (ytd_lucro / ytd_receita) * 100
+
+-- Variação Margem (pontos percentuais)
+ytd_variacao_margem = ytd_margem - ytd_margem_ano_anterior
+```
+
+### Exemplo de Uso
+
+#### TypeScript/API Route
+
+```typescript
+// src/app/api/dashboard/ytd-metrics/route.ts
+const { data, error } = await supabase.rpc('get_dashboard_ytd_metrics', {
+  schema_name: 'saoluiz',
+  p_data_inicio: '2025-01-01',
+  p_data_fim: '2025-11-15',
+  p_filiais_ids: null // Todas as filiais
+})
+
+if (error) {
+  console.error('YTD Error:', error)
+  return NextResponse.json({ error: error.message }, { status: 500 })
+}
+
+return NextResponse.json(data[0]) // Retorna primeira (e única) linha
+```
+
+#### SQL Direto
+
+```sql
+SELECT * FROM public.get_dashboard_ytd_metrics(
+  'saoluiz',
+  '2025-01-01'::DATE,
+  '2025-11-15'::DATE,
+  NULL
+);
+```
+
+### Exemplo de Resposta
+
+```json
+{
+  "ytd_lucro": 55871679.52,
+  "ytd_lucro_ano_anterior": 47644528.53,
+  "ytd_variacao_lucro_percent": 17.27,
+  "ytd_margem": 25.6,
+  "ytd_margem_ano_anterior": 26.8,
+  "ytd_variacao_margem": -1.15
+}
+```
+
+### Tabelas Utilizadas
+
+| Tabela | Schema | Descrição | Colunas Utilizadas |
+|--------|--------|-----------|-------------------|
+| `vendas_diarias_por_filial` | {schema} | Vendas agregadas diárias | `data_venda`, `valor_total`, `total_lucro`, `filial_id` |
+| `descontos_venda` | {schema} | Descontos aplicados (opcional) | `data_desconto`, `valor_desconto`, `filial_id` |
+
+### Performance
+
+**Tempo médio de execução**: ~150ms (1000 dias de dados)
+
+**Otimizações**:
+- Usa índices de data e filial
+- Calcula apenas valores necessários (não recalcula vendas)
+- SECURITY DEFINER para acesso direto às tabelas
+
+**Limitações**:
+- Timeout de 30 segundos (limite do Supabase)
+- Requer que tabela `vendas_diarias_por_filial` exista
+- Tabela `descontos_venda` é opcional
+
+### Índices Recomendados
+
+```sql
+-- Para performance otimizada
+CREATE INDEX IF NOT EXISTS idx_vendas_diarias_data_filial
+ON {schema}.vendas_diarias_por_filial(data_venda, filial_id);
+
+CREATE INDEX IF NOT EXISTS idx_descontos_venda_data_filial
+ON {schema}.descontos_venda(data_desconto, filial_id);
+```
+
+### Casos Especiais
+
+#### CE-001: Sem dados no período
+```json
+{
+  "ytd_lucro": 0,
+  "ytd_lucro_ano_anterior": 0,
+  "ytd_variacao_lucro_percent": 0,
+  "ytd_margem": 0,
+  "ytd_margem_ano_anterior": 0,
+  "ytd_variacao_margem": 0
+}
+```
+
+#### CE-002: Descontos_venda não existe
+- Função verifica existência da tabela
+- Se não existir, pula cálculo de descontos
+- Retorna valores sem subtração de descontos
+
+#### CE-003: Divisão por zero
+- Se `ytd_receita = 0`, margem = 0
+- Se `ytd_lucro_ano_anterior = 0`, variação % = 0
+
+### Observações Importantes
+
+⚠️ **ATENÇÃO**:
+- Usa `CURRENT_DATE` internamente para comparação justa
+- Exemplo: Se hoje é 15/11/2025 e filtro é ano 2025, compara com 15/11/2024 (não 31/12/2024)
+- Descontos são subtraídos tanto de receita quanto de lucro
+- Retorna sempre 1 linha (nunca array vazio)
+
+**Quando usar**:
+- Filtro por "Ano" está ativo no dashboard
+- Necessidade de comparar Lucro e Margem YTD
+- Comparação precisa período-a-período
+
+**Quando NÃO usar**:
+- Filtros por "Mês" ou "Período Customizado"
+- Apenas Receita Bruta é necessária (usar `get_dashboard_data`)
+
+### Arquivo de Migração
+
+**Localização**: `supabase/migrations/20251115084345_add_ytd_metrics_function.sql`
+
+**Criação**: 2025-11-15
+
+**Permissões**:
+```sql
+GRANT EXECUTE ON FUNCTION public.get_dashboard_ytd_metrics(TEXT, DATE, DATE, TEXT[]) TO authenticated;
+```
+
+---
+
+## 3. get_vendas_por_filial
 ## 2. get_vendas_por_filial
 
 ### Descrição

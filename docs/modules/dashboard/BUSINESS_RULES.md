@@ -1,7 +1,7 @@
 # Regras de Negócio - Dashboard Principal
 
-**Versão**: 1.0.0  
-**Última Atualização**: 2025-01-14  
+**Versão**: 2.0.0  
+**Última Atualização**: 2025-11-15  
 **Módulo**: Dashboard Principal
 
 ---
@@ -11,50 +11,55 @@
 1. [Regras de Cálculo de Indicadores](#regras-de-cálculo-de-indicadores)
 2. [Regras de Comparação Temporal](#regras-de-comparação-temporal)
 3. [Regras de Filtros](#regras-de-filtros)
-4. [Regras de Autorização](#regras-de-autorização)
-5. [Regras de Exibição](#regras-de-exibição)
-6. [Regras de Auditoria](#regras-de-auditoria)
+4. [Regras de Filtros Avançados (v2.0)](#regras-de-filtros-avançados-v20)
+5. [Regras de Autorização](#regras-de-autorização)
+6. [Regras de Exibição](#regras-de-exibição)
+7. [Regras de Auditoria](#regras-de-auditoria)
 
 ---
 
 ## Regras de Cálculo de Indicadores
 
-### RN-CALC-001: Cálculo de Total de Vendas
-**Descrição**: O total de vendas é calculado somando `valor_total` da tabela `vendas_diarias_por_filial`, subtraindo descontos quando a tabela `descontos_venda` existir.
+### RN-CALC-001: Cálculo de Receita Bruta
+**Descrição**: A Receita Bruta é calculada somando `valor_total` da tabela `vendas_diarias_por_filial`, subtraindo descontos quando a tabela `descontos_venda` existir.
 
 **Fórmula**:
 ```
-Total Vendas = SUM(vendas_diarias_por_filial.valor_total) - SUM(descontos_venda.valor_desconto)
+Receita Bruta = SUM(vendas_diarias_por_filial.valor_total) - SUM(descontos_venda.valor_desconto)
 ```
 
 **Implementação**: 
-- Arquivo: `supabase/migrations/dre_gerencial_rpc_functions.sql`
+- Arquivo: `supabase/migrations/20251115132000_fix_full_year_comparison.sql`
 - Função: `get_dashboard_data`
-- Linhas: 227-252
+- Linhas: 136-162
 
 **Exemplo**:
 ```sql
 -- Vendas: R$ 100.000,00
 -- Descontos: R$ 5.000,00
--- Total Vendas = R$ 95.000,00
+-- Receita Bruta = R$ 95.000,00
 ```
+
+**Nomenclatura Atualizada** (v2.0): "Total de Vendas" → "Receita Bruta"
 
 ---
 
-### RN-CALC-002: Cálculo de Total de Lucro
-**Descrição**: O total de lucro é calculado somando `total_lucro` da tabela `vendas_diarias_por_filial`, subtraindo descontos quando existirem.
+### RN-CALC-002: Cálculo de Lucro Bruto
+**Descrição**: O Lucro Bruto é calculado somando `total_lucro` da tabela `vendas_diarias_por_filial`, subtraindo descontos quando existirem.
 
 **Fórmula**:
 ```
-Total Lucro = SUM(vendas_diarias_por_filial.total_lucro) - SUM(descontos_venda.valor_desconto)
+Lucro Bruto = SUM(vendas_diarias_por_filial.total_lucro) - SUM(descontos_venda.valor_desconto)
 ```
 
-**Observação**: Descontos são subtraídos tanto das vendas quanto do lucro.
+**Observação**: Descontos são subtraídos tanto da Receita Bruta quanto do Lucro Bruto.
 
 **Implementação**: 
-- Arquivo: `supabase/migrations/dre_gerencial_rpc_functions.sql`
+- Arquivo: `supabase/migrations/20251115132000_fix_full_year_comparison.sql`
 - Função: `get_dashboard_data`
-- Linhas: 227-252
+- Linhas: 136-162
+
+**Nomenclatura Atualizada** (v2.0): "Total de Lucro" → "Lucro Bruto"
 
 ---
 
@@ -82,27 +87,29 @@ Ticket Médio = R$ 100.000 / 500 = R$ 200,00
 
 ---
 
-### RN-CALC-004: Cálculo de Margem de Lucro
-**Descrição**: A margem de lucro é calculada dividindo o total de lucro pelo total de vendas e multiplicando por 100.
+### RN-CALC-004: Cálculo de Margem Bruta
+**Descrição**: A Margem Bruta é calculada dividindo o Lucro Bruto pela Receita Bruta e multiplicando por 100.
 
 **Fórmula**:
 ```
-Margem de Lucro (%) = (Total Lucro / Total Vendas) × 100
+Margem Bruta (%) = (Lucro Bruto / Receita Bruta) × 100
 ```
 
-**Condição**: Se `total_vendas = 0`, então `margem_lucro = 0`
+**Condição**: Se `receita_bruta = 0`, então `margem_bruta = 0`
 
 **Implementação**: 
-- Arquivo: `supabase/migrations/dre_gerencial_rpc_functions.sql`
+- Arquivo: `supabase/migrations/20251115132000_fix_full_year_comparison.sql`
 - Função: `get_dashboard_data`
-- Linhas: 259-261
+- Linhas: 169-171
 
 **Exemplo**:
 ```
-Lucro: R$ 30.000,00
-Vendas: R$ 100.000,00
-Margem = (30.000 / 100.000) × 100 = 30,00%
+Lucro Bruto: R$ 30.000,00
+Receita Bruta: R$ 100.000,00
+Margem Bruta = (30.000 / 100.000) × 100 = 30,00%
 ```
+
+**Nomenclatura Atualizada** (v2.0): "Margem de Lucro" → "Margem Bruta"
 
 ---
 
@@ -187,26 +194,54 @@ Variação YoY (%) = ((Valor Atual - Valor PAA) / Valor PAA) × 100
 
 ---
 
-### RN-YTD-001: Cálculo de YTD (Year to Date)
-**Descrição**: O YTD acumula valores desde o início do ano até a data final do período atual.
+### RN-YTD-001: Cálculo de YTD (Year to Date) - v2.0.2 ATUALIZADO
 
-**Cálculo de Datas**:
+**Descrição**: O YTD (Year to Date) acumula valores desde o início do ano até uma data de referência. A função `get_dashboard_ytd_metrics` calcula YTD para Lucro Bruto e Margem Bruta de forma inteligente, diferenciando ano atual de anos passados.
+
+**Cálculo de Datas (Lógica Corrigida em v2.0.2)**:
 ```
-data_inicio_ytd = primeiro dia do ano de data_inicio
-data_fim_ytd = data_fim (período atual)
+data_inicio_ytd = primeiro dia do ano de p_data_inicio
+data_fim_ytd = 
+  SE ano_filtrado == ano_atual ENTÃO
+    MENOR_ENTRE(p_data_fim, CURRENT_DATE)  // Limita até hoje
+  SENÃO
+    p_data_fim  // Usa data final do filtro para anos passados
 ```
+
+**Por que a diferença?**
+- **Ano Atual**: Usar `CURRENT_DATE` garante comparação justa (mesmo período em ambos os anos)
+- **Anos Passados**: Já são históricos completos, usar data final do filtro
 
 **Implementação**: 
-- Arquivo: `supabase/migrations/dre_gerencial_rpc_functions.sql`
-- Função: `get_dashboard_data`
-- Linhas: 214-215
+- Arquivo: `supabase/migrations/20251115_fix_ytd_for_past_years.sql`
+- Função: `get_dashboard_ytd_metrics`
+- Linhas: 54-62
 
-**Exemplo**:
+**Exemplos**:
+
+**Caso 1: Filtro Ano Atual (2025)**
 ```
-Período Atual: 15/03/2025
-YTD Atual: 01/01/2025 a 15/03/2025
-YTD Ano Anterior: 01/01/2024 a 15/03/2024
+Hoje: 15/11/2025
+Filtro: 01/01/2025 a 31/12/2025
+EXTRACT(YEAR FROM 2025-01-01) = EXTRACT(YEAR FROM CURRENT_DATE) ✓
+
+YTD 2025: 01/01/2025 a 15/11/2025  (até hoje)
+YTD 2024: 01/01/2024 a 15/11/2024  (mesmo período)
 ```
+
+**Caso 2: Filtro Ano Passado (2024)**
+```
+Hoje: 15/11/2025
+Filtro: 01/01/2024 a 31/12/2024
+EXTRACT(YEAR FROM 2024-01-01) ≠ EXTRACT(YEAR FROM CURRENT_DATE) ✗
+
+YTD 2024: 01/01/2024 a 31/12/2024  (ano completo - histórico)
+YTD 2023: 01/01/2023 a 31/12/2023  (ano completo - histórico)
+```
+
+**Bug Corrigido em v2.0.2**: Anteriormente, a função sempre usava `LEAST(p_data_fim, CURRENT_DATE)`, causando:
+- Ao filtrar 2024: `LEAST(31/12/2024, 15/11/2025)` = `31/12/2024` ← YTD virava ano completo!
+- Resultado: "2024 YTD" mostrava o mesmo valor de "2024" completo
 
 ---
 
@@ -263,6 +298,198 @@ Variação YTD (%) = ((YTD Atual - YTD Ano Anterior) / YTD Ano Anterior) × 100
 - Hook: `useEffect` que monitora mudanças em `dataInicio`, `dataFim` e `filiaisSelecionadas`
 - Arquivo: `src/app/(dashboard)/dashboard/page.tsx`
 - Linhas: 118-131
+
+---
+
+## Regras de Filtros Avançados (v2.0)
+
+### RN-FILT-NEW-001: Sistema de Filtros Inteligente
+**Descrição**: O dashboard possui um sistema de filtros com 3 modos mutuamente exclusivos.
+
+**Modos Disponíveis**:
+1. **Mês**: Filtra por um mês específico de um ano específico
+2. **Ano**: Filtra pelo ano completo (01/Janeiro a 31/Dezembro)
+3. **Período Customizado**: Permite seleção livre de data inicial e final
+
+**Componente**: `DashboardFilter`
+**Implementação**: [src/components/dashboard/dashboard-filter.tsx](../../../src/components/dashboard/dashboard-filter.tsx)
+
+**Regras de UX**:
+- Apenas um modo ativo por vez
+- Largura do seletor "Filtrar por": **250px fixos**
+- Transição suave entre modos
+- Validação automática de datas
+
+---
+
+### RN-FILT-NEW-002: Filtro por Mês
+**Descrição**: Permite selecionar um mês específico e um ano independentemente.
+
+**Comportamento**:
+```typescript
+// Seletor 1: Escolha o mês
+Mês selecionado: Janeiro a Dezembro (default: mês atual)
+
+// Período calculado automaticamente
+Data Início: Primeiro dia do mês selecionado
+Data Fim: Último dia do mês selecionado
+```
+
+**Exemplo**:
+```
+Usuário seleciona: Março, 2024
+Período aplicado: 01/03/2024 a 31/03/2024
+```
+
+**Implementação**:
+```typescript
+const firstDay = startOfMonth(new Date(selectedYear, selectedMonth))
+const lastDay = endOfMonth(new Date(selectedYear, selectedMonth))
+onPeriodChange(firstDay, lastDay)
+```
+
+**Largura**: 250px (seletor de mês)
+**Linhas**: 73-83 do `dashboard-filter.tsx`
+
+---
+
+### RN-FILT-NEW-003: Filtro por Ano
+**Descrição**: Permite selecionar um ano completo (01/Janeiro a 31/Dezembro).
+
+**Comportamento**:
+```typescript
+// Seletor: Escolha o ano
+Ano selecionado: Ano atual e 10 anos anteriores
+
+// Período calculado automaticamente
+Data Início: 01/Janeiro/Ano
+Data Fim: 31/Dezembro/Ano
+```
+
+**Exemplo**:
+```
+Usuário seleciona: 2025
+Período aplicado: 01/01/2025 a 31/12/2025
+```
+
+**Implementação**:
+```typescript
+const firstDay = new Date(selectedYear, 0, 1) // 1º Janeiro
+const lastDay = new Date(selectedYear, 11, 31) // 31 Dezembro
+onPeriodChange(firstDay, lastDay)
+```
+
+**Impacto**: 
+- Ativa comparação com ano anterior **completo**
+- Ativa exibição de métricas YTD para Lucro e Margem
+
+**Largura**: 250px (seletor de ano)
+**Linhas**: 85-95 do `dashboard-filter.tsx`
+
+---
+
+### RN-FILT-NEW-004: Filtro de Período Customizado
+**Descrição**: Permite seleção livre de data inicial e final.
+
+**Comportamento**:
+- Input manual no formato: `dd/mm/aaaa`
+- Calendário popup para seleção visual
+- Validação: Data final deve ser >= Data inicial
+- Seta separadora (→) entre os campos
+
+**Exemplo**:
+```
+Data Inicial: 15/03/2024
+Data Final: 20/11/2024
+Período aplicado: 15/03/2024 a 20/11/2024
+```
+
+**Validação**:
+```typescript
+const startDate = parse(startDateInput, 'dd/MM/yyyy', new Date())
+const endDate = parse(endDateInput, 'dd/MM/yyyy', new Date())
+
+if (isValid(startDate) && isValid(endDate)) {
+  onPeriodChange(startDate, endDate)
+}
+```
+
+**Largura**: 140px por campo
+**Linhas**: 98-108 do `dashboard-filter.tsx`
+
+---
+
+### RN-FILT-NEW-005: Filtro de Filiais com Largura Fixa
+**Descrição**: Seleção múltipla de filiais com largura definida.
+
+**Comportamento**:
+- Componente: `MultiSelect`
+- Largura no **desktop**: **600px fixos**
+- Largura no **mobile**: 100% (responsivo)
+- Placeholder: "Selecione..."
+- Opção "Todas as Filiais" quando nenhuma selecionada
+
+**Implementação**:
+```typescript
+<div className="flex flex-col gap-2 w-full lg:w-[600px] flex-shrink-0">
+  <Label className="text-sm">Filiais</Label>
+  <MultiSelect
+    options={branchesOptions}
+    selected={filiaisSelecionadas}
+    onChange={setFiliaisSelecionadas}
+    placeholder="Selecione..."
+    className="h-10"
+  />
+</div>
+```
+
+**Arquivo**: [src/app/(dashboard)/dashboard/page.tsx](../../../src/app/(dashboard)/dashboard/page.tsx)
+
+**Observação**: Mudança de largura de 200px (v1.0) para 600px (v2.0)
+
+---
+
+### RN-FILT-NEW-006: Layout Responsivo dos Filtros
+**Descrição**: Os filtros se adaptam ao tamanho da tela.
+
+**Desktop (lg:)**:
+```
+[Filiais: 600px] [Filtrar por: 250px] [Seleção dinâmica: 250px+]
+```
+
+**Mobile**:
+```
+[Filiais: 100%]
+[Filtrar por: 100%]
+[Seleção: 100%]
+```
+
+**Implementação**:
+```typescript
+className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4"
+```
+
+**Gap**: 16px (gap-4) entre elementos
+
+---
+
+### RN-FILT-NEW-007: Inicialização Padrão
+**Descrição**: Ao carregar a página, o filtro é inicializado automaticamente.
+
+**Padrão**:
+- **Modo**: Mês
+- **Mês**: Mês atual
+- **Ano**: Ano atual
+- **Filiais**: Todas (nenhuma selecionada)
+
+**Período Inicial**:
+```typescript
+const firstDay = startOfMonth(new Date())
+const lastDay = endOfMonth(new Date())
+```
+
+**Execução**: Automática no `useEffect` sem dependências
+**Linhas**: 63-70 do `dashboard-filter.tsx`
 
 ---
 
@@ -507,7 +734,29 @@ const querySchema = z.object({
 
 ---
 
-**Versão**: 1.0.0  
+**Versão**: 2.0.0  
 **Data de Criação**: 2025-01-14  
-**Última Atualização**: 2025-01-14  
-**Total de Regras**: 27
+**Última Atualização**: 2025-11-15  
+**Total de Regras**: 34
+
+---
+
+## Mudanças v2.0 (2025-11-15)
+
+### Novas Regras Adicionadas:
+1. **RN-FILT-NEW-001 a RN-FILT-NEW-007**: Sistema completo de filtros avançados
+2. **RN-CALC-NEW-001**: Subtração de descontos em Receita e Lucro Bruto
+
+### Regras Atualizadas:
+- **RN-CALC-001**: "Total de Vendas" → "Receita Bruta"
+- **RN-CALC-002**: "Total de Lucro" → "Lucro Bruto"  
+- **RN-CALC-004**: "Margem de Lucro" → "Margem Bruta"
+- **RN-YTD-001**: Atualizado para incluir função dedicada
+- **RN-YTD-002**: Nova regra para cálculo YTD de Lucro e Margem
+
+### Nomenclatura Atualizada:
+| v1.0 | v2.0 |
+|------|------|
+| Total de Vendas | Receita Bruta |
+| Total de Lucro | Lucro Bruto |
+| Margem de Lucro | Margem Bruta |

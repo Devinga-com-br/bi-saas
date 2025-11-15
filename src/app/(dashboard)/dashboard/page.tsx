@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { PeriodFilter } from '@/components/despesas/period-filter'
+import { DashboardFilter } from '@/components/dashboard/dashboard-filter'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Estrutura de dados da API
@@ -45,6 +45,19 @@ interface DashboardData {
     ano_atual: number
     ano_anterior: number
   }>
+}
+
+// Estrutura de dados YTD (Receita, Lucro e Margem)
+interface YTDMetrics {
+  ytd_vendas: number
+  ytd_vendas_ano_anterior: number
+  ytd_variacao_vendas_percent: number
+  ytd_lucro: number
+  ytd_lucro_ano_anterior: number
+  ytd_variacao_lucro_percent: number
+  ytd_margem: number
+  ytd_margem_ano_anterior: number
+  ytd_variacao_margem: number
 }
 
 interface VendaPorFilial {
@@ -78,14 +91,14 @@ export default function DashboardPage() {
 
   // Estados para os filtros
   const [dataInicio, setDataInicio] = useState<Date>(startOfMonth(new Date()))
-  const [dataFim, setDataFim] = useState<Date>(subDays(new Date(), 1))
+  const [dataFim, setDataFim] = useState<Date>(new Date())
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   
   // Estado para os parâmetros que serão enviados à API
   const [apiParams, setApiParams] = useState({
     schema: currentTenant?.supabase_schema,
     data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    data_fim: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
+    data_fim: format(new Date(), 'yyyy-MM-dd'),
     filiais: 'all',
   })
 
@@ -93,6 +106,77 @@ export default function DashboardPage() {
   const handlePeriodChange = (start: Date, end: Date) => {
     setDataInicio(start)
     setDataFim(end)
+  }
+
+  // Calcula o label de comparação dinâmico
+  const getComparisonLabel = (): string => {
+    if (!dataInicio || !dataFim) return 'PA'
+    
+    const start = new Date(dataInicio)
+    const end = new Date(dataFim)
+    
+    // Verifica se é um ano completo (01/Jan a 31/Dez)
+    const isFullYear = 
+      start.getMonth() === 0 && start.getDate() === 1 &&
+      end.getMonth() === 11 && end.getDate() === 31 &&
+      start.getFullYear() === end.getFullYear()
+    
+    if (isFullYear) {
+      // Se é ano completo, mostra o ano anterior
+      return (start.getFullYear() - 1).toString()
+    }
+    
+    // Verifica se é um mês completo
+    const isFullMonth = 
+      start.getDate() === 1 &&
+      end.getMonth() === start.getMonth() &&
+      end.getFullYear() === start.getFullYear() &&
+      end.getDate() === new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate()
+    
+    if (isFullMonth) {
+      // Se é mês completo, mostra mês anterior (ex: "Out/2024")
+      const previousMonth = new Date(start)
+      previousMonth.setMonth(previousMonth.getMonth() - 1)
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      return `${monthNames[previousMonth.getMonth()]}/${previousMonth.getFullYear()}`
+    }
+    
+    // Caso contrário, usa PA (Período Anterior)
+    return 'PA'
+  }
+
+  // Verifica se deve mostrar comparação YTD (Year-to-Date)
+  const shouldShowYTD = (): boolean => {
+    if (!dataInicio || !dataFim) return false
+    
+    const start = new Date(dataInicio)
+    const end = new Date(dataFim)
+    const today = new Date()
+    
+    // Verifica se é um ano completo (01/Jan a 31/Dez)
+    const isFullYear = 
+      start.getMonth() === 0 && start.getDate() === 1 &&
+      end.getMonth() === 11 && end.getDate() === 31 &&
+      start.getFullYear() === end.getFullYear()
+    
+    // Verifica se é o ano atual
+    const isCurrentYear = start.getFullYear() === today.getFullYear()
+    
+    // Mostra YTD apenas se for ano completo E ano atual
+    return isFullYear && isCurrentYear
+  }
+
+  // Calcula label YTD
+  const getYTDLabel = (): string => {
+    if (!dataInicio) return ''
+    const start = new Date(dataInicio)
+    return `${start.getFullYear() - 1} YTD`
+  }
+
+  // Calcula a variação correta: valor atual vs. valor comparativo (PA)
+  const calculateVariationPercent = (current: number, previous: number): number => {
+    if (previous === 0) return 0
+    return ((current - previous) / previous) * 100
   }
 
   // Log de acesso ao módulo
@@ -136,6 +220,26 @@ export default function DashboardPage() {
 
   const { data, error, isLoading } = useSWR<DashboardData>(apiUrl, fetcher, { refreshInterval: 0 });
 
+  // Buscar dados YTD (Lucro e Margem) - apenas quando shouldShowYTD() === true
+  const shouldFetchYTD = apiParams.schema && shouldShowYTD()
+  const ytdApiUrl = shouldFetchYTD
+    ? `/api/dashboard/ytd-metrics?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: ytdData, error: ytdError } = useSWR<YTDMetrics>(ytdApiUrl, fetcher, { refreshInterval: 0 });
+
+  // Debug: Log YTD status
+  useEffect(() => {
+    console.log('[YTD DEBUG]', {
+      shouldShowYTD: shouldShowYTD(),
+      shouldFetchYTD,
+      ytdApiUrl,
+      ytdData,
+      ytdError,
+      dataInicio,
+      dataFim
+    })
+  }, [shouldFetchYTD, ytdApiUrl, ytdData, ytdError, dataInicio, dataFim])
+
   // Buscar dados para o gráfico de vendas (com filtro de filiais)
   const chartApiUrl = apiParams.schema
     ? `/api/charts/sales-by-month?schema=${apiParams.schema}&filiais=${apiParams.filiais}`
@@ -168,7 +272,7 @@ export default function DashboardPage() {
         <div className="rounded-md border p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
             {/* FILIAIS */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="flex flex-col gap-2 w-full lg:w-[600px]">
               <Label>Filiais</Label>
               <div className="h-10">
                 <MultiSelect
@@ -182,20 +286,18 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* FILTRAR POR */}
-            <div className="flex-shrink-0">
-              <PeriodFilter onPeriodChange={handlePeriodChange} />
-            </div>
+            {/* FILTRO DE PERÍODO */}
+            <DashboardFilter onPeriodChange={handlePeriodChange} />
           </div>
         </div>
       </div>
 
       {/* Cards e Gráfico */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {isDataLoading ? (
           <>
             {/* Skeleton para CardMetric */}
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardHeader className="pb-2">
                   <Skeleton className="h-4 w-32" />
@@ -219,36 +321,52 @@ export default function DashboardPage() {
         ) : data ? (
           <>
             <CardMetric
-              title="Total Vendas (Acum. Ano)"
-              value={formatCurrency(data.ytd_vendas)}
-              previousValue={formatCurrency(data.ytd_vendas_ano_anterior)}
-              variationPercent={`${(data.ytd_variacao_percent || 0) >= 0 ? '+' : ''}${(data.ytd_variacao_percent || 0).toFixed(2)}%`}
-              variationYear=""
-              isPositive={(data.ytd_variacao_percent || 0) >= 0}
-            />
-            <CardMetric
-              title="Total de Vendas"
+              title="Receita Bruta"
               value={formatCurrency(data.total_vendas)}
               previousValue={formatCurrency(data.pa_vendas)}
-              variationPercent={`${(data.variacao_vendas_mes || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_mes || 0).toFixed(2)}%`}
+              variationPercent={(() => {
+                const variation = calculateVariationPercent(data.total_vendas, data.pa_vendas)
+                return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
+              })()}
               variationYear={`${(data.variacao_vendas_ano || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_ano || 0).toFixed(2)}%`}
-              isPositive={(data.variacao_vendas_mes || 0) >= 0}
+              isPositive={data.total_vendas >= data.pa_vendas}
+              comparisonLabel={getComparisonLabel()}
+              ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_vendas_ano_anterior) : undefined}
+              ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? `${ytdData.ytd_variacao_vendas_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_vendas_percent.toFixed(2)}%` : undefined}
+              ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
+              ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? ytdData.ytd_variacao_vendas_percent >= 0 : undefined}
             />
             <CardMetric
-              title="Total de Lucro"
+              title="Lucro Bruto"
               value={formatCurrency(data.total_lucro)}
               previousValue={formatCurrency(data.pa_lucro)}
-              variationPercent={`${(data.variacao_lucro_mes || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_mes || 0).toFixed(2)}%`}
+              variationPercent={(() => {
+                const variation = calculateVariationPercent(data.total_lucro, data.pa_lucro)
+                return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
+              })()}
               variationYear={`${(data.variacao_lucro_ano || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_ano || 0).toFixed(2)}%`}
-              isPositive={(data.variacao_lucro_mes || 0) >= 0}
+              isPositive={data.total_lucro >= data.pa_lucro}
+              comparisonLabel={getComparisonLabel()}
+              ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_lucro_ano_anterior) : undefined}
+              ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? `${ytdData.ytd_variacao_lucro_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_lucro_percent.toFixed(2)}%` : undefined}
+              ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
+              ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? ytdData.ytd_variacao_lucro_percent >= 0 : undefined}
             />
             <CardMetric
-              title="Margem de Lucro"
+              title="Margem Bruta"
               value={formatPercentage(data.margem_lucro)}
               previousValue={formatPercentage(data.pa_margem_lucro)}
-              variationPercent={`${(data.variacao_margem_mes || 0) >= 0 ? '+' : ''}${(data.variacao_margem_mes || 0).toFixed(2)}p.p.`}
+              variationPercent={(() => {
+                const variation = data.margem_lucro - data.pa_margem_lucro
+                return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}p.p.`
+              })()}
               variationYear={`${(data.variacao_margem_ano || 0) >= 0 ? '+' : ''}${(data.variacao_margem_ano || 0).toFixed(2)}p.p.`}
-              isPositive={(data.variacao_margem_mes || 0) >= 0}
+              isPositive={data.margem_lucro >= data.pa_margem_lucro}
+              comparisonLabel={getComparisonLabel()}
+              ytdValue={shouldShowYTD() && ytdData ? formatPercentage(ytdData.ytd_margem_ano_anterior) : undefined}
+              ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? `${ytdData.ytd_variacao_margem >= 0 ? '+' : ''}${ytdData.ytd_variacao_margem.toFixed(2)}p.p.` : undefined}
+              ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
+              ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? ytdData.ytd_variacao_margem >= 0 : undefined}
             />
           </>
         ) : null}
