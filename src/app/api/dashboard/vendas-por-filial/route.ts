@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const dataInicio = searchParams.get('data_inicio')
     const dataFim = searchParams.get('data_fim')
     const requestedFiliais = searchParams.get('filiais') || 'all'
+    const filterType = searchParams.get('filter_type') || 'month' // 'month', 'year', 'custom'
 
     if (!schema || !dataInicio || !dataFim) {
       return NextResponse.json(
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
       dataFim,
       requestedFiliais,
       finalFiliais,
+      filterType,
       authorizedBranches
     })
 
@@ -72,7 +74,8 @@ export async function GET(request: NextRequest) {
       p_schema: schema,
       p_data_inicio: dataInicio,
       p_data_fim: dataFim,
-      p_filiais: finalFiliais
+      p_filiais: finalFiliais,
+      p_filter_type: filterType
     } as never)
 
     if (error) {

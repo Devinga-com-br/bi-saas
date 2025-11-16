@@ -1,8 +1,10 @@
 # Funções RPC - Dashboard Principal
 
-**Versão**: 2.0.0  
+**Versão**: 2.0.2  
 **Última Atualização**: 2025-11-15  
 **Módulo**: Dashboard Principal
+
+Este documento contém a documentação completa de todas as funções RPC (Remote Procedure Call) do PostgreSQL utilizadas pelo módulo Dashboard Principal.
 
 ---
 

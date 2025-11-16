@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { DashboardFilter } from '@/components/dashboard/dashboard-filter'
+import { DashboardFilter, type FilterType } from '@/components/dashboard/dashboard-filter'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Estrutura de dados da API
@@ -93,19 +93,22 @@ export default function DashboardPage() {
   const [dataInicio, setDataInicio] = useState<Date>(startOfMonth(new Date()))
   const [dataFim, setDataFim] = useState<Date>(new Date())
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
-  
+  const [filterType, setFilterType] = useState<FilterType>('month')
+
   // Estado para os parâmetros que serão enviados à API
   const [apiParams, setApiParams] = useState({
     schema: currentTenant?.supabase_schema,
     data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     data_fim: format(new Date(), 'yyyy-MM-dd'),
     filiais: 'all',
+    filter_type: 'month' as FilterType,
   })
 
   // Handler para mudança de período
-  const handlePeriodChange = (start: Date, end: Date) => {
+  const handlePeriodChange = (start: Date, end: Date, type: FilterType) => {
     setDataInicio(start)
     setDataFim(end)
+    setFilterType(type)
   }
 
   // Calcula o label de comparação dinâmico
@@ -202,8 +205,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!currentTenant?.supabase_schema || !dataInicio || !dataFim) return
 
-    const filiaisParam = filiaisSelecionadas.length === 0 
-      ? 'all' 
+    const filiaisParam = filiaisSelecionadas.length === 0
+      ? 'all'
       : filiaisSelecionadas.map(f => f.value).join(',');
 
     setApiParams({
@@ -211,8 +214,9 @@ export default function DashboardPage() {
       data_inicio: format(dataInicio, 'yyyy-MM-dd'),
       data_fim: format(dataFim, 'yyyy-MM-dd'),
       filiais: filiaisParam,
+      filter_type: filterType,
     })
-  }, [currentTenant?.supabase_schema, dataInicio, dataFim, filiaisSelecionadas])
+  }, [currentTenant?.supabase_schema, dataInicio, dataFim, filiaisSelecionadas, filterType])
 
   const apiUrl = apiParams.schema
     ? `/api/dashboard?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
@@ -248,7 +252,7 @@ export default function DashboardPage() {
 
   // Buscar dados de vendas por filial
   const vendasFilialUrl = apiParams.schema
-    ? `/api/dashboard/vendas-por-filial?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
+    ? `/api/dashboard/vendas-por-filial?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&filter_type=${apiParams.filter_type}`
     : null
   const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(vendasFilialUrl, fetcher, { refreshInterval: 0 });
 

@@ -1,7 +1,7 @@
 # Estruturas de Dados - Dashboard Principal
 
-**Versão**: 1.0.0  
-**Última Atualização**: 2025-01-14  
+**Versão**: 2.0.2  
+**Última Atualização**: 2025-11-15  
 **Módulo**: Dashboard Principal
 
 ---
@@ -116,6 +116,46 @@ interface VendaPorFilial {
 - Campos calculados automaticamente pela RPC function
 - Deltas já vêm calculados do backend
 - Usado na tabela de "Vendas por Filial"
+
+---
+
+### YTDMetrics (NOVO v2.0.2)
+
+**Arquivo**: `src/app/(dashboard)/dashboard/page.tsx` (linhas 50-61)
+
+Interface que representa métricas YTD (Year to Date) para Receita, Lucro e Margem Bruta. Retornada pela API `/api/dashboard/ytd-metrics`.
+
+```typescript
+interface YTDMetrics {
+  // YTD da Receita Bruta
+  ytd_vendas: number                    // Receita acumulada do ano atual até hoje
+  ytd_vendas_ano_anterior: number       // Receita acumulada do ano anterior (mesmo período)
+  ytd_variacao_vendas_percent: number   // % de variação YTD de receita
+  
+  // YTD do Lucro Bruto
+  ytd_lucro: number                     // Lucro acumulado do ano atual até hoje
+  ytd_lucro_ano_anterior: number        // Lucro acumulado do ano anterior (mesmo período)
+  ytd_variacao_lucro_percent: number    // % de variação YTD de lucro
+  
+  // YTD da Margem Bruta
+  ytd_margem: number                    // Margem média do ano atual até hoje
+  ytd_margem_ano_anterior: number       // Margem média do ano anterior (mesmo período)
+  ytd_variacao_margem: number           // Variação em pontos percentuais de margem YTD
+}
+```
+
+**Quando é usado**:
+- Apenas quando filtro = "Ano" E ano selecionado = ano atual
+- Exemplo: Hoje é 15/11/2025 e usuário filtra por Ano 2025
+  - `ytd_vendas`: Vendas de 01/01/2025 até 15/11/2025
+  - `ytd_vendas_ano_anterior`: Vendas de 01/01/2024 até 15/11/2024
+  - `ytd_variacao_vendas_percent`: Variação entre os dois períodos
+
+**Observações**:
+- Função RPC dedicada: `get_dashboard_ytd_metrics`
+- Comparação justa: Mesmo número de dias em ambos os anos
+- Fix v2.0.2: Corrige cálculo YTD para anos passados
+- Exibida em linha separada nos cards (antes da comparação PA)
 
 ---
 

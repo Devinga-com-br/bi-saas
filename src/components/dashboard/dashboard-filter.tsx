@@ -11,10 +11,10 @@ import { CalendarIcon } from 'lucide-react'
 import { format, parse, isValid, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-type FilterType = 'month' | 'year' | 'custom'
+export type FilterType = 'month' | 'year' | 'custom'
 
 interface DashboardFilterProps {
-  onPeriodChange: (dataInicial: Date, dataFinal: Date) => void
+  onPeriodChange: (dataInicial: Date, dataFinal: Date, filterType: FilterType) => void
 }
 
 const MONTHS = [
@@ -65,8 +65,8 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
     const yearValue = parseInt(selectedYear)
     const firstDay = startOfMonth(new Date(yearValue, monthIndex))
     const lastDay = endOfMonth(new Date(yearValue, monthIndex))
-    
-    onPeriodChange(firstDay, lastDay)
+
+    onPeriodChange(firstDay, lastDay, 'month')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -77,8 +77,8 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
       const yearValue = parseInt(selectedYear)
       const firstDay = startOfMonth(new Date(yearValue, monthIndex))
       const lastDay = endOfMonth(new Date(yearValue, monthIndex))
-      
-      onPeriodChange(firstDay, lastDay)
+
+      onPeriodChange(firstDay, lastDay, 'month')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear, filterType])
@@ -89,8 +89,8 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
       const yearValue = parseInt(selectedYear)
       const firstDay = new Date(yearValue, 0, 1) // 1º de Janeiro
       const lastDay = new Date(yearValue, 11, 31) // 31 de Dezembro
-      
-      onPeriodChange(firstDay, lastDay)
+
+      onPeriodChange(firstDay, lastDay, 'year')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, filterType])
@@ -100,9 +100,9 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
     if (filterType === 'custom' && startDateInput && endDateInput) {
       const startDate = parse(startDateInput, 'dd/MM/yyyy', new Date())
       const endDate = parse(endDateInput, 'dd/MM/yyyy', new Date())
-      
+
       if (isValid(startDate) && isValid(endDate)) {
-        onPeriodChange(startDate, endDate)
+        onPeriodChange(startDate, endDate, 'custom')
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,20 +110,22 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
 
   const handleFilterTypeChange = (value: FilterType) => {
     setFilterType(value)
-    
+
     if (value === 'month') {
       // Volta para o mês atual quando muda para filtro por mês
       const monthIndex = parseInt(selectedMonth)
       const yearValue = parseInt(selectedYear)
       const firstDay = startOfMonth(new Date(yearValue, monthIndex))
       const lastDay = endOfMonth(new Date(yearValue, monthIndex))
-      onPeriodChange(firstDay, lastDay)
+
+      onPeriodChange(firstDay, lastDay, 'month')
     } else if (value === 'year') {
-      // Filtra pelo ano completo
+      // Filtra pelo ano
       const yearValue = parseInt(selectedYear)
       const firstDay = new Date(yearValue, 0, 1) // 1º de Janeiro
       const lastDay = new Date(yearValue, 11, 31) // 31 de Dezembro
-      onPeriodChange(firstDay, lastDay)
+
+      onPeriodChange(firstDay, lastDay, 'year')
     } else {
       // Inicializa com o mês atual quando muda para customizado
       const now = new Date()
@@ -131,7 +133,7 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
       const lastDay = endOfMonth(now)
       setStartDateInput(format(firstDay, 'dd/MM/yyyy'))
       setEndDateInput(format(lastDay, 'dd/MM/yyyy'))
-      onPeriodChange(firstDay, lastDay)
+      onPeriodChange(firstDay, lastDay, 'custom')
     }
   }
 

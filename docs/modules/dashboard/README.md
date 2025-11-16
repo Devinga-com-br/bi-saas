@@ -1,10 +1,21 @@
 # Dashboard Principal
 
-> Status: ✅ Implementado | Versão: 2.0.2 | Última Atualização: 2025-11-15
+> **Status**: ✅ Implementado  
+> **Versão Atual**: 2.0.2  
+> **Última Atualização**: 2025-11-15
 
 ## Visão Geral
 
-O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão consolidada dos principais indicadores de desempenho do negócio. Apresenta métricas de Receita Bruta, Lucro Bruto e Margem Bruta com comparações temporais inteligentes (ano anterior e YTD), além de análise detalhada por filial.
+O Dashboard Principal é o módulo central do BI SaaS, oferecendo uma visão executiva consolidada dos principais indicadores de desempenho do negócio. Apresenta métricas de **Receita Bruta**, **Lucro Bruto**, **Margem Bruta** e **Ticket Médio** com comparações temporais inteligentes (período anterior, ano anterior completo e YTD), além de análise detalhada por filial.
+
+**Propósito**: Fornecer aos usuários uma visão rápida e acionável do desempenho do negócio através de KPIs financeiros, com comparações automáticas entre períodos e análise de tendências.
+
+**Diferenciais v2.0**:
+- Sistema de filtros inteligente com 3 modos mutuamente exclusivos
+- Comparação YTD automática para análise do ano corrente
+- Subtração automática de descontos na Receita e Lucro Bruto  
+- Labels de comparação dinâmicos baseados no contexto do filtro
+- Interface responsiva com consistência visual (larguras fixas desktop)
 
 ## Funcionalidades
 
@@ -125,13 +136,23 @@ Funções principais:
 
 ## Índice de Documentação
 
-1. [README.md](./README.md) - Visão geral (este arquivo)
-2. [BUSINESS_RULES.md](./BUSINESS_RULES.md) - Regras de negócio detalhadas
-3. [DATA_STRUCTURES.md](./DATA_STRUCTURES.md) - Estruturas de dados e tipos
-4. [INTEGRATION_FLOW.md](./INTEGRATION_FLOW.md) - Fluxo completo de integração
-5. [RPC_FUNCTIONS.md](./RPC_FUNCTIONS.md) - Documentação das funções RPC
-6. [CHANGELOG_FUNCTIONS.md](./CHANGELOG_FUNCTIONS.md) - Histórico de alterações
-7. [FILTER_UPDATE_FINAL.md](./FILTER_UPDATE_FINAL.md) - **NOVO** Detalhes da atualização de filtros v2.0
+### Documentos Principais (Seguem Padrão de Documentação)
+
+1. **[README.md](./README.md)** - Visão geral do módulo (este arquivo)
+2. **[BUSINESS_RULES.md](./BUSINESS_RULES.md)** - Regras de negócio detalhadas (34 regras)
+3. **[DATA_STRUCTURES.md](./DATA_STRUCTURES.md)** - Estruturas de dados e tipos TypeScript
+4. **[INTEGRATION_FLOW.md](./INTEGRATION_FLOW.md)** - Fluxo completo de integração
+5. **[RPC_FUNCTIONS.md](./RPC_FUNCTIONS.md)** - Documentação das funções RPC do PostgreSQL
+6. **[CHANGELOG_FUNCTIONS.md](./CHANGELOG_FUNCTIONS.md)** - Histórico de alterações (v1.0 a v2.0.2)
+
+### Documentos Complementares
+
+7. **[CARD_FIELDS_EXPLANATION.md](./CARD_FIELDS_EXPLANATION.md)** - **NOVO v2.0.2** Explicação detalhada de cada campo dos cards
+8. **[MODULE_SUMMARY.md](./MODULE_SUMMARY.md)** - **NOVO** Resumo executivo completo do módulo
+9. **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - **NOVO** Guia de referência rápida para desenvolvedores
+10. **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Guia de solução de problemas
+11. **[YTD_FIX_SUMMARY.md](./YTD_FIX_SUMMARY.md)** - Resumo da correção YTD v2.0.2
+12. **[FILTER_UPDATE_FINAL.md](./FILTER_UPDATE_FINAL.md)** - Detalhes da atualização de filtros v2.0
 
 ## Tecnologias
 
