@@ -47,10 +47,24 @@ export function IndicatorsCards({ indicadores, loading, mes }: IndicatorsCardsPr
   const calculateVariation = (current: number, previous: number) => {
     if (previous === 0) return { percent: 0, isPositive: false }
     const percent = ((current - previous) / previous) * 100
-    return { 
-      percent: Math.abs(percent), 
-      isPositive: current > previous 
+    return {
+      percent: Math.abs(percent),
+      isPositive: current > previous
     }
+  }
+
+  // Abreviações dos meses em português
+  const MESES_ABREV = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
+
+  // Função para obter abreviação do mês
+  const getMesAbrev = (mesIndex: number): string => {
+    return MESES_ABREV[mesIndex] || ''
+  }
+
+  // Função para obter abreviação do mês anterior
+  const getMesAnteriorAbrev = (mesIndex: number): string => {
+    const mesAnterior = mesIndex - 1 < 0 ? 11 : mesIndex - 1
+    return MESES_ABREV[mesAnterior] || ''
   }
 
   if (loading || !indicadores) {
@@ -76,8 +90,13 @@ export function IndicatorsCards({ indicadores, loading, mes }: IndicatorsCardsPr
   const { current, pam, paa } = indicadores
 
   // Determinar labels baseados no filtro de mês
-  const labelPam = mes === -1 ? `${pam.ano} (YTD)` : `PAM (${pam.ano})`
-  const labelPaa = mes === -1 ? `${paa.ano} (YTD)` : `PAA (${paa.ano})`
+  const labelPam = mes === -1
+    ? `${pam.ano} (YTD)`
+    : `${getMesAnteriorAbrev(mes)}/${pam.ano}`
+
+  const labelPaa = mes === -1
+    ? `${paa.ano} (YTD)`
+    : `${getMesAbrev(mes)}/${paa.ano}`
 
   // Calcular variações para Receita Bruta
   const variacaoPamReceita = calculateVariation(current.receitaBruta, pam.data.receitaBruta)
