@@ -1,21 +1,21 @@
 -- =====================================================
--- Migration: Add filter_type parameter to get_vendas_por_filial
+-- Migration: Aplica lógica MTD em get_vendas_por_filial
 -- Created: 2025-11-16
--- Description: Atualiza a função para calcular período anterior
---              baseado no tipo de filtro (month, year, custom)
---              ao invés de sempre usar ano anterior completo
+-- Description: Atualiza a função para usar MTD (Month-to-Date)
+--              quando filter_type = 'month', comparando com
+--              o mesmo período do mês anterior
 -- =====================================================
 
 -- Drop função existente
-DROP FUNCTION IF EXISTS public.get_vendas_por_filial(TEXT, DATE, DATE, TEXT);
+DROP FUNCTION IF EXISTS public.get_vendas_por_filial(TEXT, DATE, DATE, TEXT, TEXT);
 
--- Criar nova versão com parâmetro adicional
+-- Criar nova versão com lógica MTD
 CREATE OR REPLACE FUNCTION public.get_vendas_por_filial(
   p_schema TEXT,
   p_data_inicio DATE,
   p_data_fim DATE,
   p_filiais TEXT DEFAULT 'all',
-  p_filter_type TEXT DEFAULT 'year'  -- NOVO: 'month', 'year', 'custom'
+  p_filter_type TEXT DEFAULT 'year'  -- 'month', 'year', 'custom'
 )
 RETURNS TABLE (
   filial_id BIGINT,
@@ -47,6 +47,9 @@ DECLARE
   v_pa_data_inicio DATE;
   v_pa_data_fim DATE;
   v_filiais_condition TEXT;
+  v_current_day INTEGER;
+  v_mtd_end_day INTEGER;
+  v_last_day_previous_month INTEGER;
 BEGIN
   -- =====================================================
   -- CÁLCULO DO PERÍODO ANTERIOR BASEADO NO TIPO DE FILTRO
@@ -54,34 +57,25 @@ BEGIN
 
   IF p_filter_type = 'month' THEN
     -- Filtro por Mês: MTD (Month-to-Date)
-    -- Compara período do início do mês até o dia atual com o mesmo período do mês anterior
+    -- Compara período do início do mês até o dia atual com o MESMO MÊS DO ANO ANTERIOR
     -- Exemplo: Hoje 16/11/2025, filtro Nov/2025
     --   Atual: 01/11/2025 a 16/11/2025
-    --   PA: 01/10/2025 a 16/10/2025 (mês anterior, mesmos dias)
+    --   PA: 01/11/2024 a 16/11/2024 (mesmo mês ano anterior, mesmos dias)
 
-    DECLARE
-      v_current_day INTEGER;
-      v_mtd_end_day INTEGER;
-      v_last_day_previous_month INTEGER;
-    BEGIN
-      -- Dia atual do mês
-      v_current_day := EXTRACT(DAY FROM CURRENT_DATE);
+    -- Dia atual do mês
+    v_current_day := EXTRACT(DAY FROM CURRENT_DATE);
 
-      -- Limita o período atual MTD até hoje
-      -- (já vem filtrado da API, mas garantimos aqui também)
+    -- Mesmo mês, ano anterior
+    v_pa_data_inicio := (DATE_TRUNC('month', p_data_inicio) - INTERVAL '1 year')::DATE;
 
-      -- Mês anterior: 1 mês antes
-      v_pa_data_inicio := (DATE_TRUNC('month', p_data_inicio) - INTERVAL '1 month')::DATE;
+    -- Último dia do mesmo mês no ano anterior
+    v_last_day_previous_month := EXTRACT(DAY FROM ((DATE_TRUNC('month', p_data_inicio) - INTERVAL '1 year') + INTERVAL '1 month' - INTERVAL '1 day')::DATE);
 
-      -- Último dia do mês anterior
-      v_last_day_previous_month := EXTRACT(DAY FROM (DATE_TRUNC('month', p_data_inicio) - INTERVAL '1 day')::DATE);
+    -- Usa o mínimo entre o dia atual e o último dia do mês no ano anterior
+    v_mtd_end_day := LEAST(v_current_day, v_last_day_previous_month);
 
-      -- Usa o mínimo entre o dia atual e o último dia do mês anterior
-      v_mtd_end_day := LEAST(v_current_day, v_last_day_previous_month);
-
-      -- Data fim do mês anterior MTD
-      v_pa_data_fim := (v_pa_data_inicio + (v_mtd_end_day - 1) * INTERVAL '1 day')::DATE;
-    END;
+    -- Data fim do mesmo mês ano anterior MTD
+    v_pa_data_fim := (v_pa_data_inicio + (v_mtd_end_day - 1) * INTERVAL '1 day')::DATE;
 
   ELSIF p_filter_type = 'custom' THEN
     -- Filtro Customizado: usa mesmo intervalo do ano anterior
@@ -266,10 +260,13 @@ Parâmetros:
 - p_data_fim: data final do período
 - p_filiais: IDs separados por vírgula ou ''all''
 - p_filter_type: tipo de filtro (''month'', ''year'', ''custom'')
-  * ''month'': MTD - compara com mês anterior MTD (mesmo período de dias)
+  * ''month'': MTD - compara com mesmo mês do ano anterior MTD (mesmo período de dias)
   * ''custom'': compara com mesmo intervalo do ano anterior
   * ''year'': compara com ano anterior completo
 Exemplos:
-- Filtro Mês (Hoje 16/11/2025, Nov/2025): Atual: 01/11-16/11/2025 → PA: 01/10-16/10/2025
+- Filtro Mês (Hoje 16/11/2025, Nov/2025): Atual: 01/11-16/11/2025 → PA: 01/11-16/11/2024
 - Filtro Custom: 01/11/2025-16/11/2025 → PA: 01/11/2024-16/11/2024
 - Filtro Ano: 01/01/2025-31/12/2025 → PA: 01/01/2024-31/12/2024';
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION public.get_vendas_por_filial(TEXT, DATE, DATE, TEXT, TEXT) TO authenticated;

@@ -60,6 +60,25 @@ interface YTDMetrics {
   ytd_variacao_margem: number
 }
 
+// Estrutura de dados MTD (Month-to-Date - Receita, Lucro e Margem)
+interface MTDMetrics {
+  mtd_vendas: number
+  mtd_lucro: number
+  mtd_margem: number
+  mtd_mes_anterior_vendas: number
+  mtd_mes_anterior_lucro: number
+  mtd_mes_anterior_margem: number
+  mtd_variacao_mes_anterior_vendas_percent: number
+  mtd_variacao_mes_anterior_lucro_percent: number
+  mtd_variacao_mes_anterior_margem: number
+  mtd_ano_anterior_vendas: number
+  mtd_ano_anterior_lucro: number
+  mtd_ano_anterior_margem: number
+  mtd_variacao_ano_anterior_vendas_percent: number
+  mtd_variacao_ano_anterior_lucro_percent: number
+  mtd_variacao_ano_anterior_margem: number
+}
+
 interface VendaPorFilial {
   filial_id: number
   valor_total: number
@@ -176,6 +195,34 @@ export default function DashboardPage() {
     return `${start.getFullYear() - 1} YTD`
   }
 
+  // Verifica se deve mostrar comparação MTD (Month-to-Date)
+  const shouldShowMTD = (): boolean => {
+    if (!dataInicio || !dataFim) return false
+
+    // Só mostra MTD quando filterType é 'month'
+    return filterType === 'month'
+  }
+
+  // Calcula label MTD para mês anterior (ex: "OUT/2025")
+  const getMTDPreviousMonthLabel = (): string => {
+    if (!dataInicio) return ''
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    const start = new Date(dataInicio)
+    const previousMonth = new Date(start)
+    previousMonth.setMonth(previousMonth.getMonth() - 1)
+    return `${monthNames[previousMonth.getMonth()].toUpperCase()}/${previousMonth.getFullYear()}`
+  }
+
+  // Calcula label MTD para ano anterior (ex: "NOV/2024")
+  const getMTDPreviousYearLabel = (): string => {
+    if (!dataInicio) return ''
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    const start = new Date(dataInicio)
+    const previousYear = new Date(start)
+    previousYear.setFullYear(previousYear.getFullYear() - 1)
+    return `${monthNames[previousYear.getMonth()].toUpperCase()}/${previousYear.getFullYear()}`
+  }
+
   // Calcula a variação correta: valor atual vs. valor comparativo (PA)
   const calculateVariationPercent = (current: number, previous: number): number => {
     if (previous === 0) return 0
@@ -243,6 +290,27 @@ export default function DashboardPage() {
       dataFim
     })
   }, [shouldFetchYTD, ytdApiUrl, ytdData, ytdError, dataInicio, dataFim])
+
+  // Buscar dados MTD (Month-to-Date) - apenas quando shouldShowMTD() === true
+  const shouldFetchMTD = apiParams.schema && shouldShowMTD()
+  const mtdApiUrl = shouldFetchMTD
+    ? `/api/dashboard/mtd-metrics?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: mtdData, error: mtdError } = useSWR<MTDMetrics>(mtdApiUrl, fetcher, { refreshInterval: 0 });
+
+  // Debug: Log MTD status
+  useEffect(() => {
+    console.log('[MTD DEBUG]', {
+      shouldShowMTD: shouldShowMTD(),
+      shouldFetchMTD,
+      mtdApiUrl,
+      mtdData,
+      mtdError,
+      filterType,
+      dataInicio,
+      dataFim
+    })
+  }, [shouldFetchMTD, mtdApiUrl, mtdData, mtdError, filterType, dataInicio, dataFim])
 
   // Buscar dados para o gráfico de vendas (com filtro de filiais)
   const chartApiUrl = apiParams.schema
@@ -327,50 +395,74 @@ export default function DashboardPage() {
             <CardMetric
               title="Receita Bruta"
               value={formatCurrency(data.total_vendas)}
-              previousValue={formatCurrency(data.pa_vendas)}
-              variationPercent={(() => {
+              previousValue={!shouldShowMTD() ? formatCurrency(data.pa_vendas) : undefined}
+              variationPercent={!shouldShowMTD() ? (() => {
                 const variation = calculateVariationPercent(data.total_vendas, data.pa_vendas)
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
-              })()}
-              variationYear={`${(data.variacao_vendas_ano || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_ano || 0).toFixed(2)}%`}
+              })() : undefined}
+              variationYear={!shouldShowMTD() ? `${(data.variacao_vendas_ano || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_ano || 0).toFixed(2)}%` : undefined}
               isPositive={data.total_vendas >= data.pa_vendas}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_vendas_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? `${ytdData.ytd_variacao_vendas_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_vendas_percent.toFixed(2)}%` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? ytdData.ytd_variacao_vendas_percent >= 0 : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_mes_anterior_vendas) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_vendas_percent != null ? `${mtdData.mtd_variacao_mes_anterior_vendas_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_vendas_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_vendas_percent != null ? mtdData.mtd_variacao_mes_anterior_vendas_percent >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_ano_anterior_vendas) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_vendas_percent != null ? `${mtdData.mtd_variacao_ano_anterior_vendas_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_vendas_percent.toFixed(2)}%` : undefined}
+              mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_vendas_percent != null ? mtdData.mtd_variacao_ano_anterior_vendas_percent >= 0 : undefined}
             />
             <CardMetric
               title="Lucro Bruto"
               value={formatCurrency(data.total_lucro)}
-              previousValue={formatCurrency(data.pa_lucro)}
-              variationPercent={(() => {
+              previousValue={!shouldShowMTD() ? formatCurrency(data.pa_lucro) : undefined}
+              variationPercent={!shouldShowMTD() ? (() => {
                 const variation = calculateVariationPercent(data.total_lucro, data.pa_lucro)
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
-              })()}
-              variationYear={`${(data.variacao_lucro_ano || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_ano || 0).toFixed(2)}%`}
+              })() : undefined}
+              variationYear={!shouldShowMTD() ? `${(data.variacao_lucro_ano || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_ano || 0).toFixed(2)}%` : undefined}
               isPositive={data.total_lucro >= data.pa_lucro}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_lucro_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? `${ytdData.ytd_variacao_lucro_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_lucro_percent.toFixed(2)}%` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? ytdData.ytd_variacao_lucro_percent >= 0 : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_mes_anterior_lucro) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_lucro_percent != null ? `${mtdData.mtd_variacao_mes_anterior_lucro_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_lucro_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_lucro_percent != null ? mtdData.mtd_variacao_mes_anterior_lucro_percent >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_ano_anterior_lucro) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_lucro_percent != null ? `${mtdData.mtd_variacao_ano_anterior_lucro_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_lucro_percent.toFixed(2)}%` : undefined}
+              mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_lucro_percent != null ? mtdData.mtd_variacao_ano_anterior_lucro_percent >= 0 : undefined}
             />
             <CardMetric
               title="Margem Bruta"
               value={formatPercentage(data.margem_lucro)}
-              previousValue={formatPercentage(data.pa_margem_lucro)}
-              variationPercent={(() => {
+              previousValue={!shouldShowMTD() ? formatPercentage(data.pa_margem_lucro) : undefined}
+              variationPercent={!shouldShowMTD() ? (() => {
                 const variation = data.margem_lucro - data.pa_margem_lucro
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}p.p.`
-              })()}
-              variationYear={`${(data.variacao_margem_ano || 0) >= 0 ? '+' : ''}${(data.variacao_margem_ano || 0).toFixed(2)}p.p.`}
+              })() : undefined}
+              variationYear={!shouldShowMTD() ? `${(data.variacao_margem_ano || 0) >= 0 ? '+' : ''}${(data.variacao_margem_ano || 0).toFixed(2)}p.p.` : undefined}
               isPositive={data.margem_lucro >= data.pa_margem_lucro}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatPercentage(ytdData.ytd_margem_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? `${ytdData.ytd_variacao_margem >= 0 ? '+' : ''}${ytdData.ytd_variacao_margem.toFixed(2)}p.p.` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? ytdData.ytd_variacao_margem >= 0 : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatPercentage(mtdData.mtd_mes_anterior_margem) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_margem != null ? `${mtdData.mtd_variacao_mes_anterior_margem >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_margem.toFixed(2)}p.p.` : undefined}
+              mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_margem != null ? mtdData.mtd_variacao_mes_anterior_margem >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatPercentage(mtdData.mtd_ano_anterior_margem) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_margem != null ? `${mtdData.mtd_variacao_ano_anterior_margem >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_margem.toFixed(2)}p.p.` : undefined}
+              mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_margem != null ? mtdData.mtd_variacao_ano_anterior_margem >= 0 : undefined}
             />
           </>
         ) : null}
