@@ -527,11 +527,11 @@ export default function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[80px]">Filial</TableHead>
-                    <TableHead className="text-right">Valor Vendido</TableHead>
+                    <TableHead className="text-right">Receita Bruta</TableHead>
                     <TableHead className="text-right">Ticket Médio</TableHead>
-                    <TableHead className="text-right">Custo Total</TableHead>
-                    <TableHead className="text-right">Total Lucro</TableHead>
-                    <TableHead className="text-right">Margem</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
+                    <TableHead className="text-right">Lucro Bruto</TableHead>
+                    <TableHead className="text-right">Margem Bruta</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -543,8 +543,8 @@ export default function DashboardPage() {
                     return (
                       <TableRow key={venda.filial_id}>
                         <TableCell className="font-medium">{venda.filial_id}</TableCell>
-                        
-                        {/* Valor Vendido */}
+
+                        {/* Receita Bruta */}
                         <TableCell className="text-right">
                           <div className="font-medium">
                             {formatCurrency(venda.valor_total)}
@@ -583,8 +583,8 @@ export default function DashboardPage() {
                             {formatCurrency(venda.pa_ticket_medio)}
                           </div>
                         </TableCell>
-                        
-                        {/* Custo Total */}
+
+                        {/* Custo */}
                         <TableCell className="text-right">
                           <div className="font-medium">
                             {formatCurrency(venda.custo_total)}
@@ -603,8 +603,8 @@ export default function DashboardPage() {
                             {formatCurrency(venda.pa_custo_total)}
                           </div>
                         </TableCell>
-                        
-                        {/* Total Lucro */}
+
+                        {/* Lucro Bruto */}
                         <TableCell className="text-right">
                           <div className="font-medium">
                             {formatCurrency(venda.total_lucro)}
@@ -623,8 +623,8 @@ export default function DashboardPage() {
                             {formatCurrency(venda.pa_total_lucro)}
                           </div>
                         </TableCell>
-                        
-                        {/* Margem */}
+
+                        {/* Margem Bruta */}
                         <TableCell className="text-right">
                           <div className="font-medium">
                             {venda.margem_lucro.toFixed(2)}%
@@ -686,8 +686,8 @@ export default function DashboardPage() {
                     return (
                       <TableRow className="bg-muted/30 font-bold border-t-2">
                         <TableCell>=</TableCell>
-                        
-                        {/* Valor Vendido */}
+
+                        {/* Receita Bruta */}
                         <TableCell className="text-right">
                           <div>
                             {formatCurrency(totais.valor_total)}
@@ -726,8 +726,8 @@ export default function DashboardPage() {
                             {formatCurrency(pa_ticket_medio)}
                           </div>
                         </TableCell>
-                        
-                        {/* Custo Total */}
+
+                        {/* Custo */}
                         <TableCell className="text-right">
                           <div>
                             {formatCurrency(totais.custo_total)}
@@ -746,8 +746,8 @@ export default function DashboardPage() {
                             {formatCurrency(totais.pa_custo_total)}
                           </div>
                         </TableCell>
-                        
-                        {/* Total Lucro */}
+
+                        {/* Lucro Bruto */}
                         <TableCell className="text-right">
                           <div>
                             {formatCurrency(totais.total_lucro)}
@@ -766,8 +766,8 @@ export default function DashboardPage() {
                             {formatCurrency(totais.pa_total_lucro)}
                           </div>
                         </TableCell>
-                        
-                        {/* Margem */}
+
+                        {/* Margem Bruta */}
                         <TableCell className="text-right">
                           <div>
                             {margem_lucro.toFixed(2)}%

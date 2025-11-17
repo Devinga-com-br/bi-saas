@@ -1,14 +1,19 @@
-# MTD na Tabela "Vendas por Filial"
+# MTD/YTD na Tabela "Vendas por Filial"
 
 **Data**: 2025-11-16
-**Versão**: 1.0.0
+**Versão**: 1.1.0
 **Módulo**: Dashboard - Tabela Vendas por Filial
 
 ---
 
 ## 📋 Resumo
 
-Aplicação da lógica **MTD (Month-to-Date)** na tabela "Vendas por Filial" do Dashboard. Quando o filtro está definido como **"Mês"**, a comparação (valor PA abaixo do valor vendido) será com o **mesmo mês do ano anterior MTD**, ao invés do ano anterior completo.
+Aplicação das lógicas **MTD (Month-to-Date)** e **YTD (Year-to-Date)** na tabela "Vendas por Filial" do Dashboard:
+
+- **Filtro = Mês**: Comparação MTD com o **mesmo mês do ano anterior**
+- **Filtro = Ano (ano atual)**: Comparação YTD com o **mesmo período do ano anterior**
+- **Filtro = Ano (ano passado)**: Comparação com o **ano anterior completo**
+- **Filtro = Customizado**: Comparação com o **mesmo intervalo do ano anterior**
 
 ---
 
@@ -42,9 +47,10 @@ Tabela exibe:
 
 ## 🔧 Mudança Implementada
 
-### **Arquivo Modificado**
+### **Arquivos de Migration**
 
-`supabase/migrations/20251116010000_update_vendas_por_filial_mtd.sql`
+1. `supabase/migrations/20251116010000_update_vendas_por_filial_mtd.sql` - MTD para filtro mês
+2. `supabase/migrations/20251116020000_update_vendas_por_filial_ytd.sql` - YTD para filtro ano
 
 ### **Função Atualizada**
 
@@ -71,9 +77,19 @@ ELSIF p_filter_type = 'custom' THEN
   v_pa_data_fim := p_data_fim - INTERVAL '1 year';
 
 ELSE -- 'year'
-  -- Ano: Ano anterior completo
-  v_pa_data_inicio := p_data_inicio - INTERVAL '1 year';
-  v_pa_data_fim := p_data_fim - INTERVAL '1 year';
+  -- Verifica se é o ano atual para aplicar YTD
+  IF EXTRACT(YEAR FROM p_data_inicio) = EXTRACT(YEAR FROM CURRENT_DATE) THEN
+    -- YTD: Compara com mesmo período do ano anterior (início do ano até hoje)
+    -- Exemplo: Hoje 16/11/2025
+    --   Atual: 01/01/2025 a 16/11/2025
+    --   PA: 01/01/2024 a 16/11/2024
+    v_pa_data_inicio := (DATE_TRUNC('year', p_data_inicio) - INTERVAL '1 year')::DATE;
+    v_pa_data_fim := (CURRENT_DATE - INTERVAL '1 year')::DATE;
+  ELSE
+    -- Ano passado: Ano anterior completo
+    v_pa_data_inicio := p_data_inicio - INTERVAL '1 year';
+    v_pa_data_fim := p_data_fim - INTERVAL '1 year';
+  END IF;
 END IF;
 ```
 
@@ -101,9 +117,10 @@ Filtro: Novembro/2025
 
 ---
 
-### **Cenário 2: Filtro = Ano**
+### **Cenário 2: Filtro = Ano (Ano Atual - YTD)**
 
 ```
+Hoje: 16/11/2025
 Filtro: Ano 2025
 ```
 
@@ -115,8 +132,27 @@ Filtro: Ano 2025
 | 2 | R$ 11.851.851,85 | R$ 11.040.000,00 (↑ +7,35%) |
 
 **Períodos comparados:**
-- **Atual**: 01/01/2025 a 31/12/2025
-- **PA**: 01/01/2024 a 31/12/2024 (ano anterior completo)
+- **Atual**: 01/01/2025 a 16/11/2025 (YTD - até hoje)
+- **PA**: 01/01/2024 a 16/11/2024 (mesmo período do ano anterior YTD)
+
+---
+
+### **Cenário 2b: Filtro = Ano (Ano Passado - Ano Completo)**
+
+```
+Filtro: Ano 2024
+```
+
+**Tabela exibe:**
+
+| Filial | Valor Vendido | PA (Comparativo) |
+|--------|---------------|------------------|
+| 1 | R$ 18.000.000,00 | R$ 17.200.000,00 (↑ +4,65%) |
+| 2 | R$ 14.400.000,00 | R$ 13.760.000,00 (↑ +4,65%) |
+
+**Períodos comparados:**
+- **Atual**: 01/01/2024 a 31/12/2024 (ano completo)
+- **PA**: 01/01/2023 a 31/12/2023 (ano anterior completo)
 
 ---
 
@@ -215,17 +251,21 @@ interface VendaPorFilial {
 
 ## 🚀 Como Aplicar
 
-### **1. Executar Migration**
+### **1. Executar Migrations**
 
 ```bash
 # Via Supabase Dashboard:
 # SQL Editor → Cole migration → Run
 ```
 
-Ou via psql:
+Ou via psql (executar em ordem):
 
 ```bash
+# 1. Migration MTD (filtro mês)
 psql -h <host> -U <user> -d <database> -f supabase/migrations/20251116010000_update_vendas_por_filial_mtd.sql
+
+# 2. Migration YTD (filtro ano)
+psql -h <host> -U <user> -d <database> -f supabase/migrations/20251116020000_update_vendas_por_filial_ytd.sql
 ```
 
 ### **2. Testar via SQL**
@@ -251,12 +291,15 @@ SELECT * FROM public.get_vendas_por_filial(
 
 ## ✅ Checklist de Testes
 
-- [ ] **Filtro Mês**: PA mostra mês anterior MTD (ex: 16 dias vs 16 dias)
-- [ ] **Filtro Ano**: PA mostra ano anterior completo
+- [ ] **Filtro Mês**: PA mostra ano anterior MTD (ex: Nov/2025 16 dias vs Nov/2024 16 dias)
+- [ ] **Filtro Ano Atual**: PA mostra ano anterior YTD (ex: 01/Jan a 16/Nov de 2025 vs 2024)
+- [ ] **Filtro Ano Passado**: PA mostra ano anterior completo (ex: 2024 completo vs 2023 completo)
 - [ ] **Filtro Customizado**: PA mostra mesmo intervalo do ano anterior
-- [ ] **Caso especial**: Último dia do mês (31) comparado com mês de 28 dias
-- [ ] **Consistência**: Valores PA da tabela batem com primeira linha MTD dos cards
-- [ ] **Percentuais**: Delta % está calculado corretamente
+- [ ] **Caso especial MTD**: Último dia do mês (31) comparado com mês de 28 dias
+- [ ] **Caso especial YTD**: Dia 29/Fev em ano bissexto vs não-bissexto
+- [ ] **Consistência MTD**: Valores PA da tabela (filtro mês) batem com segunda linha MTD dos cards
+- [ ] **Consistência YTD**: Valores PA da tabela (filtro ano) batem com primeira linha YTD dos cards
+- [ ] **Percentuais**: Delta % está calculado corretamente em todos os cenários
 
 ---
 
@@ -264,13 +307,17 @@ SELECT * FROM public.get_vendas_por_filial(
 
 1. **MTD só para mês**: A lógica MTD só é aplicada quando `p_filter_type = 'month'`
 
-2. **Consistência visual**: Agora a tabela está consistente com os cards MTD
+2. **YTD só para ano atual**: A lógica YTD só é aplicada quando `p_filter_type = 'year'` E o ano filtrado é o ano atual
 
-3. **Dia atual**: Usa `CURRENT_DATE` para garantir comparação justa
+3. **Ano passado usa ano completo**: Quando filtra por um ano passado (ex: 2024), usa ano anterior completo para comparação
 
-4. **Descontos aplicados**: Continua subtraindo descontos tanto do período atual quanto do PA
+4. **Consistência visual**: Agora a tabela está consistente com os cards MTD/YTD
 
-5. **Performance**: Não há impacto negativo, pois apenas mudou o cálculo das datas
+5. **Dia atual**: Usa `CURRENT_DATE` para garantir comparação justa tanto em MTD quanto em YTD
+
+6. **Descontos aplicados**: Continua subtraindo descontos tanto do período atual quanto do PA
+
+7. **Performance**: Não há impacto negativo, pois apenas mudou o cálculo das datas
 
 ---
 
@@ -298,13 +345,15 @@ SELECT * FROM public.get_vendas_por_filial(
 
 ## 📚 Referências
 
-- **Migration**: `supabase/migrations/20251116010000_update_vendas_por_filial_mtd.sql`
+- **Migration MTD**: `supabase/migrations/20251116010000_update_vendas_por_filial_mtd.sql`
+- **Migration YTD**: `supabase/migrations/20251116020000_update_vendas_por_filial_ytd.sql`
 - **API Route**: `src/app/api/dashboard/vendas-por-filial/route.ts:78` (passa `p_filter_type`)
 - **Frontend**: `src/app/(dashboard)/dashboard/page.tsx:322-325` (tabela de vendas por filial)
 - **MTD Cards**: `docs/modules/dashboard/MTD_IMPLEMENTATION.md`
 
 ---
 
-**Versão**: 1.0.0
+**Versão**: 1.1.0
 **Criado em**: 2025-11-16
-**Status**: ✅ Implementação Completa
+**Atualizado em**: 2025-11-16
+**Status**: ✅ Implementação Completa (MTD + YTD)
