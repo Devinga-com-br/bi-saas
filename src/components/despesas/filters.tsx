@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 
 const MESES = [
+  { value: -1, label: 'Todos' },
   { value: 0, label: 'Janeiro' },
   { value: 1, label: 'Fevereiro' },
   { value: 2, label: 'Março' },

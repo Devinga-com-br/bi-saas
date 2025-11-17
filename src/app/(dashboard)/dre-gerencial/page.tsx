@@ -143,9 +143,41 @@ export default function DespesasPage() {
   }, [userProfile?.id, currentTenant?.id, userProfile?.full_name])
 
   // Calcular datas com base em mês e ano
-  const getDatasMesAno = (mesParam: number, anoParam: number) => {
-    const dataInicio = startOfMonth(new Date(anoParam, mesParam))
-    const dataFim = endOfMonth(new Date(anoParam, mesParam))
+  // dataReferenciaYTD: usado apenas quando mesParam === -1 para calcular YTD do ano anterior
+  const getDatasMesAno = (mesParam: number, anoParam: number, dataReferenciaYTD?: Date) => {
+    let dataInicio: Date
+    let dataFim: Date
+
+    if (mesParam === -1) {
+      // Opção "Todos" selecionada
+      dataInicio = new Date(anoParam, 0, 1) // 01/01/YYYY
+
+      if (dataReferenciaYTD) {
+        // YTD com data de referência específica (para PAM/PAA)
+        // Usa o mesmo MÊS da referência até o ÚLTIMO DIA do mês
+        const mesReferencia = dataReferenciaYTD.getMonth()
+
+        // Pega o último dia do mês de referência no ano do parâmetro
+        dataFim = endOfMonth(new Date(anoParam, mesReferencia))
+      } else {
+        // Período atual: verifica se é ano atual ou não
+        const anoAtual = new Date().getFullYear()
+
+        if (anoParam === anoAtual) {
+          // Ano filtrado = Ano atual → busca até mês atual
+          const mesAtual = new Date().getMonth()
+          dataFim = endOfMonth(new Date(anoParam, mesAtual))
+        } else {
+          // Ano filtrado ≠ Ano atual → busca ano completo
+          dataFim = new Date(anoParam, 11, 31) // 31/12/YYYY
+        }
+      }
+    } else {
+      // Mês específico (lógica atual mantida)
+      dataInicio = startOfMonth(new Date(anoParam, mesParam))
+      dataFim = endOfMonth(new Date(anoParam, mesParam))
+    }
+
     return {
       dataInicio: format(dataInicio, 'yyyy-MM-dd'),
       dataFim: format(dataFim, 'yyyy-MM-dd')
@@ -221,14 +253,37 @@ export default function DespesasPage() {
       try {
         // Período atual
         const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
-        
-        // PAM - mês anterior
-        const mesPam = mesParam - 1 < 0 ? 11 : mesParam - 1
-        const anoPam = mesParam - 1 < 0 ? anoParam - 1 : anoParam
-        const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam)
-        
-        // PAA - mesmo mês ano passado
-        const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1)
+
+        // PAM - Período Anterior Mesmo
+        let mesPam: number
+        let anoPam: number
+        let dataReferenciaYTD: Date | undefined
+
+        if (mesParam === -1) {
+          // "Todos" selecionado → PAM = YTD do ano anterior
+          mesPam = -1
+          anoPam = anoParam - 1
+
+          // Para calcular YTD do ano anterior, precisamos da data de referência
+          // Se anoParam === ano atual, usa data de hoje
+          // Se anoParam !== ano atual, usa 31/12 do ano filtrado
+          const anoAtual = new Date().getFullYear()
+          if (anoParam === anoAtual) {
+            dataReferenciaYTD = new Date() // Hoje (ex: 17/11/2025)
+          } else {
+            // Último dia do ano filtrado (ex: 31/12/2024)
+            dataReferenciaYTD = new Date(anoParam, 11, 31)
+          }
+        } else {
+          // Mês específico → PAM = mês anterior (lógica atual)
+          mesPam = mesParam - 1 < 0 ? 11 : mesParam - 1
+          anoPam = mesParam - 1 < 0 ? anoParam - 1 : anoParam
+        }
+
+        const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam, dataReferenciaYTD)
+
+        // PAA - Período Anterior Acumulado (sempre usa mesmo período, mas 1 ano atrás)
+        const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1, dataReferenciaYTD)
 
         // Buscar em paralelo (despesas + receita bruta)
         const [dataAtual, despesasPam, despesasPaa, receitaBruta] = await Promise.all([
@@ -331,9 +386,30 @@ export default function DespesasPage() {
       if (!responseAtual.ok) throw new Error('Erro ao buscar dados atuais')
       const dashboardAtual = await responseAtual.json()
 
-      // Buscar dados PAM (mesmo mês ano anterior)
-      const anoAnteriorPam = anoParam - 1
-      const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesParam, anoAnteriorPam)
+      // Buscar dados PAM - Período Anterior Mesmo (mesma lógica do handleFilter)
+      let mesPam: number
+      let anoPam: number
+      let dataReferenciaYTD: Date | undefined
+
+      if (mesParam === -1) {
+        // "Todos" selecionado → PAM = YTD do ano anterior
+        mesPam = -1
+        anoPam = anoParam - 1
+
+        // Para calcular YTD do ano anterior, precisamos da data de referência
+        const anoAtual = new Date().getFullYear()
+        if (anoParam === anoAtual) {
+          dataReferenciaYTD = new Date() // Hoje
+        } else {
+          dataReferenciaYTD = new Date(anoParam, 11, 31) // Último dia do ano filtrado
+        }
+      } else {
+        // Mês específico → PAM = mês anterior (lógica atual)
+        mesPam = mesParam - 1 < 0 ? 11 : mesParam - 1
+        anoPam = mesParam - 1 < 0 ? anoParam - 1 : anoParam
+      }
+
+      const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam, dataReferenciaYTD)
       const paramsPam = new URLSearchParams({
         schema: currentTenant.supabase_schema,
         data_inicio: dataInicioPam,
@@ -343,12 +419,12 @@ export default function DespesasPage() {
       const responsePam = await fetch(`/api/dashboard?${paramsPam}`)
       const dashboardPam = responsePam.ok ? await responsePam.json() : null
 
-      // Buscar dados PAA (acumulado ano até o mês)
-      const { dataInicio: dataInicioPaa } = getDatasMesAno(1, anoAnteriorPam) // Janeiro do ano anterior
+      // Buscar dados PAA - Período Anterior Acumulado (sempre usa mesmo período, mas 1 ano atrás)
+      const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1, dataReferenciaYTD)
       const paramsPaa = new URLSearchParams({
         schema: currentTenant.supabase_schema,
         data_inicio: dataInicioPaa,
-        data_fim: dataFimPam,
+        data_fim: dataFimPaa,
         filiais: filialIds || 'all'
       })
       const responsePaa = await fetch(`/api/dashboard?${paramsPaa}`)
@@ -356,8 +432,8 @@ export default function DespesasPage() {
 
       const result = {
         current: dashboardAtual,
-        pam: { data: dashboardPam, ano: anoAnteriorPam },
-        paa: { data: dashboardPaa, ano: anoAnteriorPam }
+        pam: { data: dashboardPam, ano: anoPam },
+        paa: { data: dashboardPaa, ano: anoParam - 1 }
       }
 
       // Processar dados do dashboard para calcular indicadores (incluindo despesas)
@@ -753,6 +829,7 @@ export default function DespesasPage() {
         <IndicatorsCards
           indicadores={indicadores}
           loading={loadingIndicadores}
+          mes={mes}
         />
       )}
 

@@ -29,9 +29,10 @@ interface ComparacaoIndicadores {
 interface IndicatorsCardsProps {
   indicadores: ComparacaoIndicadores | null
   loading: boolean
+  mes: number
 }
 
-export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) {
+export function IndicatorsCards({ indicadores, loading, mes }: IndicatorsCardsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -74,6 +75,10 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
 
   const { current, pam, paa } = indicadores
 
+  // Determinar labels baseados no filtro de mês
+  const labelPam = mes === -1 ? `${pam.ano} (YTD)` : `PAM (${pam.ano})`
+  const labelPaa = mes === -1 ? `${paa.ano} (YTD)` : `PAA (${paa.ano})`
+
   // Calcular variações para Receita Bruta
   const variacaoPamReceita = calculateVariation(current.receitaBruta, pam.data.receitaBruta)
   const variacaoPaaReceita = calculateVariation(current.receitaBruta, paa.data.receitaBruta)
@@ -107,7 +112,7 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
           
           <div className="mt-2 space-y-1">
             <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-              <span>PAM ({pam.ano}):</span>
+              <span>{labelPam}:</span>
               <span className="font-medium">{formatCurrency(pam.data.receitaBruta)}</span>
             </div>
             {pam.data.receitaBruta > 0 && (
@@ -126,25 +131,29 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
                 </span>
               </div>
             )}
-            <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-              <span>PAA ({paa.ano}):</span>
-              <span className="font-medium">{formatCurrency(paa.data.receitaBruta)}</span>
-            </div>
-            {paa.data.receitaBruta > 0 && (
-              <div className={`text-[10px] flex items-center gap-1 ${
-                variacaoPaaReceita.isPositive
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}>
-                {variacaoPaaReceita.isPositive ? (
-                  <TrendingUp className="h-2.5 w-2.5" />
-                ) : (
-                  <TrendingDown className="h-2.5 w-2.5" />
+            {mes !== -1 && (
+              <>
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>{labelPaa}:</span>
+                  <span className="font-medium">{formatCurrency(paa.data.receitaBruta)}</span>
+                </div>
+                {paa.data.receitaBruta > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    variacaoPaaReceita.isPositive
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {variacaoPaaReceita.isPositive ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {variacaoPaaReceita.percent.toFixed(1)}%
+                    </span>
+                  </div>
                 )}
-                <span>
-                  {variacaoPaaReceita.percent.toFixed(1)}%
-                </span>
-              </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -161,7 +170,7 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
           
           <div className="mt-2 space-y-1">
             <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-              <span>PAM ({pam.ano}):</span>
+              <span>{labelPam}:</span>
               <span className="font-medium">{formatCurrency(pam.data.cmv)}</span>
             </div>
             {pam.data.cmv > 0 && (
@@ -180,25 +189,29 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
                 </span>
               </div>
             )}
-            <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-              <span>PAA ({paa.ano}):</span>
-              <span className="font-medium">{formatCurrency(paa.data.cmv)}</span>
-            </div>
-            {paa.data.cmv > 0 && (
-              <div className={`text-[10px] flex items-center gap-1 ${
-                current.cmv <= paa.data.cmv
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}>
-                {current.cmv <= paa.data.cmv ? (
-                  <TrendingDown className="h-2.5 w-2.5" />
-                ) : (
-                  <TrendingUp className="h-2.5 w-2.5" />
+            {mes !== -1 && (
+              <>
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>{labelPaa}:</span>
+                  <span className="font-medium">{formatCurrency(paa.data.cmv)}</span>
+                </div>
+                {paa.data.cmv > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    current.cmv <= paa.data.cmv
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {current.cmv <= paa.data.cmv ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {Math.abs(variacaoPaaCmv.percent).toFixed(1)}%
+                    </span>
+                  </div>
                 )}
-                <span>
-                  {Math.abs(variacaoPaaCmv.percent).toFixed(1)}%
-                </span>
-              </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -218,7 +231,7 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
           
           <div className="mt-2 space-y-1">
             <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-              <span>PAM ({pam.ano}):</span>
+              <span>{labelPam}:</span>
               <span className="font-medium">{formatCurrency(pam.data.lucroBruto)}</span>
             </div>
             {pam.data.lucroBruto > 0 && (
@@ -237,25 +250,29 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
                 </span>
               </div>
             )}
-            <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-              <span>PAA ({paa.ano}):</span>
-              <span className="font-medium">{formatCurrency(paa.data.lucroBruto)}</span>
-            </div>
-            {paa.data.lucroBruto > 0 && (
-              <div className={`text-[10px] flex items-center gap-1 ${
-                variacaoPaaLucroBruto.isPositive
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}>
-                {variacaoPaaLucroBruto.isPositive ? (
-                  <TrendingUp className="h-2.5 w-2.5" />
-                ) : (
-                  <TrendingDown className="h-2.5 w-2.5" />
+            {mes !== -1 && (
+              <>
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>{labelPaa}:</span>
+                  <span className="font-medium">{formatCurrency(paa.data.lucroBruto)}</span>
+                </div>
+                {paa.data.lucroBruto > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    variacaoPaaLucroBruto.isPositive
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {variacaoPaaLucroBruto.isPositive ? (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {variacaoPaaLucroBruto.percent.toFixed(1)}%
+                    </span>
+                  </div>
                 )}
-                <span>
-                  {variacaoPaaLucroBruto.percent.toFixed(1)}%
-                </span>
-              </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -277,7 +294,7 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
           
           <div className="mt-2 space-y-1">
             <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-              <span>PAM ({pam.ano}):</span>
+              <span>{labelPam}:</span>
               <span className="font-medium">{formatCurrency(pam.data.totalDespesas)}</span>
             </div>
             {pam.data.totalDespesas > 0 && (
@@ -296,25 +313,29 @@ export function IndicatorsCards({ indicadores, loading }: IndicatorsCardsProps) 
                 </span>
               </div>
             )}
-            <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
-              <span>PAA ({paa.ano}):</span>
-              <span className="font-medium">{formatCurrency(paa.data.totalDespesas)}</span>
-            </div>
-            {paa.data.totalDespesas > 0 && (
-              <div className={`text-[10px] flex items-center gap-1 ${
-                current.totalDespesas <= paa.data.totalDespesas
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}>
-                {current.totalDespesas <= paa.data.totalDespesas ? (
-                  <TrendingDown className="h-2.5 w-2.5" />
-                ) : (
-                  <TrendingUp className="h-2.5 w-2.5" />
+            {mes !== -1 && (
+              <>
+                <div className="text-[10px] text-muted-foreground flex items-center justify-between mt-2">
+                  <span>{labelPaa}:</span>
+                  <span className="font-medium">{formatCurrency(paa.data.totalDespesas)}</span>
+                </div>
+                {paa.data.totalDespesas > 0 && (
+                  <div className={`text-[10px] flex items-center gap-1 ${
+                    current.totalDespesas <= paa.data.totalDespesas
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {current.totalDespesas <= paa.data.totalDespesas ? (
+                      <TrendingDown className="h-2.5 w-2.5" />
+                    ) : (
+                      <TrendingUp className="h-2.5 w-2.5" />
+                    )}
+                    <span>
+                      {variacaoPaaDespesas.percent.toFixed(1)}%
+                    </span>
+                  </div>
                 )}
-                <span>
-                  {variacaoPaaDespesas.percent.toFixed(1)}%
-                </span>
-              </div>
+              </>
             )}
           </div>
         </CardContent>

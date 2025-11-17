@@ -19,7 +19,7 @@
 --   p_data_final: End date for filtering
 --   p_tipo_data: NOT USED (kept for backward compatibility)
 --
--- Returns: Flat table with expense records (max 1000 rows per call)
+-- Returns: Flat table with expense records (max 10000 rows per call)
 --
 -- Tables used:
 --   - {schema}.despesas
@@ -28,7 +28,7 @@
 --
 -- Important notes:
 --   - ALWAYS filters by despesas.data_despesa (ignores p_tipo_data parameter)
---   - LIMIT 1000 rows (pagination may be needed for large datasets)
+--   - LIMIT 10000 rows (increased to support annual periods)
 --   - Uses departamentalizacao_nivel1 for department association
 -- =====================================================
 
@@ -77,7 +77,7 @@ BEGIN
     WHERE desp.filial_id = $1
       AND desp.data_despesa BETWEEN $2 AND $3
     ORDER BY d.descricao, td.descricao, desp.data_despesa DESC
-    LIMIT 1000
+    LIMIT 10000
   ', p_schema, p_schema, p_schema)
   USING p_filial_id, p_data_inicial, p_data_final;
 END;
