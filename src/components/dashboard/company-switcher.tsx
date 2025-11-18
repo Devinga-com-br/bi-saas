@@ -103,7 +103,7 @@ export function CompanySwitcher() {
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" side="top">
         <Command>
           <CommandInput placeholder="Buscar empresa..." />
           <CommandList>
@@ -119,7 +119,7 @@ export function CompanySwitcher() {
                       setOpen(false)
                       return
                     }
-                    
+
                     setSwitching(true)
                     setOpen(false)
                     await switchTenant(tenant.id)

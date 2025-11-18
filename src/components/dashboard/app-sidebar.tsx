@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   FileText,
-  ChevronRight,
   LucideIcon,
   Package,
   TrendingUp,
@@ -15,39 +14,29 @@ import {
   Cog,
   ChartBarBig,
   TrendingDown,
+  ShoppingCart,
+  AlertTriangle,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { Badge } from '@/components/ui/badge'
 import { CompanySwitcher } from './company-switcher'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { useAuthorizedModules } from '@/hooks/use-authorized-modules'
 import type { SystemModule } from '@/types/modules'
-
-interface NavigationSubItem {
-  name: string
-  href: string
-  icon: LucideIcon
-  requiresSuperAdmin?: boolean
-  requiresAdminOrAbove?: boolean
-  moduleId?: SystemModule
-}
 
 interface NavigationItem {
   name: string
@@ -56,7 +45,7 @@ interface NavigationItem {
   requiresSuperAdmin?: boolean
   requiresAdminOrAbove?: boolean
   badge?: string
-  items?: NavigationSubItem[]
+  comingSoon?: boolean
   moduleId?: SystemModule
 }
 
@@ -71,59 +60,60 @@ const visaoGeralNavigation: NavigationItem[] = [
 
 const gerencialNavigation: NavigationItem[] = [
   {
-    name: 'DRE Gerêncial',
+    name: 'DRE Gerencial',
     href: '/dre-gerencial',
     icon: ChartBarBig,
     moduleId: 'dre_gerencial',
   },
   {
-    name: 'Descontos Venda',
+    name: 'DRE Comparativo',
+    href: '#',
+    icon: FileText,
+    comingSoon: true,
+  },
+  {
+    name: 'Descontos de Vendas',
     href: '/descontos-venda',
     icon: TrendingDown,
   },
+]
+
+const vendasNavigation: NavigationItem[] = [
   {
-    name: 'Metas',
-    href: '/metas',
-    icon: Target,
-    items: [
-      {
-        name: 'Meta Mensal',
-        href: '/metas/mensal',
-        icon: TrendingUp,
-        moduleId: 'metas_mensal',
-      },
-      {
-        name: 'Meta por Setor',
-        href: '/metas/setor',
-        icon: Target,
-        moduleId: 'metas_setor',
-      },
-    ],
+    name: 'Vendas por Curva',
+    href: '/relatorios/venda-curva',
+    icon: ShoppingCart,
+    moduleId: 'relatorios_venda_curva',
+  },
+]
+
+const metasNavigation: NavigationItem[] = [
+  {
+    name: 'Meta Mensal',
+    href: '/metas/mensal',
+    icon: TrendingUp,
+    moduleId: 'metas_mensal',
   },
   {
-    name: 'Relatórios',
-    href: '/relatorios',
-    icon: FileText,
-    items: [
-      {
-        name: 'Ruptura ABCD',
-        href: '/relatorios/ruptura-abcd',
-        icon: Package,
-        moduleId: 'relatorios_ruptura_abcd',
-      },
-      {
-        name: 'Venda por Curva',
-        href: '/relatorios/venda-curva',
-        icon: TrendingUp,
-        moduleId: 'relatorios_venda_curva',
-      },
-      {
-        name: 'Ruptura Venda 60d',
-        href: '/relatorios/ruptura-venda-60d',
-        icon: Package,
-        moduleId: 'relatorios_ruptura_60d',
-      },
-    ],
+    name: 'Meta por Setor',
+    href: '/metas/setor',
+    icon: Target,
+    moduleId: 'metas_setor',
+  },
+]
+
+const rupturaNavigation: NavigationItem[] = [
+  {
+    name: 'Ruptura ABCD',
+    href: '/relatorios/ruptura-abcd',
+    icon: AlertTriangle,
+    moduleId: 'relatorios_ruptura_abcd',
+  },
+  {
+    name: 'Ruptura Venda 60d',
+    href: '/relatorios/ruptura-venda-60d',
+    icon: Package,
+    moduleId: 'relatorios_ruptura_60d',
   },
 ]
 
@@ -153,7 +143,7 @@ export function AppSidebar() {
     if (item.requiresAdminOrAbove && !isAdminOrAbove) {
       return false
     }
-    // Filter "Descontos Venda" based on tenant parameter
+    // Filter "Descontos de Vendas" based on tenant parameter
     if (item.href === '/descontos-venda' && !parameters.enable_descontos_venda) {
       return false
     }
@@ -162,31 +152,13 @@ export function AppSidebar() {
       return false
     }
     return true
-  }).map(item => {
-    // Filter subitems based on role and authorized modules if the item has subitems
-    if (item.items) {
-      return {
-        ...item,
-        items: item.items.filter(subItem => {
-          if (subItem.requiresSuperAdmin && !isSuperAdmin) {
-            return false
-          }
-          if (subItem.requiresAdminOrAbove && !isAdminOrAbove) {
-            return false
-          }
-          // Filter subitems based on authorized modules
-          if (subItem.moduleId && !hasFullAccess && !hasModuleAccess(subItem.moduleId)) {
-            return false
-          }
-          return true
-        })
-      }
-    }
-    return item
   })
 
   const filteredVisaoGeralNav = filterNavigation(visaoGeralNavigation)
   const filteredGerencialNav = filterNavigation(gerencialNavigation)
+  const filteredVendasNav = filterNavigation(vendasNavigation)
+  const filteredMetasNav = filterNavigation(metasNavigation)
+  const filteredRupturaNav = filterNavigation(rupturaNavigation)
   const filteredAccountNav = filterNavigation(accountNavigation)
 
   // Use tenant ID as key to force re-render when tenant changes
@@ -211,17 +183,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Company Switcher - Only show when sidebar is expanded */}
-        {state === "expanded" && (
-          <SidebarGroup>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <CompanySwitcher />
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-        )}
-
         {/* Visão Geral */}
         <SidebarGroup>
           <SidebarGroupLabel className="relative mb-2">
@@ -233,56 +194,6 @@ export function AppSidebar() {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
               const Icon = item.icon
 
-              if (item.items) {
-                const hasActiveChild = item.items.some((child) =>
-                  pathname === child.href || pathname.startsWith(child.href)
-                )
-
-                return (
-                  <Collapsible key={item.name} asChild defaultOpen={hasActiveChild}>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                          tooltip={item.name}
-                          className={cn((isActive || hasActiveChild) && 'bg-sidebar-accent')}
-                        >
-                          <Icon />
-                          <span>{item.name}</span>
-                          {item.badge && (
-                            <Badge variant="secondary" className="ml-auto text-xs">
-                              {item.badge}
-                            </Badge>
-                          )}
-                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items.map((subItem) => {
-                            const SubIcon = subItem.icon
-                            const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href)
-
-                            return (
-                              <SidebarMenuSubItem key={subItem.name}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isSubActive}
-                                >
-                                  <Link href={subItem.href}>
-                                    <SubIcon />
-                                    <span>{subItem.name}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            )
-                          })}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-                )
-              }
-
               return (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
@@ -293,6 +204,11 @@ export function AppSidebar() {
                     <Link href={item.href}>
                       <Icon />
                       <span>{item.name}</span>
+                      {item.badge && (
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {item.badge}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -309,70 +225,38 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarMenu>
             {filteredGerencialNav.map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '#' && pathname.startsWith(item.href))
               const Icon = item.icon
-
-              if (item.items) {
-                const hasActiveChild = item.items.some((child) =>
-                  pathname === child.href || pathname.startsWith(child.href)
-                )
-
-                return (
-                  <Collapsible key={item.name} asChild defaultOpen={hasActiveChild}>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                          tooltip={item.name}
-                          className={cn((isActive || hasActiveChild) && 'bg-sidebar-accent')}
-                        >
-                          <Icon />
-                          <span>{item.name}</span>
-                          {item.badge && (
-                            <Badge variant="secondary" className="ml-auto text-xs">
-                              {item.badge}
-                            </Badge>
-                          )}
-                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items.map((subItem) => {
-                            const SubIcon = subItem.icon
-                            const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href)
-
-                            return (
-                              <SidebarMenuSubItem key={subItem.name}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isSubActive}
-                                >
-                                  <Link href={subItem.href}>
-                                    <SubIcon />
-                                    <span>{subItem.name}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            )
-                          })}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-                )
-              }
 
               return (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
-                    asChild
+                    asChild={!item.comingSoon}
                     tooltip={item.name}
                     isActive={isActive}
+                    disabled={item.comingSoon}
                   >
-                    <Link href={item.href}>
-                      <Icon />
-                      <span>{item.name}</span>
-                    </Link>
+                    {item.comingSoon ? (
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <Icon />
+                          <span>{item.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          Em breve
+                        </Badge>
+                      </div>
+                    ) : (
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.name}</span>
+                        {item.badge && (
+                          <Badge variant="secondary" className="ml-auto text-xs">
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </Link>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )
@@ -380,7 +264,100 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Conta Section with Divider */}
+        {/* Vendas */}
+        {filteredVendasNav.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="relative mb-2">
+              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Vendas</span>
+              <div className="absolute left-16 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+            </SidebarGroupLabel>
+            <SidebarMenu>
+              {filteredVendasNav.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                const Icon = item.icon
+
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.name}
+                      isActive={isActive}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* Metas */}
+        {filteredMetasNav.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="relative mb-2">
+              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Metas</span>
+              <div className="absolute left-14 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+            </SidebarGroupLabel>
+            <SidebarMenu>
+              {filteredMetasNav.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                const Icon = item.icon
+
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.name}
+                      isActive={isActive}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* Ruptura */}
+        {filteredRupturaNav.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="relative mb-2">
+              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Ruptura</span>
+              <div className="absolute left-16 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+            </SidebarGroupLabel>
+            <SidebarMenu>
+              {filteredRupturaNav.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                const Icon = item.icon
+
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.name}
+                      isActive={isActive}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* Conta */}
         <SidebarGroup>
           <SidebarGroupLabel className="relative mb-2">
             <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Conta</span>
@@ -388,60 +365,9 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarMenu>
             {filteredAccountNav.map((item) => {
+              const isActive = pathname === item.href
               const Icon = item.icon
 
-              if (item.items) {
-                const hasActiveChild = item.items.some((child) =>
-                  pathname === child.href || pathname.startsWith(child.href)
-                )
-                const isActive = pathname === item.href || hasActiveChild
-
-                return (
-                  <Collapsible key={item.name} asChild defaultOpen={hasActiveChild}>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                          tooltip={item.name}
-                          className={cn((isActive || hasActiveChild) && 'bg-sidebar-accent')}
-                        >
-                          <Icon />
-                          <span>{item.name}</span>
-                          {item.badge && (
-                            <Badge variant="secondary" className="ml-auto text-xs">
-                              {item.badge}
-                            </Badge>
-                          )}
-                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items.map((subItem) => {
-                            const SubIcon = subItem.icon
-                            const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href)
-
-                            return (
-                              <SidebarMenuSubItem key={subItem.name}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isSubActive}
-                                >
-                                  <Link href={subItem.href}>
-                                    <SubIcon />
-                                    <span>{subItem.name}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            )
-                          })}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-                )
-              }
-
-              const isActive = pathname === item.href
               return (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
@@ -460,6 +386,17 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* Footer with Company Switcher */}
+      <SidebarFooter>
+        {state === "expanded" && (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <CompanySwitcher />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        )}
+      </SidebarFooter>
     </Sidebar>
   )
 }
