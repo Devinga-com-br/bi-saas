@@ -121,6 +121,14 @@ export default function MetaSetorPage() {
     }
   }, [isLoadingBranches, branches, filiaisSelecionadas.length])
 
+  // Limpar filiais selecionadas ao trocar de tenant
+  useEffect(() => {
+    if (currentTenant) {
+      setFiliaisSelecionadas([])
+      setTempFiliaisSelecionadas([])
+    }
+  }, [currentTenant?.id])
+
   const loadSetores = useCallback(async () => {
     if (!currentTenant) return
 
@@ -130,8 +138,19 @@ export default function MetaSetorPage() {
       if (!response.ok) throw new Error('Erro ao carregar setores')
       const data = await response.json()
       setSetores(data)
-      if (data.length > 0 && !selectedSetor) {
-        setSelectedSetor(data[0].id.toString())
+
+      // Limpar setor selecionado ao trocar de empresa
+      // para evitar tentar carregar metas com ID incorreto
+      setSelectedSetor('')
+      setMetasData({})
+      setExpandedDates({})
+
+      if (data.length > 0) {
+        // Selecionar primeiro setor após um delay para garantir que
+        // as filiais já foram carregadas para o novo tenant
+        setTimeout(() => {
+          setSelectedSetor(data[0].id.toString())
+        }, 100)
       }
     } catch (error) {
       console.error('Error loading setores:', error)
@@ -139,7 +158,7 @@ export default function MetaSetorPage() {
     } finally {
       setLoadingSetores(false)
     }
-  }, [currentTenant, selectedSetor])
+  }, [currentTenant])
 
   const loadMetasPorSetor = useCallback(async () => {
     // Função para atualizar valores realizados de TODOS os setores
@@ -266,12 +285,23 @@ export default function MetaSetorPage() {
 
   // Carregar metas ao montar com todas as filiais
   useEffect(() => {
-    if (selectedSetor && mes && ano && !isLoadingBranches && filiaisSelecionadas.length > 0) {
+    // Adiciona verificação para não carregar se estiver trocando de tenant
+    // (verifica se tem tenant, setor e filiais disponíveis)
+    if (
+      currentTenant &&
+      selectedSetor &&
+      mes &&
+      ano &&
+      !isLoadingBranches &&
+      !loadingSetores &&
+      filiaisSelecionadas.length > 0 &&
+      branches.length > 0
+    ) {
       console.log('[METAS_SETOR] 📍 Carregamento inicial com todas as filiais')
       loadMetasPorSetor()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSetor, mes, ano, isLoadingBranches, filiaisSelecionadas])
+  }, [selectedSetor, mes, ano, isLoadingBranches, loadingSetores, filiaisSelecionadas, branches])
 
   // Função para aplicar filtros
   const handleFiltrar = () => {
