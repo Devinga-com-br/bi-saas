@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,11 +13,12 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency, formatPercentage } from '@/lib/chart-config'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
 import { DashboardFilter, type FilterType } from '@/components/dashboard/dashboard-filter'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
+import { Button } from '@/components/ui/button'
 
 // Estrutura de dados da API
 interface DashboardData {
@@ -103,6 +104,10 @@ interface VendaPorFilial {
   delta_margem: number
 }
 
+// Tipos para ordenação
+type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro'
+type SortDirection = 'asc' | 'desc'
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage() {
@@ -113,6 +118,10 @@ export default function DashboardPage() {
   const [dataFim, setDataFim] = useState<Date>(new Date())
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [filterType, setFilterType] = useState<FilterType>('month')
+
+  // Estados para ordenação da tabela
+  const [sortColumn, setSortColumn] = useState<SortColumn>('filial_id')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   // Estado para os parâmetros que serão enviados à API
   const [apiParams, setApiParams] = useState({
@@ -324,7 +333,74 @@ export default function DashboardPage() {
     : null
   const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(vendasFilialUrl, fetcher, { refreshInterval: 0 });
 
+  // Função para lidar com clique no cabeçalho da coluna
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Se já está ordenando por esta coluna, inverte a direção
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Se é uma nova coluna, ordena ascendente
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
 
+  // Dados ordenados usando useMemo para performance
+  const sortedVendasPorFilial = useMemo(() => {
+    if (!vendasPorFilial || vendasPorFilial.length === 0) return vendasPorFilial
+
+    const sorted = [...vendasPorFilial].sort((a, b) => {
+      let aValue: number
+      let bValue: number
+
+      switch (sortColumn) {
+        case 'filial_id':
+          aValue = a.filial_id
+          bValue = b.filial_id
+          break
+        case 'valor_total':
+          aValue = a.valor_total
+          bValue = b.valor_total
+          break
+        case 'ticket_medio':
+          aValue = a.ticket_medio
+          bValue = b.ticket_medio
+          break
+        case 'custo_total':
+          aValue = a.custo_total
+          bValue = b.custo_total
+          break
+        case 'total_lucro':
+          aValue = a.total_lucro
+          bValue = b.total_lucro
+          break
+        case 'margem_lucro':
+          aValue = a.margem_lucro
+          bValue = b.margem_lucro
+          break
+        default:
+          return 0
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue - bValue
+      } else {
+        return bValue - aValue
+      }
+    })
+
+    return sorted
+  }, [vendasPorFilial, sortColumn, sortDirection])
+
+  // Componente de ícone para ordenação
+  const SortIcon = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+    }
+    return sortDirection === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
 
   // Buscar filiais reais do tenant atual
   const { options: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
@@ -521,21 +597,81 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          ) : vendasPorFilial && vendasPorFilial.length > 0 ? (
+          ) : sortedVendasPorFilial && sortedVendasPorFilial.length > 0 ? (
             <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">Filial</TableHead>
-                    <TableHead className="text-right">Receita Bruta</TableHead>
-                    <TableHead className="text-right">Ticket Médio</TableHead>
-                    <TableHead className="text-right">Custo</TableHead>
-                    <TableHead className="text-right">Lucro Bruto</TableHead>
-                    <TableHead className="text-right">Margem Bruta</TableHead>
+                    <TableHead className="w-[80px]">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent"
+                        onClick={() => handleSort('filial_id')}
+                      >
+                        Filial
+                        <SortIcon column="filial_id" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('valor_total')}
+                      >
+                        Receita Bruta
+                        <SortIcon column="valor_total" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('ticket_medio')}
+                      >
+                        Ticket Médio
+                        <SortIcon column="ticket_medio" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('custo_total')}
+                      >
+                        Custo
+                        <SortIcon column="custo_total" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('total_lucro')}
+                      >
+                        Lucro Bruto
+                        <SortIcon column="total_lucro" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('margem_lucro')}
+                      >
+                        Margem Bruta
+                        <SortIcon column="margem_lucro" />
+                      </Button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vendasPorFilial.map((venda) => {
+                  {sortedVendasPorFilial.map((venda) => {
                     const delta_ticket_percent = venda.pa_ticket_medio > 0 
                       ? ((venda.ticket_medio - venda.pa_ticket_medio) / venda.pa_ticket_medio) * 100 
                       : 0
@@ -646,10 +782,10 @@ export default function DashboardPage() {
                       </TableRow>
                     )
                   })}
-                  
+
                   {/* Linha de Totalização */}
-                  {vendasPorFilial && vendasPorFilial.length > 0 && (() => {
-                    const totais = vendasPorFilial.reduce((acc, venda) => ({
+                  {sortedVendasPorFilial && sortedVendasPorFilial.length > 0 && (() => {
+                    const totais = sortedVendasPorFilial.reduce((acc, venda) => ({
                       valor_total: acc.valor_total + venda.valor_total,
                       pa_valor_total: acc.pa_valor_total + venda.pa_valor_total,
                       total_transacoes: acc.total_transacoes + venda.total_transacoes,
