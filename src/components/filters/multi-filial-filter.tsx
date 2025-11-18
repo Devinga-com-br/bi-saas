@@ -126,33 +126,34 @@ export function MultiFilialFilter({
               value={searchValue}
               onValueChange={setSearchValue}
             />
-            <CommandList>
+
+            {filteredFiliais.length === 0 ? (
               <CommandEmpty>Nenhuma filial encontrada.</CommandEmpty>
+            ) : (
+              <div className="max-h-[320px] overflow-hidden">
+                {/* Ações rápidas */}
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={selectAll}
+                    className="cursor-pointer"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Selecionar todas ({filiais.length})
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={clearAll}
+                    className="cursor-pointer"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Limpar seleção
+                  </CommandItem>
+                </CommandGroup>
 
-              {/* Ações rápidas */}
-              <CommandGroup>
-                <CommandItem
-                  onSelect={selectAll}
-                  className="cursor-pointer"
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Selecionar todas ({filiais.length})
-                </CommandItem>
-                <CommandItem
-                  onSelect={clearAll}
-                  className="cursor-pointer"
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Limpar seleção
-                </CommandItem>
-              </CommandGroup>
+                <CommandSeparator />
 
-              <CommandSeparator />
-
-              {/* Lista de filiais - Limita a 5 visíveis com scroll */}
-              <CommandGroup>
+                {/* Lista de filiais com ScrollArea */}
                 <ScrollArea className="h-[220px]">
-                  <div className="pr-4">
+                  <CommandGroup>
                     {filteredFiliais.map((filial) => {
                       const isSelected = selectedSet.has(filial.value)
                       return (
@@ -160,7 +161,7 @@ export function MultiFilialFilter({
                           key={filial.value}
                           value={filial.value}
                           onSelect={() => toggleFilial(filial)}
-                          className="cursor-pointer h-11"
+                          className="cursor-pointer"
                         >
                           <Checkbox
                             checked={isSelected}
@@ -174,10 +175,10 @@ export function MultiFilialFilter({
                         </CommandItem>
                       )
                     })}
-                  </div>
+                  </CommandGroup>
                 </ScrollArea>
-              </CommandGroup>
-            </CommandList>
+              </div>
+            )}
           </Command>
         </PopoverContent>
       </Popover>

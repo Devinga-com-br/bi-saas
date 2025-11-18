@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -15,7 +15,12 @@ import { EmptyState } from '@/components/despesas/empty-state'
 import { LoadingState } from '@/components/despesas/loading-state'
 import { IndicatorsCards } from '@/components/despesas/indicators-cards'
 import { Separator } from '@/components/ui/separator'
-import { Receipt } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Receipt, FileDown } from 'lucide-react'
+import { MultiFilialFilter } from '@/components/filters'
 
 // Interfaces para dados estruturados por filial
 interface DespesaPorFilial {
@@ -96,6 +101,14 @@ interface ReceitaBrutaPorFilial {
   total_lucro_bruto: number // Soma total do lucro bruto
 }
 
+interface PDFRowData {
+  descricao: string
+  [key: string]: string | number // Permite propriedades dinâmicas como filial_1, filial_2, total
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AutoTableConfig = any
+
 export default function DespesasPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
@@ -122,6 +135,12 @@ export default function DespesasPage() {
   const [loading, setLoading] = useState(false)
   const [loadingIndicadores, setLoadingIndicadores] = useState(false)
   const [error, setError] = useState('')
+
+  // Estados do modal de configuração de PDF
+  const [showPdfConfig, setShowPdfConfig] = useState(false)
+  const [filiaisPdf, setFiliaisPdf] = useState<FilialOption[]>([])
+  const [incluirReceitaBruta, setIncluirReceitaBruta] = useState(true)
+  const [incluirLucroLiquido, setIncluirLucroLiquido] = useState(true)
 
   // Pré-selecionar todas as filiais ao carregar
   useEffect(() => {
@@ -242,6 +261,366 @@ export default function DespesasPage() {
       return null
     }
   }
+
+  // ==================== FUNÇÕES DE EXPORTAÇÃO PDF ====================
+
+  // Função para obter configuração de PDF baseada no número de filiais
+  const getConfigPDF = (numFiliais: number) => {
+    const numColunas = numFiliais + 2 // +2 para descrição e total
+
+    let config = {
+      format: 'a4' as 'a4' | 'a3',
+      fontSize: 7,
+      cellPadding: 1.5,
+      descWidth: 80,
+      filialWidth: 20,
+      useRotation: false,
+      useHorizontalBreak: false
+    }
+
+    if (numColunas <= 7) {
+      // Até 5 filiais - A4 confortável
+      config = { ...config, fontSize: 8, cellPadding: 2 }
+    } else if (numColunas <= 12) {
+      // 6-10 filiais - A4 compacto
+      config = { ...config, fontSize: 6, cellPadding: 1, descWidth: 60, filialWidth: 18 }
+    } else if (numColunas <= 17) {
+      // 11-15 filiais - A3
+      config = { ...config, format: 'a3', fontSize: 7 }
+    } else if (numColunas <= 27) {
+      // 16-25 filiais - A4 com rotação
+      config = {
+        ...config,
+        fontSize: 6,
+        descWidth: 70,
+        filialWidth: 12,
+        useRotation: true
+      }
+    } else {
+      // Mais de 25 filiais - quebra horizontal
+      config = { ...config, fontSize: 6, useHorizontalBreak: true }
+    }
+
+    return config
+  }
+
+  // Função para preparar dados hierárquicos para formato plano do PDF
+  const prepararDadosParaPDF = (reportData: ReportData, filiaisOrdenadas: FilialOption[]) => {
+    const rows: PDFRowData[] = []
+
+    const formatCurrency = (value: number) => {
+      return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(value)
+    }
+
+    // Calcular totais por filial somando todos os departamentos
+    const totaisPorFilial: Record<number, number> = {}
+    filiaisOrdenadas.forEach(f => {
+      const filialId = Number(f.value)
+      totaisPorFilial[filialId] = 0
+    })
+
+    // Processar cada departamento
+    reportData.departamentos.forEach((dept) => {
+      // Acumular totais por filial
+      filiaisOrdenadas.forEach(f => {
+        const filialId = Number(f.value)
+        totaisPorFilial[filialId] += dept.valores_filiais[filialId] || 0
+      })
+
+      // Linha do departamento
+      const deptRow: PDFRowData = {
+        descricao: dept.dept_descricao,
+        ...Object.fromEntries(
+          filiaisOrdenadas.map(f => {
+            const filialId = Number(f.value)
+            return [
+              `filial_${f.value}`,
+              formatCurrency(dept.valores_filiais[filialId] || 0)
+            ]
+          })
+        ),
+        total: formatCurrency(
+          Object.values(dept.valores_filiais).reduce((sum, val) => sum + val, 0)
+        )
+      }
+      rows.push(deptRow)
+
+      // Linhas dos tipos dentro do departamento
+      dept.tipos.forEach((tipo) => {
+        const tipoRow: PDFRowData = {
+          descricao: `  ${tipo.tipo_descricao}`, // Indentação visual
+          ...Object.fromEntries(
+            filiaisOrdenadas.map(f => {
+              const filialId = Number(f.value)
+              return [
+                `filial_${f.value}`,
+                formatCurrency(tipo.valores_filiais[filialId] || 0)
+              ]
+            })
+          ),
+          total: formatCurrency(
+            Object.values(tipo.valores_filiais).reduce((sum, val) => sum + val, 0)
+          )
+        }
+        rows.push(tipoRow)
+      })
+    })
+
+    // Linha de total geral
+    const totalGeral = Object.values(totaisPorFilial).reduce((sum, val) => sum + val, 0)
+    const totalRow: PDFRowData = {
+      descricao: 'TOTAL GERAL',
+      ...Object.fromEntries(
+        filiaisOrdenadas.map(f => {
+          const filialId = Number(f.value)
+          return [
+            `filial_${f.value}`,
+            formatCurrency(totaisPorFilial[filialId] || 0)
+          ]
+        })
+      ),
+      total: formatCurrency(totalGeral)
+    }
+    rows.push(totalRow)
+
+    return rows
+  }
+
+  // Função para abrir modal de configuração
+  const handleOpenPdfConfig = () => {
+    // Inicializar com todas as filiais selecionadas (limitado a 10)
+    const filiaisIniciais = filiaisSelecionadas.slice(0, 10)
+    setFiliaisPdf(filiaisIniciais)
+    setShowPdfConfig(true)
+  }
+
+  // Função principal de exportação para PDF
+  const handleExportarPDF = async () => {
+    if (!data || !currentTenant || filiaisPdf.length === 0) {
+      return
+    }
+
+    // Fechar modal
+    setShowPdfConfig(false)
+
+    try {
+      setLoading(true)
+
+      // Dynamic imports para não aumentar bundle inicial
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      const numFiliais = filiaisPdf.length
+      const config = getConfigPDF(numFiliais)
+
+      // Criar documento PDF
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: config.format,
+      })
+
+      // Preparar headers
+      const headers = [
+        'Descrição',
+        ...filiaisPdf.map(f => f.label),
+        'Total'
+      ]
+
+      // Preparar dados
+      const tableData = prepararDadosParaPDF(data, filiaisPdf)
+
+      // Adicionar linha de Receita Bruta se configurado
+      let bodyDataWithOptions: (string | number)[][] = []
+
+      if (incluirReceitaBruta && receitaPorFilial) {
+        const receitaRow = [
+          'RECEITA BRUTA',
+          ...filiaisPdf.map(f => {
+            const filialId = Number(f.value)
+            const valor = receitaPorFilial.valores_filiais[filialId] || 0
+            return new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(valor)
+          }),
+          new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(receitaPorFilial.total)
+        ]
+        bodyDataWithOptions.push(receitaRow)
+      }
+
+      // Extrair apenas os valores para autoTable (array de arrays)
+      const despesasData = tableData.map(row => [
+        row.descricao,
+        ...filiaisPdf.map(f => row[`filial_${f.value}`]),
+        row.total
+      ])
+
+      bodyDataWithOptions = [...bodyDataWithOptions, ...despesasData]
+
+      // Adicionar linha de Lucro Líquido se configurado
+      if (incluirLucroLiquido && receitaPorFilial && indicadores) {
+        const lucroLiquidoRow = [
+          'LUCRO LÍQUIDO',
+          ...filiaisPdf.map(f => {
+            const filialId = Number(f.value)
+            const receita = receitaPorFilial.valores_filiais[filialId] || 0
+            const despesa = data.departamentos.reduce((sum, dept) => {
+              return sum + (dept.valores_filiais[filialId] || 0)
+            }, 0)
+            const lucro = receita - despesa
+            return new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(lucro)
+          }),
+          new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(indicadores.current.lucroLiquido)
+        ]
+        bodyDataWithOptions.push(lucroLiquidoRow)
+      }
+
+      const bodyData = bodyDataWithOptions
+
+      // Configurar column styles
+      const numColunas = numFiliais + 2
+      const columnStyles: Record<number, AutoTableConfig> = {
+        0: { cellWidth: config.descWidth, halign: 'left' },
+        [numColunas - 1]: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+      }
+
+      for (let i = 1; i < numColunas - 1; i++) {
+        columnStyles[i] = { cellWidth: config.filialWidth, halign: 'right' }
+      }
+
+      // Título e informações do relatório
+      const pageWidth = doc.internal.pageSize.getWidth()
+
+      doc.setFontSize(16)
+      doc.text('Demonstração do Resultado do Exercício', pageWidth / 2, 15, { align: 'center' })
+
+      doc.setFontSize(10)
+      const tenantNome = currentTenant.name || 'Empresa'
+      doc.text(tenantNome, pageWidth / 2, 22, { align: 'center' })
+
+      // Período filtrado
+      const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      const periodoTexto = mes === -1
+        ? `Período: ${ano} (Ano Completo)`
+        : `Período: ${mesNomes[mes]}/${ano}`
+
+      doc.setFontSize(9)
+      doc.text(periodoTexto, pageWidth / 2, 28, { align: 'center' })
+
+      // Data de geração
+      doc.setFontSize(8)
+      const dataGeracao = `Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
+      doc.text(dataGeracao, pageWidth / 2, 33, { align: 'center' })
+
+      // Configurar tabela
+      const tableConfig: AutoTableConfig = {
+        head: [headers],
+        body: bodyData,
+        startY: 38,
+        styles: {
+          fontSize: config.fontSize,
+          cellPadding: config.cellPadding,
+          cellWidth: 'wrap',
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+          minCellHeight: config.useRotation ? 45 : 10
+        },
+        columnStyles,
+        margin: { left: 10, right: 10 },
+        didParseCell: (data: AutoTableConfig) => {
+          // Destacar linha de TOTAL GERAL
+          if (data.row.index === bodyData.length - 1) {
+            data.cell.styles.fillColor = [240, 240, 240]
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.fontSize = config.fontSize + 1
+          }
+          // Destacar linhas de departamentos (sem indentação)
+          if (data.section === 'body' && data.column.index === 0) {
+            const text = data.cell.text[0]
+            if (text && !text.startsWith('  ') && text !== 'TOTAL GERAL') {
+              data.cell.styles.fontStyle = 'bold'
+              data.cell.styles.fillColor = [245, 245, 250]
+            }
+          }
+        }
+      }
+
+      if (config.useHorizontalBreak) {
+        tableConfig.horizontalPageBreak = true
+        tableConfig.horizontalPageBreakRepeat = [0]
+      }
+
+      if (config.useRotation) {
+        tableConfig.didDrawCell = (data: AutoTableConfig) => {
+          if (data.section === 'head' && data.column.index > 0 && data.column.index < numColunas - 1) {
+            const cell = data.cell
+            const text = cell.text[0]
+
+            doc.setTextColor(255, 255, 255)
+            doc.setFontSize(config.fontSize)
+
+            const x = cell.x + cell.width / 2
+            const y = cell.y + cell.height - 2
+
+            // jsPDF 3.x sintaxe: text(texto, x, y, options, transform)
+            doc.text(text, x, y, {
+              align: 'left',
+              angle: 90
+            })
+          }
+        }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      autoTable(doc as any, tableConfig)
+
+      // Adicionar aviso se formato A3
+      if (config.format === 'a3') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const finalY = (doc as any).lastAutoTable.finalY
+        doc.setFontSize(8)
+        doc.setTextColor(200, 0, 0)
+        doc.text(
+          'Nota: Este PDF está em formato A3. Necessita impressora A3 para impressão em tamanho real.',
+          14,
+          finalY + 10
+        )
+      }
+
+      // Salvar PDF
+      const tenantSlug = (currentTenant.name || 'empresa').toLowerCase().replace(/\s/g, '-')
+      const periodoSlug = mes === -1 ? `${ano}` : `${mes + 1}-${ano}`
+      const nomeArquivo = `dre-gerencial-${tenantSlug}-${periodoSlug}-${Date.now()}.pdf`
+      doc.save(nomeArquivo)
+
+    } catch (err) {
+      console.error('[PDF Export] Erro ao exportar PDF:', err)
+      alert(`Erro ao exportar PDF: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ==================== FIM DAS FUNÇÕES DE EXPORTAÇÃO PDF ====================
 
   // Função para aplicar filtros (chamada pelo botão Filtrar)
   const handleFilter = async (filiais: FilialOption[], mesParam: number, anoParam: number) => {
@@ -859,9 +1238,26 @@ export default function DespesasPage() {
           <div className="w-full min-w-0">
             <Card className="overflow-hidden">
               <CardHeader className="pb-2 pt-4">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  Detalhamento de Despesas
-                </CardTitle>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      Demonstração do Resultado do Exercício
+                    </CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground mt-1">
+                      Receita Bruta, Despesas e Lucro Líquido
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={handleOpenPdfConfig}
+                    disabled={loading || !data}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Exportar PDF
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="overflow-x-hidden pt-2 pb-4">
                 <DataTable
@@ -888,6 +1284,123 @@ export default function DespesasPage() {
           </div>
         )
       })()}
+
+      {/* Modal de Configuração de PDF */}
+      <Dialog open={showPdfConfig} onOpenChange={setShowPdfConfig}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Configurar Exportação PDF</DialogTitle>
+            <DialogDescription>
+              Escolha as filiais e opções para incluir no relatório
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Seleção de Filiais */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Filiais para Impressão</Label>
+                <span className="text-sm text-muted-foreground">
+                  {filiaisPdf.length} de 10 selecionadas
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Selecione até 10 filiais para incluir no PDF
+              </p>
+
+              <MultiFilialFilter
+                filiais={filiaisSelecionadas}
+                selectedFiliais={filiaisPdf}
+                onChange={(novasFiliais) => {
+                  // Limitar a 10 filiais
+                  if (novasFiliais.length <= 10) {
+                    setFiliaisPdf(novasFiliais)
+                  } else {
+                    alert('Você pode selecionar no máximo 10 filiais')
+                  }
+                }}
+                placeholder="Selecione até 10 filiais..."
+              />
+
+              {filiaisPdf.length === 0 && (
+                <p className="text-sm text-red-600">
+                  Selecione pelo menos uma filial
+                </p>
+              )}
+
+              {filiaisPdf.length > 10 && (
+                <p className="text-sm text-red-600">
+                  Máximo de 10 filiais permitidas
+                </p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Opções de Conteúdo */}
+            <div className="space-y-4">
+              <Label className="text-base font-medium">Opções de Conteúdo</Label>
+
+              {/* Receita Bruta */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-receita"
+                  checked={incluirReceitaBruta}
+                  onCheckedChange={(checked) => setIncluirReceitaBruta(checked as boolean)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label
+                    htmlFor="incluir-receita"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Emitir Receita Bruta
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Incluir linha de Receita Bruta no início do relatório
+                  </p>
+                </div>
+              </div>
+
+              {/* Lucro Líquido */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-lucro"
+                  checked={incluirLucroLiquido}
+                  onCheckedChange={(checked) => setIncluirLucroLiquido(checked as boolean)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label
+                    htmlFor="incluir-lucro"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Emitir Lucro Líquido
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Incluir linha de Lucro Líquido no final do relatório
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPdfConfig(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExportarPDF}
+              disabled={filiaisPdf.length === 0 || filiaisPdf.length > 10}
+              className="gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              Gerar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
