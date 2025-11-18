@@ -2,7 +2,9 @@
 
 import { useState, useEffect, Fragment, useCallback, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ptBR } from 'date-fns/locale'
+import { usePathname } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -31,7 +33,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronDown, ChevronRight, Plus, Target, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Target, Loader2, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -39,7 +41,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DatePicker } from '@/components/ui/date-picker'
 import { MultiFilialFilter, type FilialOption } from '@/components/filters'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
-import { RefreshCw } from 'lucide-react'
 
 interface Setor {
   id: number
@@ -65,6 +66,7 @@ interface MetaSetor {
 }
 
 export default function MetaSetorPage() {
+  const pathname = usePathname()
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
     tenantId: currentTenant?.id,
@@ -93,6 +95,7 @@ export default function MetaSetorPage() {
   // Ref para evitar múltiplas chamadas simultâneas de atualização
   const isUpdatingRef = useRef(false)
   const lastUpdateKey = useRef<string>('')
+  const lastPathname = useRef<string>(pathname)
 
   // Dialog para gerar meta
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -124,7 +127,7 @@ export default function MetaSetorPage() {
       setFiliaisSelecionadas(branches)
       setTempFiliaisSelecionadas(branches)
     }
-  }, [isLoadingBranches, branches.length, filiaisSelecionadas.length])
+  }, [isLoadingBranches, branches, branches.length, filiaisSelecionadas.length])
 
   // Limpar filiais selecionadas ao trocar de tenant
   useEffect(() => {
@@ -167,23 +170,11 @@ export default function MetaSetorPage() {
 
   const loadMetasPorSetor = useCallback(async () => {
     if (!currentTenant || !selectedSetor || filiaisSelecionadas.length === 0) {
-      console.log('[METAS_SETOR] ⚠️ Não carregar: filiais vazias', {
-        currentTenant: !!currentTenant,
-        selectedSetor,
-        filiaisLength: filiaisSelecionadas.length
-      })
       return
     }
 
-    console.log('[METAS_SETOR] 🚀 INÍCIO loadMetasPorSetor')
     setLoading(true)
     try {
-      console.log('[METAS_SETOR] 📥 Carregando metas do setor:', {
-        setor_id: selectedSetor,
-        mes,
-        ano,
-        filiais: filiaisSelecionadas.length
-      })
 
       // Atualizar valores realizados APENAS se não estiver já atualizando
       // e se for um novo período (evita loop infinito)
@@ -193,8 +184,6 @@ export default function MetaSetorPage() {
       if (shouldUpdate) {
         isUpdatingRef.current = true
         lastUpdateKey.current = updateKey
-
-        console.log('[METAS_SETOR] 🔄 Atualizando valores realizados (primeira vez para este período)...')
 
         try {
           const updateResponse = await fetch('/api/metas/setor/update-valores', {
@@ -207,21 +196,15 @@ export default function MetaSetorPage() {
             }),
           })
 
-          if (updateResponse.ok) {
-            const result = await updateResponse.json()
-            console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
-          } else {
-            // Não bloqueia o carregamento, apenas loga o erro
+          if (!updateResponse.ok) {
             const error = await updateResponse.json().catch(() => ({ error: 'Erro desconhecido' }))
-            console.warn('[METAS_SETOR] ⚠️ Erro ao atualizar valores (não crítico):', error)
+            console.warn('[METAS_SETOR] Erro ao atualizar valores:', error)
           }
         } catch (error) {
-          console.warn('[METAS_SETOR] ⚠️ Erro ao atualizar valores (não crítico):', error)
+          console.warn('[METAS_SETOR] Erro ao atualizar valores:', error)
         } finally {
           isUpdatingRef.current = false
         }
-      } else {
-        console.log('[METAS_SETOR] ⏭️ Pulando atualização (já foi feita para este período)')
       }
 
       const params = new URLSearchParams({
@@ -238,9 +221,7 @@ export default function MetaSetorPage() {
 
       params.append('filial_id', filialIds)
 
-      console.log('[METAS_SETOR] 🔍 Fazendo request para report:', `/api/metas/setor/report?${params}`)
       const response = await fetch(`/api/metas/setor/report?${params}`)
-      console.log('[METAS_SETOR] 📨 Response recebida:', { ok: response.ok, status: response.status })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
@@ -265,17 +246,10 @@ export default function MetaSetorPage() {
 
       // Se retornou array vazio, não é erro
       if (Array.isArray(data) && data.length === 0) {
-        console.log('[METAS_SETOR] ℹ️ Nenhuma meta encontrada para o período')
         setMetasData({ [parseInt(selectedSetor)]: [] })
         setExpandedDates({})
         return
       }
-
-      console.log('[METAS_SETOR] 📊 Metas carregadas:', {
-        total: data.length,
-        primeiraData: data[0]?.data,
-        ultimaData: data[data.length - 1]?.data
-      })
 
       setMetasData({ [parseInt(selectedSetor)]: data })
 
@@ -285,14 +259,11 @@ export default function MetaSetorPage() {
         newExpanded[meta.data] = false
       })
       setExpandedDates(newExpanded)
-
-      console.log('[METAS_SETOR] ✅ FIM loadMetasPorSetor - sucesso')
     } catch (error) {
-      console.error('[METAS_SETOR] ❌ Error loading metas:', error)
+      console.error('[METAS_SETOR] Error loading metas:', error)
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       alert(`Erro ao carregar metas: ${errorMessage}\n\nDica: Certifique-se de ter gerado metas para este período.`)
     } finally {
-      console.log('[METAS_SETOR] 🏁 FIM loadMetasPorSetor - finally')
       setLoading(false)
     }
   }, [currentTenant, selectedSetor, mes, ano, filiaisSelecionadas])
@@ -305,23 +276,36 @@ export default function MetaSetorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.id])
 
+  // Detectar mudança de rota e resetar estado
+  useEffect(() => {
+    // Se a rota mudou (veio de outra página), resetar tudo
+    if (lastPathname.current !== pathname) {
+      console.log('[METAS_SETOR_PAGE] 🔄 Rota mudou, resetando estado...', {
+        from: lastPathname.current,
+        to: pathname
+      })
+
+      // Resetar todos os estados
+      setMetasData({})
+      setExpandedDates({})
+      setFiliaisSelecionadas([])
+      setTempFiliaisSelecionadas([])
+      setLoading(false)
+
+      // Limpar cache de atualização
+      lastUpdateKey.current = ''
+      isUpdatingRef.current = false
+
+      // Atualizar ref para nova rota
+      lastPathname.current = pathname
+    }
+  }, [pathname])
+
   // Carregar metas ao montar com todas as filiais
   useEffect(() => {
-    console.log('[METAS_SETOR] 🔄 useEffect disparado:', {
-      currentTenant: !!currentTenant,
-      selectedSetor,
-      mes,
-      ano,
-      isLoadingBranches,
-      loadingSetores,
-      filiaisLength: filiaisSelecionadas.length,
-      branchesLength: branches.length,
-      loading
-    })
-
     // Adiciona verificação para não carregar se estiver trocando de tenant
     // (verifica se tem tenant, setor e filiais disponíveis)
-    if (
+    const shouldLoad = (
       currentTenant &&
       selectedSetor &&
       mes &&
@@ -329,13 +313,24 @@ export default function MetaSetorPage() {
       !isLoadingBranches &&
       !loadingSetores &&
       filiaisSelecionadas.length > 0 &&
-      branches.length > 0 &&
-      !loading  // Não carregar se já está carregando
-    ) {
-      console.log('[METAS_SETOR] 📍 Carregamento inicial com todas as filiais')
+      branches.length > 0
+    )
+
+    console.log('[METAS_SETOR_PAGE] useEffect conditions:', {
+      currentTenant: !!currentTenant,
+      selectedSetor,
+      mes,
+      ano,
+      isLoadingBranches,
+      loadingSetores,
+      filiaisSelecionadas: filiaisSelecionadas.length,
+      branches: branches.length,
+      shouldLoad
+    })
+
+    if (shouldLoad) {
+      console.log('[METAS_SETOR_PAGE] 🔄 Loading metas...')
       loadMetasPorSetor()
-    } else {
-      console.log('[METAS_SETOR] ⏸️ useEffect bloqueado - condições não atendidas')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSetor, mes, ano, isLoadingBranches, loadingSetores, filiaisSelecionadas.length, branches.length])
@@ -385,13 +380,6 @@ export default function MetaSetorPage() {
 
   // Função para aplicar filtros
   const handleFiltrar = () => {
-    console.log('[METAS_SETOR] 🔍 Aplicando filtro:', {
-      tempFiliais: tempFiliaisSelecionadas.length,
-      mes,
-      ano,
-      setor: selectedSetor
-    })
-
     if (tempFiliaisSelecionadas.length === 0) {
       alert('Selecione pelo menos uma filial')
       return
@@ -654,11 +642,76 @@ export default function MetaSetorPage() {
 
   const currentSetorData = selectedSetor ? metasData[parseInt(selectedSetor)] || [] : []
   const currentSetor = setores.find(s => s.id.toString() === selectedSetor)
-  
+
   // Função para obter nome da filial
   const getFilialName = (filialId: number) => {
     const branch = branches.find((f: { value: string; label: string }) => f.value === filialId.toString())
     return branch ? branch.label : `Filial ${filialId}`
+  }
+
+  // Calcular totais do período para os cards
+  const calcularTotaisPeriodo = () => {
+    if (!currentSetorData || currentSetorData.length === 0) {
+      return { totalRealizado: 0, totalMeta: 0, diferenca: 0, percentualAtingido: 0 }
+    }
+
+    let totalRealizado = 0
+    let totalMeta = 0
+
+    currentSetorData.forEach((dia) => {
+      dia.filiais?.forEach((filial) => {
+        totalRealizado += filial.valor_realizado || 0
+        totalMeta += filial.valor_meta || 0
+      })
+    })
+
+    const diferenca = totalRealizado - totalMeta
+    const percentualAtingido = totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0
+
+    return { totalRealizado, totalMeta, diferenca, percentualAtingido }
+  }
+
+  // Calcular totais D-1 (até dia anterior)
+  const calcularTotaisD1 = () => {
+    if (!currentSetorData || currentSetorData.length === 0) {
+      return { totalRealizado: 0, totalMeta: 0, percentualAtingido: 0 }
+    }
+
+    const hoje = new Date()
+    const diaAtual = hoje.getDate()
+
+    let totalRealizado = 0
+    let totalMeta = 0
+
+    currentSetorData.forEach((dia) => {
+      const [year, month, day] = dia.data.split('-').map(Number)
+
+      // Apenas dias anteriores ao atual
+      if (month === mes && year === ano && day < diaAtual) {
+        dia.filiais?.forEach((filial) => {
+          totalRealizado += filial.valor_realizado || 0
+          totalMeta += filial.valor_meta || 0
+        })
+      }
+    })
+
+    const percentualAtingido = totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0
+
+    return { totalRealizado, totalMeta, percentualAtingido }
+  }
+
+  const totaisPeriodo = calcularTotaisPeriodo()
+  const totaisD1 = calcularTotaisD1()
+
+  // Função para obter label das filiais
+  const getFilialLabel = () => {
+    if (filiaisSelecionadas.length === 0) {
+      return 'Todas as Filiais'
+    } else if (filiaisSelecionadas.length === 1) {
+      return filiaisSelecionadas[0].label
+    } else {
+      return `${filiaisSelecionadas.length} Filiais`
+    }
   }
 
   if (loadingSetores) {
@@ -1037,11 +1090,220 @@ export default function MetaSetorPage() {
         </CardContent>
       </Card>
 
+      {/* Cards de Resumo */}
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Skeleton Card 1 */}
+          <Card>
+            <CardHeader className="relative">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-64" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-48" />
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Skeleton Card 2 */}
+          <Card>
+            <CardHeader className="relative">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-56" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-8">
+                {/* Skeleton Gráfico 1 */}
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-32 w-32 rounded-full" />
+                  <Skeleton className="h-4 w-24 mt-4" />
+                </div>
+                {/* Skeleton Gráfico 2 */}
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-32 w-32 rounded-full" />
+                  <Skeleton className="h-4 w-24 mt-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : currentSetorData.length > 0 ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Card: Vendas do Período */}
+          <Card>
+            <CardHeader className="relative">
+              <div className="absolute top-6 right-6">
+                <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                  {getFilialLabel()}
+                </div>
+              </div>
+              <CardTitle>Vendas do Período ({currentSetor?.nome})</CardTitle>
+              <CardDescription>
+                {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="text-3xl font-bold">{formatCurrency(totaisPeriodo.totalRealizado)}</div>
+                <div className="text-sm text-muted-foreground">
+                  Meta: {formatCurrency(totaisPeriodo.totalMeta)}
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {totaisPeriodo.percentualAtingido >= 100 ? (
+                    <>
+                      <ArrowUp className="h-4 w-4 text-green-500" />
+                      <span className="text-green-500 font-medium">
+                        {formatPercentage(totaisPeriodo.percentualAtingido - 100)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="h-4 w-4 text-red-500" />
+                      <span className="text-red-500 font-medium">
+                        {formatPercentage(totaisPeriodo.percentualAtingido - 100)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card: Progresso da Meta */}
+          <Card>
+            <CardHeader className="relative">
+              <div className="absolute top-6 right-6">
+                <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                  {getFilialLabel()}
+                </div>
+              </div>
+              <CardTitle>Progresso da Meta</CardTitle>
+              <CardDescription>Comparativo mensal e até o dia anterior</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-8">
+                {/* Gráfico Mês Completo */}
+                <div className="flex flex-col items-center">
+                  <div className="relative h-32 w-32">
+                    <svg className="h-32 w-32 -rotate-90 transform">
+                      <circle
+                        className="text-muted"
+                        strokeWidth="10"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="56"
+                        cx="64"
+                        cy="64"
+                      />
+                      <circle
+                        className={`${totaisPeriodo.percentualAtingido >= 100 ? 'text-green-500' : 'text-primary'}`}
+                        strokeWidth="10"
+                        strokeDasharray={`${(totaisPeriodo.percentualAtingido / 100) * 351.86} 351.86`}
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="56"
+                        cx="64"
+                        cy="64"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold">
+                        {totaisPeriodo.percentualAtingido.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground mt-4">Mês Completo</p>
+                </div>
+
+                {/* Gráfico D-1 */}
+                <div className="flex flex-col items-center">
+                  <div className="relative h-32 w-32">
+                    <svg className="h-32 w-32 -rotate-90 transform">
+                      <circle
+                        className="text-muted"
+                        strokeWidth="10"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="56"
+                        cx="64"
+                        cy="64"
+                      />
+                      <circle
+                        className={`${totaisD1.percentualAtingido >= 100 ? 'text-green-500' : 'text-primary'}`}
+                        strokeWidth="10"
+                        strokeDasharray={`${(totaisD1.percentualAtingido / 100) * 351.86} 351.86`}
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="56"
+                        cx="64"
+                        cy="64"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold">
+                        {totaisD1.percentualAtingido.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground mt-4">Progresso D-1</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
       {/* Tabela de Metas */}
       {loading ? (
         <Card>
-          <CardContent className="pt-6">
-            <Skeleton className="h-96 w-full" />
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-5 rounded" />
+                <Skeleton className="h-6 w-32" />
+              </div>
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {/* Table Header Skeleton */}
+              <div className="grid grid-cols-9 gap-4 pb-4 border-b">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+
+              {/* Table Rows Skeleton */}
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="grid grid-cols-9 gap-4 py-3 border-b">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : currentSetorData.length > 0 ? (
