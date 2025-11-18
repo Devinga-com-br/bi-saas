@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment, useCallback } from 'react'
+import { useState, useEffect, Fragment, useCallback, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,6 +88,11 @@ export default function MetaSetorPage() {
   const [editingCell, setEditingCell] = useState<{ data: string; filialId: number; field: 'percentual' | 'valor' } | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [isUpdatingValues, setIsUpdatingValues] = useState(false)
+
+  // Ref para evitar múltiplas chamadas simultâneas de atualização
+  const isUpdatingRef = useRef(false)
+  const lastUpdateKey = useRef<string>('')
 
   // Dialog para gerar meta
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -119,7 +124,7 @@ export default function MetaSetorPage() {
       setFiliaisSelecionadas(branches)
       setTempFiliaisSelecionadas(branches)
     }
-  }, [isLoadingBranches, branches, filiaisSelecionadas.length])
+  }, [isLoadingBranches, branches.length, filiaisSelecionadas.length])
 
   // Limpar filiais selecionadas ao trocar de tenant
   useEffect(() => {
@@ -161,41 +166,16 @@ export default function MetaSetorPage() {
   }, [currentTenant])
 
   const loadMetasPorSetor = useCallback(async () => {
-    // Função para atualizar valores realizados de TODOS os setores
-    const atualizarValoresRealizados = async () => {
-      if (!currentTenant) return
-
-      console.log('[METAS_SETOR] 🔄 Atualizando valores realizados de todos os setores...')
-      
-      try {
-        const response = await fetch('/api/metas/setor/update-valores', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            schema: currentTenant.supabase_schema,
-            mes: mes,
-            ano: ano
-          }),
-        })
-
-        const result = await response.json()
-        
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao atualizar valores')
-        }
-
-        console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
-      } catch (error) {
-        console.error('[METAS_SETOR] ❌ Erro ao atualizar valores:', error)
-        // Não bloqueia o carregamento, apenas loga o erro
-      }
-    }
-
     if (!currentTenant || !selectedSetor || filiaisSelecionadas.length === 0) {
-      console.log('[METAS_SETOR] ⚠️ Não carregar: filiais vazias')
+      console.log('[METAS_SETOR] ⚠️ Não carregar: filiais vazias', {
+        currentTenant: !!currentTenant,
+        selectedSetor,
+        filiaisLength: filiaisSelecionadas.length
+      })
       return
     }
 
+    console.log('[METAS_SETOR] 🚀 INÍCIO loadMetasPorSetor')
     setLoading(true)
     try {
       console.log('[METAS_SETOR] 📥 Carregando metas do setor:', {
@@ -205,8 +185,44 @@ export default function MetaSetorPage() {
         filiais: filiaisSelecionadas.length
       })
 
-      // Atualizar valores realizados primeiro
-      await atualizarValoresRealizados()
+      // Atualizar valores realizados APENAS se não estiver já atualizando
+      // e se for um novo período (evita loop infinito)
+      const updateKey = `${currentTenant.supabase_schema}-${mes}-${ano}`
+      const shouldUpdate = !isUpdatingRef.current && lastUpdateKey.current !== updateKey
+
+      if (shouldUpdate) {
+        isUpdatingRef.current = true
+        lastUpdateKey.current = updateKey
+
+        console.log('[METAS_SETOR] 🔄 Atualizando valores realizados (primeira vez para este período)...')
+
+        try {
+          const updateResponse = await fetch('/api/metas/setor/update-valores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              schema: currentTenant.supabase_schema,
+              mes: mes,
+              ano: ano
+            }),
+          })
+
+          if (updateResponse.ok) {
+            const result = await updateResponse.json()
+            console.log('[METAS_SETOR] ✅ Valores atualizados:', result)
+          } else {
+            // Não bloqueia o carregamento, apenas loga o erro
+            const error = await updateResponse.json().catch(() => ({ error: 'Erro desconhecido' }))
+            console.warn('[METAS_SETOR] ⚠️ Erro ao atualizar valores (não crítico):', error)
+          }
+        } catch (error) {
+          console.warn('[METAS_SETOR] ⚠️ Erro ao atualizar valores (não crítico):', error)
+        } finally {
+          isUpdatingRef.current = false
+        }
+      } else {
+        console.log('[METAS_SETOR] ⏭️ Pulando atualização (já foi feita para este período)')
+      }
 
       const params = new URLSearchParams({
         schema: currentTenant.supabase_schema || '',
@@ -222,7 +238,10 @@ export default function MetaSetorPage() {
 
       params.append('filial_id', filialIds)
 
+      console.log('[METAS_SETOR] 🔍 Fazendo request para report:', `/api/metas/setor/report?${params}`)
       const response = await fetch(`/api/metas/setor/report?${params}`)
+      console.log('[METAS_SETOR] 📨 Response recebida:', { ok: response.ok, status: response.status })
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
         console.error('[METAS_SETOR] ❌ Erro na API:', {
@@ -266,11 +285,14 @@ export default function MetaSetorPage() {
         newExpanded[meta.data] = false
       })
       setExpandedDates(newExpanded)
+
+      console.log('[METAS_SETOR] ✅ FIM loadMetasPorSetor - sucesso')
     } catch (error) {
       console.error('[METAS_SETOR] ❌ Error loading metas:', error)
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       alert(`Erro ao carregar metas: ${errorMessage}\n\nDica: Certifique-se de ter gerado metas para este período.`)
     } finally {
+      console.log('[METAS_SETOR] 🏁 FIM loadMetasPorSetor - finally')
       setLoading(false)
     }
   }, [currentTenant, selectedSetor, mes, ano, filiaisSelecionadas])
@@ -285,6 +307,18 @@ export default function MetaSetorPage() {
 
   // Carregar metas ao montar com todas as filiais
   useEffect(() => {
+    console.log('[METAS_SETOR] 🔄 useEffect disparado:', {
+      currentTenant: !!currentTenant,
+      selectedSetor,
+      mes,
+      ano,
+      isLoadingBranches,
+      loadingSetores,
+      filiaisLength: filiaisSelecionadas.length,
+      branchesLength: branches.length,
+      loading
+    })
+
     // Adiciona verificação para não carregar se estiver trocando de tenant
     // (verifica se tem tenant, setor e filiais disponíveis)
     if (
@@ -295,13 +329,59 @@ export default function MetaSetorPage() {
       !isLoadingBranches &&
       !loadingSetores &&
       filiaisSelecionadas.length > 0 &&
-      branches.length > 0
+      branches.length > 0 &&
+      !loading  // Não carregar se já está carregando
     ) {
       console.log('[METAS_SETOR] 📍 Carregamento inicial com todas as filiais')
       loadMetasPorSetor()
+    } else {
+      console.log('[METAS_SETOR] ⏸️ useEffect bloqueado - condições não atendidas')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSetor, mes, ano, isLoadingBranches, loadingSetores, filiaisSelecionadas, branches])
+  }, [selectedSetor, mes, ano, isLoadingBranches, loadingSetores, filiaisSelecionadas.length, branches.length])
+
+  // Função para atualizar valores realizados manualmente (força nova atualização)
+  const handleAtualizarValores = async () => {
+    if (!currentTenant) return
+
+    setIsUpdatingValues(true)
+    try {
+      // Limpar cache para forçar nova atualização
+      const updateKey = `${currentTenant.supabase_schema}-${mes}-${ano}`
+      lastUpdateKey.current = '' // Limpa o cache
+
+      console.log('[METAS_SETOR] 🔄 Forçando atualização manual de valores...')
+
+      const response = await fetch('/api/metas/setor/update-valores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schema: currentTenant.supabase_schema,
+          mes: mes,
+          ano: ano
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao atualizar valores')
+      }
+
+      // Restaurar cache após sucesso
+      lastUpdateKey.current = updateKey
+
+      alert(`✅ Valores atualizados com sucesso!\n\n${result.data?.rows_updated || 0} linhas atualizadas`)
+
+      // Recarregar metas após atualização
+      await loadMetasPorSetor()
+    } catch (error) {
+      console.error('[METAS_SETOR] ❌ Erro ao atualizar valores:', error)
+      alert(`Erro ao atualizar valores: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+    } finally {
+      setIsUpdatingValues(false)
+    }
+  }
 
   // Função para aplicar filtros
   const handleFiltrar = () => {
@@ -311,12 +391,12 @@ export default function MetaSetorPage() {
       ano,
       setor: selectedSetor
     })
-    
+
     if (tempFiliaisSelecionadas.length === 0) {
       alert('Selecione pelo menos uma filial')
       return
     }
-    
+
     setFiliaisSelecionadas(tempFiliaisSelecionadas)
     // A atualização de filiaisSelecionadas vai disparar o useEffect acima
   }
@@ -599,11 +679,12 @@ export default function MetaSetorPage() {
       <div className="flex items-center justify-end gap-2">
         <Button
           variant="outline"
-          onClick={loadMetasPorSetor}
-          disabled={loading}
+          onClick={handleAtualizarValores}
+          disabled={isUpdatingValues || !currentTenant || !selectedSetor}
           className="h-10"
+          title="Atualizar valores realizados com base nas vendas do período"
         >
-          {loading ? (
+          {isUpdatingValues ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Atualizando...
