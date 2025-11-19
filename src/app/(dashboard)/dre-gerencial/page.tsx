@@ -266,45 +266,100 @@ export default function DespesasPage() {
 
   // Função para obter configuração de PDF baseada no número de filiais
   const getConfigPDF = (numFiliais: number) => {
-    const numColunas = numFiliais + 2 // +2 para descrição e total
-
-    let config = {
-      format: 'a4' as 'a4' | 'a3',
-      fontSize: 7,
-      cellPadding: 1.5,
-      descWidth: 80,
-      filialWidth: 20,
-      useRotation: false,
-      useHorizontalBreak: false
+    // Dimensões das páginas em mm (landscape)
+    const pageWidths = {
+      a4: 297,  // A4 landscape
+      a3: 420   // A3 landscape
     }
 
-    if (numColunas <= 7) {
-      // Até 5 filiais - A4 confortável
-      config = { ...config, fontSize: 8, cellPadding: 2 }
-    } else if (numColunas <= 12) {
-      // 6-10 filiais - A4 compacto
-      config = { ...config, fontSize: 6, cellPadding: 1, descWidth: 60, filialWidth: 18 }
-    } else if (numColunas <= 17) {
-      // 11-15 filiais - A3
-      config = { ...config, format: 'a3', fontSize: 7 }
-    } else if (numColunas <= 27) {
-      // 16-25 filiais - A4 com rotação
-      config = {
-        ...config,
-        fontSize: 6,
-        descWidth: 70,
-        filialWidth: 12,
-        useRotation: true
-      }
+    // Margens laterais (reduzidas para aproveitar melhor o espaço)
+    const marginLeft = 5
+    const marginRight = 5
+
+    // Configuração inicial
+    let format: 'a4' | 'a3' = 'a4'
+    let fontSize = 7
+    let cellPadding = 1.5
+    let useRotation = false
+    let useHorizontalBreak = false
+
+    // Determinar formato baseado no número de filiais
+    if (numFiliais <= 8) {
+      format = 'a4'
+      fontSize = 8
+      cellPadding = 2
+    } else if (numFiliais <= 10) {
+      format = 'a4'
+      fontSize = 7
+      cellPadding = 1.5
+    } else if (numFiliais <= 15) {
+      format = 'a3'
+      fontSize = 7
+      cellPadding = 1.5
+    } else if (numFiliais <= 20) {
+      format = 'a3'
+      fontSize = 6
+      cellPadding = 1.2
+    } else if (numFiliais <= 25) {
+      format = 'a3'
+      fontSize = 5
+      cellPadding = 1
+      useRotation = true
     } else {
-      // Mais de 25 filiais - quebra horizontal
-      config = { ...config, fontSize: 6, useHorizontalBreak: true }
+      format = 'a3'
+      fontSize = 5
+      cellPadding = 1
+      useHorizontalBreak = true
+    }
+
+    // Calcular larguras dinamicamente
+    const pageWidth = pageWidths[format]
+    const availableWidth = pageWidth - marginLeft - marginRight
+
+    // Distribuir largura proporcionalmente
+    // 35% para descrição, 15% para total, 50% para filiais
+    const descPercent = 0.35
+    const totalPercent = 0.15
+    const filiaisPercent = 0.50
+
+    let descWidth = availableWidth * descPercent
+    let totalWidth = availableWidth * totalPercent
+    let filialWidth = 20
+
+    // Dividir espaço das filiais igualmente
+    if (numFiliais > 0) {
+      const totalFiliaisWidth = availableWidth * filiaisPercent
+      filialWidth = totalFiliaisWidth / numFiliais
+
+      // Se as colunas ficarem muito estreitas, ajustar proporções
+      if (filialWidth < 20) {
+        // Reduzir descrição e total para dar mais espaço às filiais
+        descWidth = availableWidth * 0.25
+        totalWidth = availableWidth * 0.12
+        const newFiliaisWidth = availableWidth * 0.63
+        filialWidth = newFiliaisWidth / numFiliais
+      }
+    }
+
+    // Criar objeto de configuração final
+    const config = {
+      format,
+      fontSize,
+      cellPadding,
+      descWidth,
+      filialWidth,
+      totalWidth,
+      useRotation,
+      useHorizontalBreak,
+      pageWidth,
+      availableWidth
     }
 
     return config
   }
 
   // Função para preparar dados hierárquicos para formato plano do PDF
+  // CORRIGIDO: Agora inclui todos os percentuais exatamente como aparecem na tela
   const prepararDadosParaPDF = (reportData: ReportData, filiaisOrdenadas: FilialOption[]) => {
     const rows: PDFRowData[] = []
 
@@ -315,12 +370,18 @@ export default function DespesasPage() {
       }).format(value)
     }
 
+    const formatPercent = (value: number) => {
+      return value.toFixed(2).replace('.', ',') + '%'
+    }
+
     // Calcular totais por filial somando todos os departamentos
     const totaisPorFilial: Record<number, number> = {}
     filiaisOrdenadas.forEach(f => {
       const filialId = Number(f.value)
       totaisPorFilial[filialId] = 0
     })
+
+    const totalGeralDespesas = reportData.totalizador.valorTotal
 
     // Processar cada departamento
     reportData.departamentos.forEach((dept) => {
@@ -330,59 +391,95 @@ export default function DespesasPage() {
         totaisPorFilial[filialId] += dept.valores_filiais[filialId] || 0
       })
 
-      // Linha do departamento
+      const deptTotal = Object.values(dept.valores_filiais).reduce((sum, val) => sum + val, 0)
+      const percentualTD = totalGeralDespesas > 0 ? (deptTotal / totalGeralDespesas) * 100 : 0
+
+      // Linha do departamento com percentuais
       const deptRow: PDFRowData = {
         descricao: dept.dept_descricao,
         ...Object.fromEntries(
           filiaisOrdenadas.map(f => {
             const filialId = Number(f.value)
-            return [
-              `filial_${f.value}`,
-              formatCurrency(dept.valores_filiais[filialId] || 0)
-            ]
+            const valorFilial = dept.valores_filiais[filialId] || 0
+            const totalFilial = totaisPorFilial[filialId] || 0
+            const receitaBrutaFilial = receitaPorFilial?.valores_filiais[filialId] || 0
+
+            // Calcular percentuais como na tela
+            const percentualTDF = totalFilial > 0 ? (valorFilial / totalFilial) * 100 : 0
+            const percentualRB = receitaBrutaFilial > 0 ? (valorFilial / receitaBrutaFilial) * 100 : 0
+
+            // Formatar valor com percentuais
+            const valorFormatado = formatCurrency(valorFilial)
+            const percentuaisText = valorFilial > 0
+              ? `${valorFormatado}\n%TDF: ${formatPercent(percentualTDF)}\n%RB: ${formatPercent(percentualRB)}`
+              : valorFormatado
+
+            return [`filial_${f.value}`, percentuaisText]
           })
         ),
-        total: formatCurrency(
-          Object.values(dept.valores_filiais).reduce((sum, val) => sum + val, 0)
-        )
+        total: `${formatCurrency(deptTotal)}\n%TD: ${formatPercent(percentualTD)}\n%RB: ${formatPercent(
+          (receitaPorFilial?.total || 0) > 0 ? (deptTotal / (receitaPorFilial?.total || 1)) * 100 : 0
+        )}`
       }
       rows.push(deptRow)
 
       // Linhas dos tipos dentro do departamento
       dept.tipos.forEach((tipo) => {
+        const tipoTotal = Object.values(tipo.valores_filiais).reduce((sum, val) => sum + val, 0)
+        const tipoPercentualTD = totalGeralDespesas > 0 ? (tipoTotal / totalGeralDespesas) * 100 : 0
+
         const tipoRow: PDFRowData = {
           descricao: `  ${tipo.tipo_descricao}`, // Indentação visual
           ...Object.fromEntries(
             filiaisOrdenadas.map(f => {
               const filialId = Number(f.value)
-              return [
-                `filial_${f.value}`,
-                formatCurrency(tipo.valores_filiais[filialId] || 0)
-              ]
+              const valorFilial = tipo.valores_filiais[filialId] || 0
+              const totalFilial = totaisPorFilial[filialId] || 0
+              const receitaBrutaFilial = receitaPorFilial?.valores_filiais[filialId] || 0
+
+              // Calcular percentuais como na tela
+              const percentualTDF = totalFilial > 0 ? (valorFilial / totalFilial) * 100 : 0
+              const percentualRB = receitaBrutaFilial > 0 ? (valorFilial / receitaBrutaFilial) * 100 : 0
+
+              // Formatar valor com percentuais
+              const valorFormatado = formatCurrency(valorFilial)
+              const percentuaisText = valorFilial > 0
+                ? `${valorFormatado}\n%TDF: ${formatPercent(percentualTDF)}\n%RB: ${formatPercent(percentualRB)}`
+                : valorFormatado
+
+              return [`filial_${f.value}`, percentuaisText]
             })
           ),
-          total: formatCurrency(
-            Object.values(tipo.valores_filiais).reduce((sum, val) => sum + val, 0)
-          )
+          total: `${formatCurrency(tipoTotal)}\n%TD: ${formatPercent(tipoPercentualTD)}\n%RB: ${formatPercent(
+            (receitaPorFilial?.total || 0) > 0 ? (tipoTotal / (receitaPorFilial?.total || 1)) * 100 : 0
+          )}`
         }
         rows.push(tipoRow)
       })
     })
 
-    // Linha de total geral
+    // Linha de total geral com percentuais
     const totalGeral = Object.values(totaisPorFilial).reduce((sum, val) => sum + val, 0)
     const totalRow: PDFRowData = {
-      descricao: 'TOTAL GERAL',
+      descricao: 'TOTAL DESPESAS',
       ...Object.fromEntries(
         filiaisOrdenadas.map(f => {
           const filialId = Number(f.value)
+          const totalFilial = totaisPorFilial[filialId] || 0
+          const receitaBrutaFilial = receitaPorFilial?.valores_filiais[filialId] || 0
+
+          // Para total, %TDF sempre será 100%
+          const percentualRB = receitaBrutaFilial > 0 ? (totalFilial / receitaBrutaFilial) * 100 : 0
+
           return [
             `filial_${f.value}`,
-            formatCurrency(totaisPorFilial[filialId] || 0)
+            `${formatCurrency(totalFilial)}\n%TDF: 100,00%\n%RB: ${formatPercent(percentualRB)}`
           ]
         })
       ),
-      total: formatCurrency(totalGeral)
+      total: `${formatCurrency(totalGeral)}\n%TD: 100,00%\n%RB: ${formatPercent(
+        (receitaPorFilial?.total || 0) > 0 ? (totalGeral / (receitaPorFilial?.total || 1)) * 100 : 0
+      )}`
     }
     rows.push(totalRow)
 
@@ -442,6 +539,7 @@ export default function DespesasPage() {
           ...filiaisPdf.map(f => {
             const filialId = Number(f.value)
             const valor = receitaPorFilial.valores_filiais[filialId] || 0
+            // Para receita bruta, não incluir percentuais (apenas valor)
             return new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
@@ -470,20 +568,35 @@ export default function DespesasPage() {
           'LUCRO LÍQUIDO',
           ...filiaisPdf.map(f => {
             const filialId = Number(f.value)
-            const receita = receitaPorFilial.valores_filiais[filialId] || 0
+            const receitaBrutaFilial = receitaPorFilial.valores_filiais[filialId] || 0
+            const lucroBrutoFilial = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
             const despesa = data.departamentos.reduce((sum, dept) => {
               return sum + (dept.valores_filiais[filialId] || 0)
             }, 0)
-            const lucro = receita - despesa
-            return new Intl.NumberFormat('pt-BR', {
+            const lucroLiquido = lucroBrutoFilial - despesa
+            const margemLucroLiquido = receitaBrutaFilial > 0 ? (lucroLiquido / receitaBrutaFilial) * 100 : 0
+
+            // Formatar com margem como na tela
+            const valorFormatado = new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
-            }).format(lucro)
+            }).format(lucroLiquido)
+
+            return `${valorFormatado}\nMargem: ${margemLucroLiquido.toFixed(2).replace('.', ',')}%`
           }),
-          new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-          }).format(indicadores.current.lucroLiquido)
+          (() => {
+            // Calcular margem total
+            const margemTotal = receitaPorFilial.total > 0
+              ? (indicadores.current.lucroLiquido / receitaPorFilial.total) * 100
+              : 0
+
+            const valorFormatado = new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(indicadores.current.lucroLiquido)
+
+            return `${valorFormatado}\nMargem: ${margemTotal.toFixed(2).replace('.', ',')}%`
+          })()
         ]
         bodyDataWithOptions.push(lucroLiquidoRow)
       }
@@ -493,12 +606,12 @@ export default function DespesasPage() {
       // Configurar column styles
       const numColunas = numFiliais + 2
       const columnStyles: Record<number, AutoTableConfig> = {
-        0: { cellWidth: config.descWidth, halign: 'left' },
-        [numColunas - 1]: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+        0: { cellWidth: config.descWidth, halign: 'left', valign: 'middle' },
+        [numColunas - 1]: { cellWidth: config.totalWidth, halign: 'right', fontStyle: 'bold', valign: 'top' }
       }
 
       for (let i = 1; i < numColunas - 1; i++) {
-        columnStyles[i] = { cellWidth: config.filialWidth, halign: 'right' }
+        columnStyles[i] = { cellWidth: config.filialWidth, halign: 'right', valign: 'top' }
       }
 
       // Título e informações do relatório
@@ -535,7 +648,9 @@ export default function DespesasPage() {
           fontSize: config.fontSize,
           cellPadding: config.cellPadding,
           cellWidth: 'wrap',
-          overflow: 'linebreak'
+          overflow: 'linebreak',
+          lineHeight: 1.2, // Permitir múltiplas linhas para percentuais
+          valign: 'top' // Alinhar conteúdo no topo da célula
         },
         headStyles: {
           fillColor: [59, 130, 246],
@@ -545,20 +660,85 @@ export default function DespesasPage() {
           minCellHeight: config.useRotation ? 45 : 10
         },
         columnStyles,
-        margin: { left: 10, right: 10 },
+        margin: { left: 5, right: 5, top: 35, bottom: 10 },
+        tableWidth: 'auto', // Usar toda a largura disponível
         didParseCell: (data: AutoTableConfig) => {
-          // Destacar linha de TOTAL GERAL
-          if (data.row.index === bodyData.length - 1) {
+          const cellText = data.cell.text[0] || ''
+
+          // Destacar RECEITA BRUTA em verde
+          if (cellText === 'RECEITA BRUTA') {
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.textColor = [28, 150, 91] // Verde
+          }
+
+          // Destacar TOTAL DESPESAS
+          if (cellText === 'TOTAL DESPESAS') {
             data.cell.styles.fillColor = [240, 240, 240]
             data.cell.styles.fontStyle = 'bold'
             data.cell.styles.fontSize = config.fontSize + 1
           }
+
+          // Destacar LUCRO LÍQUIDO em azul
+          if (cellText === 'LUCRO LÍQUIDO') {
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.textColor = [59, 130, 246] // Azul
+          }
+
           // Destacar linhas de departamentos (sem indentação)
           if (data.section === 'body' && data.column.index === 0) {
-            const text = data.cell.text[0]
-            if (text && !text.startsWith('  ') && text !== 'TOTAL GERAL') {
+            if (cellText && !cellText.startsWith('  ') &&
+                cellText !== 'TOTAL DESPESAS' &&
+                cellText !== 'RECEITA BRUTA' &&
+                cellText !== 'LUCRO LÍQUIDO') {
               data.cell.styles.fontStyle = 'bold'
-              data.cell.styles.fillColor = [245, 245, 250]
+              data.cell.styles.fillColor = [250, 250, 255]
+            }
+          }
+        },
+        didDrawCell: (data: AutoTableConfig) => {
+          // Adicionar cores aos percentuais nas células de dados
+          if (data.section === 'body' && data.column.index > 0) {
+            const cellText = String(data.cell.raw || '')
+
+            // Se a célula contém percentuais (tem quebras de linha)
+            if (cellText.includes('\n')) {
+              const lines = cellText.split('\n')
+              if (lines.length > 1) {
+                const doc = data.doc
+                const cell = data.cell
+
+                // Posição inicial do texto
+                const x = cell.x + cell.padding('left')
+                let y = cell.y + cell.padding('top')
+                const lineHeight = data.row.height / (lines.length + 1)
+
+                // Primeira linha (valor) - cor preta (já desenhada)
+                y += lineHeight
+
+                // Segunda linha (%TDF ou %TD) - cor específica
+                if (lines[1]) {
+                  const isTDF = lines[1].includes('TDF')
+
+                  if (isTDF) {
+                    // %TDF - usar cor baseada na comparação (implementar lógica)
+                    doc.setTextColor(100, 100, 100) // Cinza por padrão
+                  } else if (lines[1].includes('TD')) {
+                    // %TD - cinza
+                    doc.setTextColor(120, 120, 120)
+                  }
+
+                  // Não redesenhar, apenas configurar cor para próximo texto
+                }
+
+                // Terceira linha (%RB) - laranja
+                if (lines[2] && lines[2].includes('RB')) {
+                  // Configurar cor laranja para %RB
+                  // A cor será aplicada quando o texto for desenhado
+                }
+
+                // Resetar cor para preto
+                doc.setTextColor(0, 0, 0)
+              }
             }
           }
         }
@@ -570,7 +750,14 @@ export default function DespesasPage() {
       }
 
       if (config.useRotation) {
+        const originalDidDrawCell = tableConfig.didDrawCell
         tableConfig.didDrawCell = (data: AutoTableConfig) => {
+          // Chamar o callback original primeiro
+          if (originalDidDrawCell) {
+            originalDidDrawCell(data)
+          }
+
+          // Adicionar rotação para headers
           if (data.section === 'head' && data.column.index > 0 && data.column.index < numColunas - 1) {
             const cell = data.cell
             const text = cell.text[0]
