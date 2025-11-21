@@ -7,7 +7,7 @@ import { format } from "date-fns"
 
 export type DespesaRow = {
   id: string
-  tipo: 'receita' | 'lucro_bruto' | 'total' | 'departamento' | 'tipo' | 'despesa' | 'lucro_liquido'
+  tipo: 'receita' | 'cmv' | 'lucro_bruto' | 'total' | 'departamento' | 'tipo' | 'despesa' | 'lucro_liquido'
   descricao: string
   data_despesa?: string
   data_emissao?: string
@@ -65,6 +65,10 @@ export const createColumns = (
           fontClass = "font-bold"
           textSize = "text-base"
         }
+        if (tipo === 'cmv') {
+          fontClass = "font-bold"
+          textSize = "text-base"
+        }
         if (tipo === 'lucro_bruto') {
           fontClass = "font-bold"
           textSize = "text-base"
@@ -109,6 +113,7 @@ export const createColumns = (
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
               <span className={`${fontClass} ${textSize} ${
                 tipo === 'receita' ? 'text-green-600 dark:text-green-400' :
+                tipo === 'cmv' ? 'text-purple-600 dark:text-purple-400' :
                 tipo === 'lucro_bruto' ? 'text-orange-600 dark:text-orange-400' :
                 tipo === 'lucro_liquido' ? 'text-blue-600 dark:text-blue-400' :
                 tipo === 'total' ? 'text-primary' : ''
@@ -144,7 +149,7 @@ export const createColumns = (
       },
       cell: ({ row }) => {
         const tipo = row.original.tipo
-        const fontClass = tipo === 'receita' || tipo === 'lucro_bruto' || tipo === 'total' || tipo === 'departamento' || tipo === 'lucro_liquido' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'cmv' || tipo === 'lucro_bruto' || tipo === 'total' || tipo === 'departamento' || tipo === 'lucro_liquido' ? 'font-bold' :
                          tipo === 'tipo' ? 'font-semibold' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
 
@@ -157,6 +162,22 @@ export const createColumns = (
             <div className="text-left">
               <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
                 {formatCurrency(row.original.total)}
+              </div>
+            </div>
+          )
+        }
+
+        // Para linha de CMV, mostrar percentual sobre receita bruta
+        if (tipo === 'cmv') {
+          const percentualCMV = receitaBruta > 0 ? (row.original.total / receitaBruta) * 100 : 0
+
+          return (
+            <div className="text-left">
+              <div className={`${fontClass} ${textSize} text-purple-600 dark:text-purple-400`}>
+                {formatCurrency(row.original.total)}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                % RB: {percentualCMV.toFixed(2).replace('.', ',')}%
               </div>
             </div>
           )
@@ -240,7 +261,7 @@ export const createColumns = (
         const totalFilial = branchTotals[filialId] || 0
 
         const tipo = row.original.tipo
-        const fontClass = tipo === 'receita' || tipo === 'lucro_bruto' || tipo === 'total' || tipo === 'lucro_liquido' ? 'font-bold' :
+        const fontClass = tipo === 'receita' || tipo === 'cmv' || tipo === 'lucro_bruto' || tipo === 'total' || tipo === 'lucro_liquido' ? 'font-bold' :
                          tipo === 'departamento' ? 'font-medium' :
                          tipo === 'tipo' ? 'font-normal' : 'font-normal'
         const textSize = tipo === 'despesa' ? 'text-xs' : 'text-sm'
@@ -251,6 +272,23 @@ export const createColumns = (
             <div className={`text-left ${bgColorClass} px-2 py-1`}>
               <div className={`${fontClass} ${textSize} text-green-600 dark:text-green-400`}>
                 {formatCurrency(valorFilial)}
+              </div>
+            </div>
+          )
+        }
+
+        // Para linha de CMV, mostrar percentual sobre receita bruta
+        if (tipo === 'cmv') {
+          const receitaBrutaFilial = receitaBrutaPorFilial[filialId] || 0
+          const percentualCMV = receitaBrutaFilial > 0 ? (valorFilial / receitaBrutaFilial) * 100 : 0
+
+          return (
+            <div className={`text-left ${bgColorClass} px-2 py-1`}>
+              <div className={`${fontClass} ${textSize} text-purple-600 dark:text-purple-400`}>
+                {formatCurrency(valorFilial)}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                % RB: {percentualCMV.toFixed(2).replace('.', ',')}%
               </div>
             </div>
           )
