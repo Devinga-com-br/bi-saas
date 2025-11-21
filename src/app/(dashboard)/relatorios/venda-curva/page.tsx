@@ -1,7 +1,7 @@
 'use client'
 
 // Relatório de Venda por Curva ABC - MultiSelect de filiais sem opção "Todas"
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
+import { useState, useEffect, useMemo, memo, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -94,13 +94,13 @@ interface ReportData {
 }
 
 // Componente memoizado para renderização de produtos
-const ProdutoTable = memo(({
+const ProdutoTable = memo(function ProdutoTable({
   produtos,
   filtroProduto
 }: {
   produtos: Produto[]
   filtroProduto: string
-}) => {
+}) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -265,27 +265,23 @@ export default function VendaCurvaPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
-  // Função para verificar se o produto corresponde ao filtro
-  // OTIMIZAÇÃO: Movida para fora do useCallback para evitar recriações
-  const produtoCorrespondeFiltro = (produto: Produto, termo?: string): boolean => {
-    if (!termo || termo.length < 3) return true
+  // Calcular hierarquia filtrada usando useMemo
+  const hierarquiaFiltrada = useMemo(() => {
+    if (!data?.hierarquia) return []
+    if (!filtroProduto || filtroProduto.length < 3) return data.hierarquia
 
-    const termoBusca = termo.toLowerCase()
-    const codigoStr = produto.codigo.toString()
-    const descricao = produto.descricao.toLowerCase()
+    // Função auxiliar para verificar correspondência
+    const produtoCorresponde = (produto: Produto, termo: string): boolean => {
+      const termoBusca = termo.toLowerCase()
+      const codigoStr = produto.codigo.toString()
+      const descricao = produto.descricao.toLowerCase()
+      return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
+    }
 
-    return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
-  }
-
-  // Função para filtrar a hierarquia mantendo subgrupos que contêm produtos correspondentes
-  // OTIMIZAÇÃO: Simplificada e otimizada
-  const filtrarHierarquia = (hierarquia: DeptNivel3[]): DeptNivel3[] => {
-    const termo = filtroProduto
-    if (termo.length < 3) return hierarquia
-
+    // Filtrar hierarquia mantendo apenas departamentos com produtos correspondentes
     const resultado: DeptNivel3[] = []
 
-    for (const dept3 of hierarquia) {
+    for (const dept3 of data.hierarquia) {
       const nivel2Filtrado: DeptNivel2[] = []
 
       if (dept3.nivel2) {
@@ -294,8 +290,7 @@ export default function VendaCurvaPage() {
 
           if (dept2.nivel1) {
             for (const dept1 of dept2.nivel1) {
-              // Verifica se algum produto corresponde
-              if (dept1.produtos?.some(p => produtoCorrespondeFiltro(p, termo))) {
+              if (dept1.produtos?.some(p => produtoCorresponde(p, filtroProduto))) {
                 nivel1Filtrado.push(dept1)
               }
             }
@@ -319,15 +314,6 @@ export default function VendaCurvaPage() {
     }
 
     return resultado
-  }
-
-  // Calcular hierarquia filtrada usando useMemo - SEM LOGS
-  const hierarquiaFiltrada = useMemo(() => {
-    if (!data?.hierarquia) return []
-    if (!filtroProduto || filtroProduto.length < 3) return data.hierarquia
-
-    // Aplicar filtro apenas quando necessário
-    return filtrarHierarquia(data.hierarquia)
   }, [data?.hierarquia, filtroProduto])
 
   // Expandir automaticamente os collapsibles quando houver filtro ativo
@@ -610,21 +596,6 @@ export default function VendaCurvaPage() {
       style: 'currency',
       currency: 'BRL',
     }).format(value)
-  }
-
-  const getCurvaBadgeColor = (curva: string) => {
-    switch (curva) {
-      case 'A':
-        return 'bg-green-500 hover:bg-green-600'
-      case 'B':
-        return 'bg-blue-500 hover:bg-blue-600'
-      case 'C':
-        return 'bg-yellow-500 hover:bg-yellow-600'
-      case 'D':
-        return 'bg-red-500 hover:bg-red-600'
-      default:
-        return 'bg-gray-500 hover:bg-gray-600'
-    }
   }
 
   const meses = [
