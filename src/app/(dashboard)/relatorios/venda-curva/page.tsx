@@ -1,7 +1,7 @@
 'use client'
 
 // Relatório de Venda por Curva ABC - MultiSelect de filiais sem opção "Todas"
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -93,6 +93,78 @@ interface ReportData {
   hierarquia: DeptNivel3[]
 }
 
+// Componente memoizado para renderização de produtos
+const ProdutoTable = memo(({
+  produtos,
+  filtroProduto
+}: {
+  produtos: Produto[]
+  filtroProduto: string
+}) => {
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value)
+  }
+
+  const produtoCorrespondeFiltro = (produto: Produto): boolean => {
+    if (!filtroProduto || filtroProduto.length < 3) return false
+    const termoBusca = filtroProduto.toLowerCase()
+    const codigoStr = produto.codigo.toString()
+    const descricao = produto.descricao.toLowerCase()
+    return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-xs">Filial</TableHead>
+          <TableHead className="text-xs">Código</TableHead>
+          <TableHead className="text-xs">Descrição</TableHead>
+          <TableHead className="text-right text-xs">Qtde</TableHead>
+          <TableHead className="text-right text-xs">Valor Vendas</TableHead>
+          <TableHead className="text-xs">Curva Venda</TableHead>
+          <TableHead className="text-right text-xs">Valor Lucro</TableHead>
+          <TableHead className="text-right text-xs">% Lucro</TableHead>
+          <TableHead className="text-xs">Curva Lucro</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {produtos.map((produto, idx) => {
+          const isHighlighted = filtroProduto.length >= 3 && produtoCorrespondeFiltro(produto)
+
+          return (
+            <TableRow
+              key={`${produto.codigo}-${produto.filial_id}-${idx}`}
+              className={`border-b ${isHighlighted ? 'bg-primary/10' : ''}`}
+            >
+              <TableCell className="text-xs">{produto.filial_id}</TableCell>
+              <TableCell className="text-xs font-mono">{produto.codigo}</TableCell>
+              <TableCell className="text-xs">{produto.descricao}</TableCell>
+              <TableCell className="text-right text-xs">{produto.qtde}</TableCell>
+              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_vendas)}</TableCell>
+              <TableCell className="text-xs">
+                <Badge variant={produto.curva_venda === 'A' ? 'default' : produto.curva_venda === 'B' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0">
+                  {produto.curva_venda}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_lucro)}</TableCell>
+              <TableCell className="text-right text-xs">{produto.percentual_lucro.toFixed(2)}%</TableCell>
+              <TableCell className="text-xs">
+                <Badge variant={produto.curva_lucro === 'A' ? 'default' : produto.curva_lucro === 'B' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0">
+                  {produto.curva_lucro}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+})
+
 export default function VendaCurvaPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
@@ -120,8 +192,37 @@ export default function VendaCurvaPage() {
   const [expandedDept2, setExpandedDept2] = useState<Record<string, boolean>>({})
   const [expandedDept3, setExpandedDept3] = useState<Record<string, boolean>>({})
 
-  // Filtro de produto
-  const [filtroProduto, setFiltroProduto] = useState('')
+  // Filtro de produto - COM DEBOUNCE REAL
+  const [filtroProduto, setFiltroProduto] = useState('') // Valor usado para filtrar (com debounce)
+  const [inputValue, setInputValue] = useState('') // Valor visual do input (atualiza instantaneamente)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Efeito de debounce - atualiza o filtro após 300ms sem digitação
+  useEffect(() => {
+    // Limpa timer anterior se existir
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    // Se o input tem menos de 3 caracteres, limpa o filtro imediatamente
+    if (inputValue.length < 3) {
+      setFiltroProduto('')
+      return
+    }
+
+    // Cria novo timer para atualizar o filtro após 300ms
+    debounceTimerRef.current = setTimeout(() => {
+      setFiltroProduto(inputValue)
+    }, 300)
+
+    // Cleanup ao desmontar ou quando inputValue mudar
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [inputValue])
+
   // Definir filial padrão quando opções estiverem disponíveis
   useEffect(() => {
     if (todasAsFiliais.length > 0 && !defaultFilialSet) {
@@ -165,43 +266,69 @@ export default function VendaCurvaPage() {
   }, [page])
 
   // Função para verificar se o produto corresponde ao filtro
-  const produtoCorrespondeFiltro = useCallback((produto: Produto): boolean => {
-    if (filtroProduto.length < 3) return true
+  // OTIMIZAÇÃO: Movida para fora do useCallback para evitar recriações
+  const produtoCorrespondeFiltro = (produto: Produto, termo?: string): boolean => {
+    if (!termo || termo.length < 3) return true
 
-    const termoBusca = filtroProduto.toLowerCase()
+    const termoBusca = termo.toLowerCase()
     const codigoStr = produto.codigo.toString()
     const descricao = produto.descricao.toLowerCase()
 
     return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
-  }, [filtroProduto])
+  }
 
   // Função para filtrar a hierarquia mantendo subgrupos que contêm produtos correspondentes
-  // mas mostrando TODOS os produtos do subgrupo para comparação
-  const filtrarHierarquia = useCallback((hierarquia: DeptNivel3[]): DeptNivel3[] => {
-    if (filtroProduto.length < 3) return hierarquia
+  // OTIMIZAÇÃO: Simplificada e otimizada
+  const filtrarHierarquia = (hierarquia: DeptNivel3[]): DeptNivel3[] => {
+    const termo = filtroProduto
+    if (termo.length < 3) return hierarquia
 
-    return hierarquia
-      .map(dept3 => ({
-        ...dept3,
-        nivel2: dept3.nivel2
-          ?.map(dept2 => ({
-            ...dept2,
-            nivel1: dept2.nivel1
-              ?.filter(dept1 => {
-                // Manter subgrupo se tiver pelo menos 1 produto correspondente
-                return dept1.produtos?.some(produtoCorrespondeFiltro) || false
-              })
-          }))
-          .filter(dept2 => dept2.nivel1 && dept2.nivel1.length > 0) || []
-      }))
-      .filter(dept3 => dept3.nivel2.length > 0)
-  }, [filtroProduto, produtoCorrespondeFiltro])
+    const resultado: DeptNivel3[] = []
 
-  // Calcular hierarquia filtrada usando useMemo
+    for (const dept3 of hierarquia) {
+      const nivel2Filtrado: DeptNivel2[] = []
+
+      if (dept3.nivel2) {
+        for (const dept2 of dept3.nivel2) {
+          const nivel1Filtrado: DeptNivel1[] = []
+
+          if (dept2.nivel1) {
+            for (const dept1 of dept2.nivel1) {
+              // Verifica se algum produto corresponde
+              if (dept1.produtos?.some(p => produtoCorrespondeFiltro(p, termo))) {
+                nivel1Filtrado.push(dept1)
+              }
+            }
+          }
+
+          if (nivel1Filtrado.length > 0) {
+            nivel2Filtrado.push({
+              ...dept2,
+              nivel1: nivel1Filtrado
+            })
+          }
+        }
+      }
+
+      if (nivel2Filtrado.length > 0) {
+        resultado.push({
+          ...dept3,
+          nivel2: nivel2Filtrado
+        })
+      }
+    }
+
+    return resultado
+  }
+
+  // Calcular hierarquia filtrada usando useMemo - SEM LOGS
   const hierarquiaFiltrada = useMemo(() => {
     if (!data?.hierarquia) return []
+    if (!filtroProduto || filtroProduto.length < 3) return data.hierarquia
+
+    // Aplicar filtro apenas quando necessário
     return filtrarHierarquia(data.hierarquia)
-  }, [data?.hierarquia, filtrarHierarquia])
+  }, [data?.hierarquia, filtroProduto])
 
   // Expandir automaticamente os collapsibles quando houver filtro ativo
   useEffect(() => {
@@ -476,64 +603,6 @@ export default function VendaCurvaPage() {
     setExpandedDept3(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  // Renderizar produtos
-  const renderProdutos = (produtos: Produto[]) => {
-    return (
-      <Table>
-        <TableHeader>
-          <TableRow className="border-b">
-            <TableHead className="text-xs">Filial</TableHead>
-            <TableHead className="text-xs">Código</TableHead>
-            <TableHead className="text-xs">Descrição</TableHead>
-            <TableHead className="text-right text-xs">Qtde</TableHead>
-            <TableHead className="text-right text-xs">Valor Venda</TableHead>
-            <TableHead className="text-xs">Curva Venda</TableHead>
-            <TableHead className="text-right text-xs">Valor Lucro</TableHead>
-            <TableHead className="text-right text-xs">% Lucro</TableHead>
-            <TableHead className="text-xs">Curva Lucro</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {produtos.map((produto, idx) => {
-            const isHighlighted = filtroProduto.length >= 3 && produtoCorrespondeFiltro(produto)
-            const cellStyle = isHighlighted ? {
-              backgroundColor: 'light-dark(#e4dfff, #2d2b55)',
-              color: 'light-dark(#4a4080, #2d2b55)'
-            } : undefined
-
-            return (
-              <TableRow
-                key={`${produto.codigo}-${produto.filial_id}-${idx}`}
-                className={`border-b ${isHighlighted ? 'border-l-4 border-l-primary' : ''}`}
-              >
-                <TableCell className="text-xs" style={cellStyle}>{produto.filial_id}</TableCell>
-                <TableCell className="text-xs" style={cellStyle}>
-                  {produto.codigo}
-                </TableCell>
-                <TableCell className="text-xs" style={cellStyle}>
-                  {produto.descricao}
-                </TableCell>
-                <TableCell className="text-right text-xs" style={cellStyle}>{produto.qtde.toFixed(2)}</TableCell>
-                <TableCell className="text-right text-xs" style={cellStyle}>{formatCurrency(produto.valor_vendas)}</TableCell>
-                <TableCell style={cellStyle}>
-                  <Badge className={getCurvaBadgeColor(produto.curva_venda)}>
-                    {produto.curva_venda}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right text-xs" style={cellStyle}>{formatCurrency(produto.valor_lucro)}</TableCell>
-                <TableCell className="text-right text-xs" style={cellStyle}>{produto.percentual_lucro.toFixed(2)}%</TableCell>
-                <TableCell style={cellStyle}>
-                  <Badge className={getCurvaBadgeColor(produto.curva_lucro)}>
-                    {produto.curva_lucro}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    )
-  }
 
   // Funções auxiliares
   const formatCurrency = (value: number) => {
@@ -663,7 +732,7 @@ export default function VendaCurvaPage() {
               </div>
             </div>
 
-            {/* Filtro de Produto */}
+            {/* Filtro de Produto - COM DEBOUNCE REAL */}
             <div className="flex flex-col gap-2 flex-1 min-w-0">
               <Label>Filtrar Produto</Label>
               <div className="h-10 relative">
@@ -671,10 +740,21 @@ export default function VendaCurvaPage() {
                 <Input
                   type="text"
                   placeholder="Digite código ou nome (mín. 3 caracteres)"
-                  value={filtroProduto}
-                  onChange={(e) => setFiltroProduto(e.target.value)}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
                   className="w-full h-10 pl-9"
                 />
+                {inputValue.length > 0 && inputValue.length < 3 && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    Mín. 3 caracteres
+                  </span>
+                )}
+                {/* Indicador visual de que está filtrando */}
+                {inputValue.length >= 3 && filtroProduto !== inputValue && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-500">
+                    Filtrando...
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -839,7 +919,9 @@ export default function VendaCurvaPage() {
 
                                           <CollapsibleContent>
                                             <div className="border-t">
-                                              {dept1.produtos && dept1.produtos.length > 0 && renderProdutos(dept1.produtos)}
+                                              {dept1.produtos && dept1.produtos.length > 0 && (
+                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} />
+                                              )}
                                             </div>
                                           </CollapsibleContent>
                                         </div>
