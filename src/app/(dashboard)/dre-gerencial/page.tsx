@@ -539,7 +539,6 @@ export default function DespesasPage() {
           ...filiaisPdf.map(f => {
             const filialId = Number(f.value)
             const valor = receitaPorFilial.valores_filiais[filialId] || 0
-            // Para receita bruta, não incluir percentuais (apenas valor)
             return new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
@@ -551,6 +550,37 @@ export default function DespesasPage() {
           }).format(receitaPorFilial.total)
         ]
         bodyDataWithOptions.push(receitaRow)
+
+        // Adicionar linha de Lucro Bruto
+        const lucroBrutoRow = [
+          'LUCRO BRUTO',
+          ...filiaisPdf.map(f => {
+            const filialId = Number(f.value)
+            const lucroBruto = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
+            const receitaBrutaFilial = receitaPorFilial.valores_filiais[filialId] || 0
+            const margemLucroBruto = receitaBrutaFilial > 0 ? (lucroBruto / receitaBrutaFilial) * 100 : 0
+
+            const valorFormatado = new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(lucroBruto)
+
+            return `${valorFormatado}\nMargem: ${margemLucroBruto.toFixed(2).replace('.', ',')}%`
+          }),
+          (() => {
+            const margemTotal = receitaPorFilial.total > 0
+              ? (receitaPorFilial.total_lucro_bruto / receitaPorFilial.total) * 100
+              : 0
+
+            const valorFormatado = new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(receitaPorFilial.total_lucro_bruto)
+
+            return `${valorFormatado}\nMargem: ${margemTotal.toFixed(2).replace('.', ',')}%`
+          })()
+        ]
+        bodyDataWithOptions.push(lucroBrutoRow)
       }
 
       // Extrair apenas os valores para autoTable (array de arrays)
@@ -671,6 +701,12 @@ export default function DespesasPage() {
             data.cell.styles.textColor = [28, 150, 91] // Verde
           }
 
+          // Destacar LUCRO BRUTO em laranja
+          if (cellText === 'LUCRO BRUTO') {
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.textColor = [234, 88, 12] // Laranja
+          }
+
           // Destacar TOTAL DESPESAS
           if (cellText === 'TOTAL DESPESAS') {
             data.cell.styles.fillColor = [240, 240, 240]
@@ -689,6 +725,7 @@ export default function DespesasPage() {
             if (cellText && !cellText.startsWith('  ') &&
                 cellText !== 'TOTAL DESPESAS' &&
                 cellText !== 'RECEITA BRUTA' &&
+                cellText !== 'LUCRO BRUTO' &&
                 cellText !== 'LUCRO LÍQUIDO') {
               data.cell.styles.fontStyle = 'bold'
               data.cell.styles.fillColor = [250, 250, 255]
@@ -1228,21 +1265,7 @@ export default function DespesasPage() {
   const transformToTableData = (reportData: ReportData): DespesaRow[] => {
     const rows: DespesaRow[] = []
 
-    // Linha de receita bruta (se disponível)
-    if (receitaPorFilial) {
-      const receitaRow: DespesaRow = {
-        id: 'receita',
-        tipo: 'receita',
-        descricao: 'RECEITA BRUTA',
-        total: receitaPorFilial.total,
-        percentual: 0, // Não tem percentual pois não faz parte da hierarquia de despesas
-        valores_filiais: receitaPorFilial.valores_filiais,
-        filiais: reportData.filiais,
-      }
-      rows.push(receitaRow)
-    }
-
-    // Linha de total despesas
+    // Linha de total despesas (será adicionada depois)
     const totalRow: DespesaRow = {
       id: 'total',
       tipo: 'total',
@@ -1316,12 +1339,37 @@ export default function DespesasPage() {
       
       totalRow.subRows!.push(deptRow)
     })
-    
-    rows.push(totalRow)
 
-    // Linha de lucro líquido (se disponível)
+    // 1. Linha de receita bruta (se disponível)
     if (receitaPorFilial) {
-      // Calcular lucro líquido por filial: Lucro Bruto - Total Despesas
+      const receitaRow: DespesaRow = {
+        id: 'receita',
+        tipo: 'receita',
+        descricao: 'RECEITA BRUTA',
+        total: receitaPorFilial.total,
+        percentual: 0,
+        valores_filiais: receitaPorFilial.valores_filiais,
+        filiais: reportData.filiais,
+      }
+      rows.push(receitaRow)
+    }
+
+    // 2. Linha de lucro bruto (se disponível)
+    if (receitaPorFilial) {
+      const lucroBrutoRow: DespesaRow = {
+        id: 'lucro_bruto',
+        tipo: 'lucro_bruto',
+        descricao: 'LUCRO BRUTO',
+        total: receitaPorFilial.total_lucro_bruto,
+        percentual: 0,
+        valores_filiais: receitaPorFilial.lucro_bruto_filiais,
+        filiais: reportData.filiais,
+      }
+      rows.push(lucroBrutoRow)
+    }
+
+    // 3. Linha de lucro líquido (se disponível)
+    if (receitaPorFilial) {
       const lucroLiquidoFiliais: Record<number, number> = {}
       let totalLucroLiquido = 0
 
@@ -1339,12 +1387,15 @@ export default function DespesasPage() {
         tipo: 'lucro_liquido',
         descricao: 'LUCRO LÍQUIDO',
         total: totalLucroLiquido,
-        percentual: 0, // Não tem percentual pois não faz parte da hierarquia de despesas
+        percentual: 0,
         valores_filiais: lucroLiquidoFiliais,
         filiais: reportData.filiais,
       }
       rows.push(lucroLiquidoRow)
     }
+
+    // 4. Linha de total despesas (com hierarquia)
+    rows.push(totalRow)
 
     return rows
   }
