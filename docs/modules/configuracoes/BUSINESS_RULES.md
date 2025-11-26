@@ -667,7 +667,7 @@ if (exists.data) {
 
 **Formato no Supabase**:
 ```
-public, graphql_public, okilao, saoluiz, paraiso, lucia, novo_schema
+public, graphql_public, okilao, saoluiz, paraiso, lucia, demo
 ```
 
 **Referência**: [SUPABASE_SCHEMA_CONFIGURATION.md](../../SUPABASE_SCHEMA_CONFIGURATION.md)
