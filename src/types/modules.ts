@@ -14,6 +14,7 @@ export type SystemModule =
   | 'relatorios_ruptura_abcd'
   | 'relatorios_venda_curva'
   | 'relatorios_ruptura_60d'
+  | 'relatorios_perdas'
 
 // Configuração de cada módulo (para exibição e ordenação)
 export interface ModuleConfig {
@@ -82,6 +83,14 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     order: 7,
     category: 'relatorios',
     route: '/relatorios/ruptura-venda-60d'
+  },
+  {
+    id: 'relatorios_perdas',
+    label: 'Perdas > Relatório de Perdas',
+    description: 'Análise de perdas por departamento e produto',
+    order: 8,
+    category: 'relatorios',
+    route: '/relatorios/perdas'
   }
 ]
 

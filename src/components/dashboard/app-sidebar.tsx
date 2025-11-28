@@ -16,9 +16,10 @@ import {
   TrendingDown,
   ShoppingCart,
   AlertTriangle,
+  Newspaper,
 } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+// import { cn } from '@/lib/utils'
 import {
   Sidebar,
   SidebarContent,
@@ -117,6 +118,15 @@ const rupturaNavigation: NavigationItem[] = [
   },
 ]
 
+const perdasNavigation: NavigationItem[] = [
+  {
+    name: 'Relatório de Perdas',
+    href: '/relatorios/perdas',
+    icon: Newspaper,
+    moduleId: 'relatorios_perdas',
+  },
+]
+
 const accountNavigation: NavigationItem[] = [
   {
     name: 'Configurações',
@@ -159,6 +169,7 @@ export function AppSidebar() {
   const filteredVendasNav = filterNavigation(vendasNavigation)
   const filteredMetasNav = filterNavigation(metasNavigation)
   const filteredRupturaNav = filterNavigation(rupturaNavigation)
+  const filteredPerdasNav = filterNavigation(perdasNavigation)
   const filteredAccountNav = filterNavigation(accountNavigation)
 
   // Use tenant ID as key to force re-render when tenant changes
@@ -335,6 +346,37 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarMenu>
               {filteredRupturaNav.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                const Icon = item.icon
+
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.name}
+                      isActive={isActive}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* Perdas */}
+        {filteredPerdasNav.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="relative mb-2">
+              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Perdas</span>
+              <div className="absolute left-14 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
+            </SidebarGroupLabel>
+            <SidebarMenu>
+              {filteredPerdasNav.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href)
                 const Icon = item.icon
 
