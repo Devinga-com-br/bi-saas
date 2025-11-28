@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, Newspaper, FileDown, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Newspaper, FileDown, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Collapsible,
@@ -58,6 +58,7 @@ interface DeptNivel1 {
   dept_nivel1: string
   total_qtde: number
   total_valor: number
+  venda_setor: number
   produtos: Produto[]
 }
 
@@ -66,6 +67,7 @@ interface DeptNivel2 {
   dept_nivel2: string
   total_qtde: number
   total_valor: number
+  venda_setor: number
   nivel1: DeptNivel1[]
 }
 
@@ -74,6 +76,7 @@ interface DeptNivel3 {
   dept_nivel3: string
   total_qtde: number
   total_valor: number
+  venda_setor: number
   nivel2: DeptNivel2[]
 }
 
@@ -86,16 +89,30 @@ interface ReportData {
   total_vendas_periodo: number
 }
 
+// Tipos para ordenação de produtos
+type SortField = 'filial_id' | 'codigo' | 'descricao' | 'qtde' | 'valor_perda' | 'percent_setor' | 'percent_geral'
+type SortDirection = 'asc' | 'desc'
+
+interface SortConfig {
+  field: SortField
+  direction: SortDirection
+}
+
 // Componente memoizado para renderização de produtos
 const ProdutoTable = memo(function ProdutoTable({
   produtos,
   filtroProduto,
-  totalVendasPeriodo
+  totalVendasPeriodo,
+  vendaSetor
 }: {
   produtos: Produto[]
   filtroProduto: string
   totalVendasPeriodo: number
+  vendaSetor: number
 }) {
+  // Estado de ordenação - padrão: Descrição ASC
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'descricao', direction: 'asc' })
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -116,6 +133,11 @@ const ProdutoTable = memo(function ProdutoTable({
     return `${percent.toFixed(2)}%`
   }
 
+  const calcPercent = (valorPerda: number, totalVendas: number): number => {
+    if (!totalVendas || totalVendas === 0) return 0
+    return (valorPerda / totalVendas) * 100
+  }
+
   const produtoCorrespondeFiltro = (produto: Produto): boolean => {
     if (!filtroProduto || filtroProduto.length < 3) return false
     const termoBusca = filtroProduto.toLowerCase()
@@ -124,20 +146,116 @@ const ProdutoTable = memo(function ProdutoTable({
     return codigoStr.includes(termoBusca) || descricao.includes(termoBusca)
   }
 
+  // Função para alternar ordenação
+  const handleSort = (field: SortField) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }))
+  }
+
+  // Ícone de ordenação
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortConfig.field !== field) {
+      return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-50" />
+    }
+    return sortConfig.direction === 'asc'
+      ? <ArrowUp className="ml-1 h-3 w-3 inline text-primary" />
+      : <ArrowDown className="ml-1 h-3 w-3 inline text-primary" />
+  }
+
+  // Produtos ordenados
+  const sortedProdutos = useMemo(() => {
+    const sorted = [...produtos]
+    sorted.sort((a, b) => {
+      let comparison = 0
+
+      switch (sortConfig.field) {
+        case 'filial_id':
+          comparison = a.filial_id - b.filial_id
+          break
+        case 'codigo':
+          comparison = a.codigo - b.codigo
+          break
+        case 'descricao':
+          comparison = a.descricao.localeCompare(b.descricao, 'pt-BR')
+          break
+        case 'qtde':
+          comparison = a.qtde - b.qtde
+          break
+        case 'valor_perda':
+          comparison = a.valor_perda - b.valor_perda
+          break
+        case 'percent_setor':
+          comparison = calcPercent(a.valor_perda, vendaSetor) - calcPercent(b.valor_perda, vendaSetor)
+          break
+        case 'percent_geral':
+          comparison = calcPercent(a.valor_perda, totalVendasPeriodo) - calcPercent(b.valor_perda, totalVendasPeriodo)
+          break
+      }
+
+      return sortConfig.direction === 'asc' ? comparison : -comparison
+    })
+    return sorted
+  }, [produtos, sortConfig, vendaSetor, totalVendasPeriodo])
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="text-xs">Filial</TableHead>
-          <TableHead className="text-xs">Código</TableHead>
-          <TableHead className="text-xs">Descrição</TableHead>
-          <TableHead className="text-right text-xs">Qtde</TableHead>
-          <TableHead className="text-right text-xs">Valor Perda</TableHead>
-          <TableHead className="text-right text-xs">% Venda</TableHead>
+          <TableHead
+            className="text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('filial_id')}
+          >
+            Filial
+            <SortIcon field="filial_id" />
+          </TableHead>
+          <TableHead
+            className="text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('codigo')}
+          >
+            Código
+            <SortIcon field="codigo" />
+          </TableHead>
+          <TableHead
+            className="text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('descricao')}
+          >
+            Descrição
+            <SortIcon field="descricao" />
+          </TableHead>
+          <TableHead
+            className="text-right text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('qtde')}
+          >
+            Qtde
+            <SortIcon field="qtde" />
+          </TableHead>
+          <TableHead
+            className="text-right text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('valor_perda')}
+          >
+            Valor Perda
+            <SortIcon field="valor_perda" />
+          </TableHead>
+          <TableHead
+            className="text-right text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('percent_setor')}
+          >
+            % Setor
+            <SortIcon field="percent_setor" />
+          </TableHead>
+          <TableHead
+            className="text-right text-xs cursor-pointer hover:bg-muted/50 select-none"
+            onClick={() => handleSort('percent_geral')}
+          >
+            % Geral
+            <SortIcon field="percent_geral" />
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {produtos.map((produto, idx) => {
+        {sortedProdutos.map((produto, idx) => {
           const isHighlighted = filtroProduto.length >= 3 && produtoCorrespondeFiltro(produto)
 
           return (
@@ -150,6 +268,7 @@ const ProdutoTable = memo(function ProdutoTable({
               <TableCell className="text-xs">{produto.descricao}</TableCell>
               <TableCell className="text-right text-xs">{formatQuantity(produto.qtde)}</TableCell>
               <TableCell className="text-right text-xs">{formatCurrency(produto.valor_perda)}</TableCell>
+              <TableCell className="text-right text-xs">{formatPercent(produto.valor_perda, vendaSetor)}</TableCell>
               <TableCell className="text-right text-xs">{formatPercent(produto.valor_perda, totalVendasPeriodo)}</TableCell>
             </TableRow>
           )
@@ -761,7 +880,7 @@ export default function PerdasPage() {
                     <span className="ml-2 font-bold text-base">{formatCurrency(totaisGerais.totalValor)}</span>
                   </div>
                   <div className="text-sm">
-                    <span className="text-muted-foreground">% Venda:</span>
+                    <span className="text-muted-foreground">% Geral:</span>
                     <span className="ml-2 font-bold text-base">{formatPercent(totaisGerais.totalValor, totalVendasPeriodo)}</span>
                   </div>
                 </div>
@@ -786,7 +905,7 @@ export default function PerdasPage() {
                             {dept3.dept_nivel3}
                           </span>
                         </div>
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-4">
                           <div className="text-right">
                             <div className="text-xs text-muted-foreground">Quantidade</div>
                             <div className="font-semibold text-sm">
@@ -799,8 +918,20 @@ export default function PerdasPage() {
                               {formatCurrency(dept3.total_valor)}
                             </div>
                           </div>
-                          <div className="text-right min-w-[60px]">
-                            <div className="text-xs text-muted-foreground">% Venda</div>
+                          <div className="text-right">
+                            <div className="text-xs text-muted-foreground">Venda Setor</div>
+                            <div className="font-semibold text-sm">
+                              {formatCurrency(dept3.venda_setor || 0)}
+                            </div>
+                          </div>
+                          <div className="text-right min-w-[55px]">
+                            <div className="text-xs text-muted-foreground">% Setor</div>
+                            <div className="font-semibold text-sm">
+                              {formatPercent(dept3.total_valor, dept3.venda_setor || 0)}
+                            </div>
+                          </div>
+                          <div className="text-right min-w-[55px]">
+                            <div className="text-xs text-muted-foreground">% Geral</div>
                             <div className="font-semibold text-sm">
                               {formatPercent(dept3.total_valor, totalVendasPeriodo)}
                             </div>
@@ -828,7 +959,7 @@ export default function PerdasPage() {
                                       {dept2.dept_nivel2}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-6">
+                                  <div className="flex items-center gap-4">
                                     <div className="text-right">
                                       <div className="text-xs text-muted-foreground">Quantidade</div>
                                       <div className="font-medium text-xs">
@@ -841,8 +972,20 @@ export default function PerdasPage() {
                                         {formatCurrency(dept2.total_valor)}
                                       </div>
                                     </div>
-                                    <div className="text-right min-w-[60px]">
-                                      <div className="text-xs text-muted-foreground">% Venda</div>
+                                    <div className="text-right">
+                                      <div className="text-xs text-muted-foreground">Venda Setor</div>
+                                      <div className="font-medium text-xs">
+                                        {formatCurrency(dept2.venda_setor || 0)}
+                                      </div>
+                                    </div>
+                                    <div className="text-right min-w-[50px]">
+                                      <div className="text-xs text-muted-foreground">% Setor</div>
+                                      <div className="font-medium text-xs">
+                                        {formatPercent(dept2.total_valor, dept2.venda_setor || 0)}
+                                      </div>
+                                    </div>
+                                    <div className="text-right min-w-[50px]">
+                                      <div className="text-xs text-muted-foreground">% Geral</div>
                                       <div className="font-medium text-xs">
                                         {formatPercent(dept2.total_valor, totalVendasPeriodo)}
                                       </div>
@@ -870,7 +1013,7 @@ export default function PerdasPage() {
                                                 {dept1.dept_nivel1}
                                               </span>
                                             </div>
-                                            <div className="flex items-center gap-6">
+                                            <div className="flex items-center gap-3">
                                               <div className="text-right">
                                                 <div className="text-[10px] text-muted-foreground">Quantidade</div>
                                                 <div className="font-medium text-xs">
@@ -883,8 +1026,20 @@ export default function PerdasPage() {
                                                   {formatCurrency(dept1.total_valor)}
                                                 </div>
                                               </div>
-                                              <div className="text-right min-w-[50px]">
-                                                <div className="text-[10px] text-muted-foreground">% Venda</div>
+                                              <div className="text-right">
+                                                <div className="text-[10px] text-muted-foreground">Venda Setor</div>
+                                                <div className="font-medium text-xs">
+                                                  {formatCurrency(dept1.venda_setor || 0)}
+                                                </div>
+                                              </div>
+                                              <div className="text-right min-w-[45px]">
+                                                <div className="text-[10px] text-muted-foreground">% Setor</div>
+                                                <div className="font-medium text-xs">
+                                                  {formatPercent(dept1.total_valor, dept1.venda_setor || 0)}
+                                                </div>
+                                              </div>
+                                              <div className="text-right min-w-[45px]">
+                                                <div className="text-[10px] text-muted-foreground">% Geral</div>
                                                 <div className="font-medium text-xs">
                                                   {formatPercent(dept1.total_valor, totalVendasPeriodo)}
                                                 </div>
@@ -895,7 +1050,7 @@ export default function PerdasPage() {
                                           <CollapsibleContent>
                                             <div className="border-t">
                                               {dept1.produtos && dept1.produtos.length > 0 && (
-                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} totalVendasPeriodo={totalVendasPeriodo} />
+                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} totalVendasPeriodo={totalVendasPeriodo} vendaSetor={dept1.venda_setor || 0} />
                                               )}
                                             </div>
                                           </CollapsibleContent>

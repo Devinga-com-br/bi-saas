@@ -50,6 +50,23 @@ interface RowData {
   valor_perda: string | number
 }
 
+interface VendasDeptRow {
+  dept_nivel3: string
+  dept_nivel2: string
+  dept_nivel1: string
+  valor_vendas: string | number
+}
+
+// Estrutura para armazenar vendas por departamento
+interface VendasPorDept {
+  // Chave: "dept3|dept2|dept1" -> valor de vendas
+  nivel1: Record<string, number>
+  // Chave: "dept3|dept2" -> valor de vendas
+  nivel2: Record<string, number>
+  // Chave: "dept3" -> valor de vendas
+  nivel3: Record<string, number>
+}
+
 // Helper para gerar ID único a partir de string
 function hashCode(str: string): number {
   let hash = 0
@@ -176,7 +193,7 @@ export async function GET(request: Request) {
     })
 
     // Buscar total de vendas para cada filial no mesmo período
-    const vendasPromises = finalFilialIds.map(async (filialId) => {
+    const vendasTotalPromises = finalFilialIds.map(async (filialId) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc('get_perdas_total_vendas_periodo', {
         p_schema: schema,
@@ -193,13 +210,35 @@ export async function GET(request: Request) {
       return typeof data === 'number' ? data : parseFloat(data || '0')
     })
 
-    const [perdasResults, vendasResults] = await Promise.all([
+    // Buscar vendas por departamento para cada filial
+    const vendasDeptPromises = finalFilialIds.map(async (filialId) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_perdas_vendas_por_departamento', {
+        p_schema: schema,
+        p_mes: mes,
+        p_ano: ano,
+        p_filial_id: filialId,
+      })
+
+      if (error) {
+        console.error('[Perdas] Error fetching vendas por dept for filial', filialId, ':', error.message)
+        return [] as VendasDeptRow[]
+      }
+
+      return (data || []) as VendasDeptRow[]
+    })
+
+    const [perdasResults, vendasTotalResults, vendasDeptResults] = await Promise.all([
       Promise.all(perdasPromises),
-      Promise.all(vendasPromises)
+      Promise.all(vendasTotalPromises),
+      Promise.all(vendasDeptPromises)
     ])
 
     const dataArray = perdasResults.flat()
-    const totalVendasPeriodo = vendasResults.reduce((acc, val) => acc + val, 0)
+    const totalVendasPeriodo = vendasTotalResults.reduce((acc, val) => acc + val, 0)
+
+    // Agregar vendas por departamento de todas as filiais
+    const vendasPorDept = aggregateVendasPorDept(vendasDeptResults.flat())
 
     if (dataArray.length === 0) {
       console.log('[Perdas] No data received')
@@ -221,37 +260,55 @@ export async function GET(request: Request) {
     // Convert hierarchy object to array format expected by frontend
     // Sort nivel3 by total_valor DESC
     const hierarquiaArray = Object.values(hierarquiaObj)
-      .map((dept3) => ({
-        dept3_id: hashCode(dept3.nome),
-        dept_nivel3: dept3.nome,
-        total_qtde: dept3.total_qtde,
-        total_valor: dept3.total_valor,
-        // Sort nivel2 by total_valor DESC
-        nivel2: Object.values(dept3.filhos)
-          .map((dept2) => ({
-            dept2_id: hashCode(dept2.nome),
-            dept_nivel2: dept2.nome,
-            total_qtde: dept2.total_qtde,
-            total_valor: dept2.total_valor,
-            // Sort nivel1 by total_valor DESC
-            nivel1: Object.values(dept2.filhos)
-              .map((dept1) => ({
-                dept1_id: hashCode(dept1.nome),
-                dept_nivel1: dept1.nome,
-                total_qtde: dept1.total_qtde,
-                total_valor: dept1.total_valor,
-                produtos: dept1.produtos.map((p) => ({
-                  codigo: p.codigo,
-                  descricao: p.nome,
-                  filial_id: p.filial_id,
-                  qtde: p.quantidade,
-                  valor_perda: p.valor_perda
-                }))
-              }))
-              .sort((a, b) => b.total_valor - a.total_valor) // Sort nivel1
-          }))
-          .sort((a, b) => b.total_valor - a.total_valor) // Sort nivel2
-      }))
+      .map((dept3) => {
+        const keyNivel3 = dept3.nome
+        const vendaSetor3 = vendasPorDept.nivel3[keyNivel3] || 0
+
+        return {
+          dept3_id: hashCode(dept3.nome),
+          dept_nivel3: dept3.nome,
+          total_qtde: dept3.total_qtde,
+          total_valor: dept3.total_valor,
+          venda_setor: vendaSetor3,
+          // Sort nivel2 by total_valor DESC
+          nivel2: Object.values(dept3.filhos)
+            .map((dept2) => {
+              const keyNivel2 = `${dept3.nome}|${dept2.nome}`
+              const vendaSetor2 = vendasPorDept.nivel2[keyNivel2] || 0
+
+              return {
+                dept2_id: hashCode(dept2.nome),
+                dept_nivel2: dept2.nome,
+                total_qtde: dept2.total_qtde,
+                total_valor: dept2.total_valor,
+                venda_setor: vendaSetor2,
+                // Sort nivel1 by total_valor DESC
+                nivel1: Object.values(dept2.filhos)
+                  .map((dept1) => {
+                    const keyNivel1 = `${dept3.nome}|${dept2.nome}|${dept1.nome}`
+                    const vendaSetor1 = vendasPorDept.nivel1[keyNivel1] || 0
+
+                    return {
+                      dept1_id: hashCode(dept1.nome),
+                      dept_nivel1: dept1.nome,
+                      total_qtde: dept1.total_qtde,
+                      total_valor: dept1.total_valor,
+                      venda_setor: vendaSetor1,
+                      produtos: dept1.produtos.map((p) => ({
+                        codigo: p.codigo,
+                        descricao: p.nome,
+                        filial_id: p.filial_id,
+                        qtde: p.quantidade,
+                        valor_perda: p.valor_perda
+                      }))
+                    }
+                  })
+                  .sort((a, b) => b.total_valor - a.total_valor) // Sort nivel1
+              }
+            })
+            .sort((a, b) => b.total_valor - a.total_valor) // Sort nivel2
+        }
+      })
       .sort((a, b) => b.total_valor - a.total_valor) // Sort nivel3
 
     console.log('[Perdas] Hierarchy array length:', hierarquiaArray.length)
@@ -342,4 +399,35 @@ function organizeHierarchyFlat(data: RowData[]): Hierarquia {
   }
 
   return hierarquia
+}
+
+// Aggregate vendas por departamento de múltiplas filiais
+function aggregateVendasPorDept(data: VendasDeptRow[]): VendasPorDept {
+  const result: VendasPorDept = {
+    nivel1: {},
+    nivel2: {},
+    nivel3: {}
+  }
+
+  for (const row of data) {
+    const dept3 = row.dept_nivel3
+    const dept2 = row.dept_nivel2
+    const dept1 = row.dept_nivel1
+    const valorVendas = typeof row.valor_vendas === 'string'
+      ? parseFloat(row.valor_vendas || '0')
+      : (row.valor_vendas || 0)
+
+    // Agregar para nivel 1 (subgrupo)
+    const keyNivel1 = `${dept3}|${dept2}|${dept1}`
+    result.nivel1[keyNivel1] = (result.nivel1[keyNivel1] || 0) + valorVendas
+
+    // Agregar para nivel 2 (grupo)
+    const keyNivel2 = `${dept3}|${dept2}`
+    result.nivel2[keyNivel2] = (result.nivel2[keyNivel2] || 0) + valorVendas
+
+    // Agregar para nivel 3 (departamento)
+    result.nivel3[dept3] = (result.nivel3[dept3] || 0) + valorVendas
+  }
+
+  return result
 }
