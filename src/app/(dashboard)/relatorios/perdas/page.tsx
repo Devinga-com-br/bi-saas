@@ -213,15 +213,10 @@ export default function PerdasPage() {
     }
   }, [inputValue])
 
-  // Definir filial padrão quando opções estiverem disponíveis
+  // Definir todas as filiais como padrão quando opções estiverem disponíveis
   useEffect(() => {
     if (todasAsFiliais.length > 0 && !defaultFilialSet) {
-      const sortedFiliais = [...todasAsFiliais].sort((a, b) => {
-        const idA = parseInt(a.value)
-        const idB = parseInt(b.value)
-        return idA - idB
-      })
-      setFiliaisSelecionadas([sortedFiliais[0]])
+      setFiliaisSelecionadas([...todasAsFiliais])
       setDefaultFilialSet(true)
     }
   }, [todasAsFiliais, defaultFilialSet])
