@@ -83,15 +83,18 @@ interface ReportData {
   page_size: number
   total_pages: number
   hierarquia: DeptNivel3[]
+  total_vendas_periodo: number
 }
 
 // Componente memoizado para renderização de produtos
 const ProdutoTable = memo(function ProdutoTable({
   produtos,
-  filtroProduto
+  filtroProduto,
+  totalVendasPeriodo
 }: {
   produtos: Produto[]
   filtroProduto: string
+  totalVendasPeriodo: number
 }) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -105,6 +108,12 @@ const ProdutoTable = memo(function ProdutoTable({
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
     }).format(value)
+  }
+
+  const formatPercent = (valorPerda: number, totalVendas: number) => {
+    if (!totalVendas || totalVendas === 0) return '-'
+    const percent = (valorPerda / totalVendas) * 100
+    return `${percent.toFixed(2)}%`
   }
 
   const produtoCorrespondeFiltro = (produto: Produto): boolean => {
@@ -124,6 +133,7 @@ const ProdutoTable = memo(function ProdutoTable({
           <TableHead className="text-xs">Descrição</TableHead>
           <TableHead className="text-right text-xs">Qtde</TableHead>
           <TableHead className="text-right text-xs">Valor Perda</TableHead>
+          <TableHead className="text-right text-xs">% Venda</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -140,6 +150,7 @@ const ProdutoTable = memo(function ProdutoTable({
               <TableCell className="text-xs">{produto.descricao}</TableCell>
               <TableCell className="text-right text-xs">{formatQuantity(produto.qtde)}</TableCell>
               <TableCell className="text-right text-xs">{formatCurrency(produto.valor_perda)}</TableCell>
+              <TableCell className="text-right text-xs">{formatPercent(produto.valor_perda, totalVendasPeriodo)}</TableCell>
             </TableRow>
           )
         })}
@@ -560,6 +571,15 @@ export default function PerdasPage() {
     }).format(value)
   }
 
+  const formatPercent = (valorPerda: number, totalVendas: number) => {
+    if (!totalVendas || totalVendas === 0) return '-'
+    const percent = (valorPerda / totalVendas) * 100
+    return `${percent.toFixed(2)}%`
+  }
+
+  // Total de vendas do período para cálculo do percentual
+  const totalVendasPeriodo = data?.total_vendas_periodo || 0
+
   const meses = [
     { value: '1', label: 'Janeiro' },
     { value: '2', label: 'Fevereiro' },
@@ -609,7 +629,7 @@ export default function PerdasPage() {
         <CardContent>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
             {/* Filiais */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="flex flex-col gap-2 flex-[1.2] min-w-0">
               <Label>Filiais</Label>
               <div className="h-10">
                 <MultiSelect
@@ -665,7 +685,7 @@ export default function PerdasPage() {
             </div>
 
             {/* Filtro de Produto */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="flex flex-col gap-2 flex-[0.8] min-w-0">
               <Label>Filtrar Produto</Label>
               <div className="h-10 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -732,13 +752,23 @@ export default function PerdasPage() {
               <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 mb-4">
                 <div className="flex items-center gap-6">
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Quantidade Total:</span>
+                    <span className="text-muted-foreground">Receita Bruta:</span>
+                    <span className="ml-2 font-semibold">{formatCurrency(totalVendasPeriodo)}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Qtde Total:</span>
                     <span className="ml-2 font-semibold">{formatQuantity(totaisGerais.totalQuantidade)}</span>
                   </div>
                 </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Valor Total de Perda:</span>
-                  <span className="ml-2 font-bold text-base">{formatCurrency(totaisGerais.totalValor)}</span>
+                <div className="flex items-center gap-6">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Valor Total de Perda:</span>
+                    <span className="ml-2 font-bold text-base">{formatCurrency(totaisGerais.totalValor)}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">% Venda:</span>
+                    <span className="ml-2 font-bold text-base">{formatPercent(totaisGerais.totalValor, totalVendasPeriodo)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -772,6 +802,12 @@ export default function PerdasPage() {
                             <div className="text-xs text-muted-foreground">Valor Perda</div>
                             <div className="font-semibold text-sm">
                               {formatCurrency(dept3.total_valor)}
+                            </div>
+                          </div>
+                          <div className="text-right min-w-[60px]">
+                            <div className="text-xs text-muted-foreground">% Venda</div>
+                            <div className="font-semibold text-sm">
+                              {formatPercent(dept3.total_valor, totalVendasPeriodo)}
                             </div>
                           </div>
                         </div>
@@ -810,6 +846,12 @@ export default function PerdasPage() {
                                         {formatCurrency(dept2.total_valor)}
                                       </div>
                                     </div>
+                                    <div className="text-right min-w-[60px]">
+                                      <div className="text-xs text-muted-foreground">% Venda</div>
+                                      <div className="font-medium text-xs">
+                                        {formatPercent(dept2.total_valor, totalVendasPeriodo)}
+                                      </div>
+                                    </div>
                                   </div>
                                 </CollapsibleTrigger>
 
@@ -846,13 +888,19 @@ export default function PerdasPage() {
                                                   {formatCurrency(dept1.total_valor)}
                                                 </div>
                                               </div>
+                                              <div className="text-right min-w-[50px]">
+                                                <div className="text-[10px] text-muted-foreground">% Venda</div>
+                                                <div className="font-medium text-xs">
+                                                  {formatPercent(dept1.total_valor, totalVendasPeriodo)}
+                                                </div>
+                                              </div>
                                             </div>
                                           </CollapsibleTrigger>
 
                                           <CollapsibleContent>
                                             <div className="border-t">
                                               {dept1.produtos && dept1.produtos.length > 0 && (
-                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} />
+                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} totalVendasPeriodo={totalVendasPeriodo} />
                                               )}
                                             </div>
                                           </CollapsibleContent>

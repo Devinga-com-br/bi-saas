@@ -115,3 +115,79 @@ Retorno: Dados agrupados por departamento e produto com quantidade e valor de pe
 -- Permissões
 GRANT EXECUTE ON FUNCTION public.get_perdas_report TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_perdas_report TO service_role;
+
+
+-- =====================================================
+-- Função RPC: get_perdas_total_vendas_periodo
+-- Módulo: Relatório de Perdas
+-- Descrição: Retorna o total de vendas (receita bruta)
+--            para uma filial em um mês/ano específico.
+--            Usado para calcular o % Venda no relatório de Perdas.
+-- =====================================================
+
+DROP FUNCTION IF EXISTS public.get_total_vendas_periodo(TEXT, INTEGER, INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS public.get_perdas_total_vendas_periodo(TEXT, INTEGER, INTEGER, INTEGER);
+
+CREATE OR REPLACE FUNCTION public.get_perdas_total_vendas_periodo(
+  p_schema TEXT,
+  p_mes INTEGER,
+  p_ano INTEGER,
+  p_filial_id INTEGER
+)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_sql TEXT;
+  v_total NUMERIC;
+  v_data_inicio DATE;
+  v_data_fim DATE;
+BEGIN
+  -- Validar parâmetros
+  IF p_schema IS NULL OR p_schema = '' THEN
+    RAISE EXCEPTION 'Schema é obrigatório';
+  END IF;
+
+  IF p_mes < 1 OR p_mes > 12 THEN
+    RAISE EXCEPTION 'Mês deve estar entre 1 e 12';
+  END IF;
+
+  IF p_ano < 2000 OR p_ano > 2100 THEN
+    RAISE EXCEPTION 'Ano inválido';
+  END IF;
+
+  IF p_filial_id IS NULL THEN
+    RAISE EXCEPTION 'Filial é obrigatória';
+  END IF;
+
+  -- Calcular intervalo de datas (usa índice em data_venda)
+  v_data_inicio := make_date(p_ano, p_mes, 1);
+  v_data_fim := (v_data_inicio + INTERVAL '1 month')::DATE;
+
+  -- Construir query dinâmica com schema
+  -- Usa filtro por range de datas para aproveitar índice em data_venda
+  v_sql := 'SELECT COALESCE(SUM(valor_vendas), 0)::NUMERIC FROM ' || quote_ident(p_schema) || '.vendas WHERE filial_id = $1 AND data_venda >= $2 AND data_venda < $3';
+
+  -- Executar query com parâmetros
+  EXECUTE v_sql INTO v_total USING p_filial_id, v_data_inicio, v_data_fim;
+
+  RETURN v_total;
+END;
+$$;
+
+-- Comentário da função
+COMMENT ON FUNCTION public.get_perdas_total_vendas_periodo IS
+'[Módulo: Perdas] Retorna o total de vendas (receita bruta) para uma filial em um período específico.
+Usado para calcular o percentual de perda sobre a venda (% Venda) no relatório de Perdas.
+Parâmetros:
+  - p_schema: Nome do schema do tenant
+  - p_mes: Mês (1-12)
+  - p_ano: Ano (ex: 2025)
+  - p_filial_id: ID da filial
+Retorno: Valor total de vendas no período.';
+
+-- Permissões
+GRANT EXECUTE ON FUNCTION public.get_perdas_total_vendas_periodo TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_perdas_total_vendas_periodo TO service_role;

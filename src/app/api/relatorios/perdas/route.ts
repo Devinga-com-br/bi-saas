@@ -150,8 +150,8 @@ export async function GET(request: Request) {
       p_page_size: pageSize,
     })
 
-    // Call RPC function for each filial in parallel
-    const promises = finalFilialIds.map(async (filialId) => {
+    // Call RPC functions for each filial in parallel (perdas + vendas)
+    const perdasPromises = finalFilialIds.map(async (filialId) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc('get_perdas_report', {
         p_schema: schema,
@@ -175,8 +175,31 @@ export async function GET(request: Request) {
       return (data || []) as RowData[]
     })
 
-    const results = await Promise.all(promises)
-    const dataArray = results.flat()
+    // Buscar total de vendas para cada filial no mesmo período
+    const vendasPromises = finalFilialIds.map(async (filialId) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_perdas_total_vendas_periodo', {
+        p_schema: schema,
+        p_mes: mes,
+        p_ano: ano,
+        p_filial_id: filialId,
+      })
+
+      if (error) {
+        console.error('[Perdas] Error fetching vendas for filial', filialId, ':', error.message)
+        return 0 // Se falhar, retorna 0 para não quebrar o relatório
+      }
+
+      return typeof data === 'number' ? data : parseFloat(data || '0')
+    })
+
+    const [perdasResults, vendasResults] = await Promise.all([
+      Promise.all(perdasPromises),
+      Promise.all(vendasPromises)
+    ])
+
+    const dataArray = perdasResults.flat()
+    const totalVendasPeriodo = vendasResults.reduce((acc, val) => acc + val, 0)
 
     if (dataArray.length === 0) {
       console.log('[Perdas] No data received')
@@ -185,7 +208,8 @@ export async function GET(request: Request) {
         page: 1,
         page_size: pageSize,
         total_pages: 0,
-        hierarquia: []
+        hierarquia: [],
+        total_vendas_periodo: totalVendasPeriodo
       })
     }
 
@@ -232,12 +256,15 @@ export async function GET(request: Request) {
 
     console.log('[Perdas] Hierarchy array length:', hierarquiaArray.length)
 
+    console.log('[Perdas] Total vendas periodo:', totalVendasPeriodo)
+
     return NextResponse.json({
       total_records: hierarquiaArray.length,
       page,
       page_size: pageSize,
       total_pages: Math.ceil(hierarquiaArray.length / pageSize),
-      hierarquia: hierarquiaArray
+      hierarquia: hierarquiaArray,
+      total_vendas_periodo: totalVendasPeriodo
     })
   } catch (error) {
     console.error('[Perdas] Unexpected error:', error)
