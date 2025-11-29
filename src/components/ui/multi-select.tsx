@@ -148,26 +148,61 @@ export const MultiSelect = React.forwardRef<
         </div>
       </div>
       <div className="relative mt-2">
-        {open && !disabled && filteredOptions.length > 0 ? (
+        {open && !disabled ? (
           <div className="absolute top-0 z-10 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
-            <CommandGroup className="h-full overflow-auto">
-              {filteredOptions.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  onSelect={() => {
-                    setInputValue('')
-                    handleSelect(option)
-                  }}
-                  className={'cursor-pointer'}
-                >
-                  {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {/* Cabeçalho com ações em massa */}
+            <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={() => {
+                  onValueChange([...options])
+                }}
+                className="text-xs text-primary hover:text-primary/80 font-medium hover:underline"
+              >
+                Selecionar Todas
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={() => {
+                  onValueChange([])
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground font-medium hover:underline"
+              >
+                Desmarcar Todas
+              </button>
+            </div>
+            {filteredOptions.length > 0 ? (
+              <CommandGroup className="h-full overflow-auto max-h-48">
+                {filteredOptions.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
+                    onSelect={() => {
+                      setInputValue('')
+                      handleSelect(option)
+                    }}
+                    className={'cursor-pointer'}
+                  >
+                    {option.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : (
+              <div className="py-3 text-center text-sm text-muted-foreground">
+                Todas as opções selecionadas
+              </div>
+            )}
           </div>
         ) : null}
       </div>

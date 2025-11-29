@@ -871,11 +871,11 @@ export default function PerdasPage() {
           <CardDescription>Selecione o período e filial para análise</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
             {/* Filiais */}
             <div className="flex flex-col gap-2 flex-[1.2] min-w-0">
               <Label>Filiais</Label>
-              <div className="h-10">
+              <div className="min-h-10">
                 <MultiSelect
                   options={todasAsFiliais}
                   value={filiaisSelecionadas}
@@ -885,7 +885,7 @@ export default function PerdasPage() {
                   }}
                   placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
                   disabled={isLoadingBranches}
-                  className="w-full h-10"
+                  className="w-full min-h-10"
                 />
               </div>
             </div>
