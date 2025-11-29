@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, Newspaper, FileDown, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, Newspaper, FileDown, Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Collapsible,
@@ -35,6 +35,18 @@ import {
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  Sector,
+} from 'recharts'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -87,6 +99,11 @@ interface ReportData {
   total_pages: number
   hierarquia: DeptNivel3[]
   total_vendas_periodo: number
+  perdas_por_filial: Record<string, number>
+  total_perdas_atual: number
+  total_perdas_mes_anterior: number
+  mes_anterior: number
+  ano_anterior: number
 }
 
 // Tipos para ordenação de produtos
@@ -278,6 +295,66 @@ const ProdutoTable = memo(function ProdutoTable({
   )
 })
 
+// Cores para os gráficos
+const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6']
+
+// Componente para renderizar setor ativo do gráfico de pizza
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const renderActiveShape = (props: any) => {
+  const RADIAN = Math.PI / 180
+  const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props
+  const sin = Math.sin(-RADIAN * midAngle)
+  const cos = Math.cos(-RADIAN * midAngle)
+  const sx = cx + (outerRadius + 10) * cos
+  const sy = cy + (outerRadius + 10) * sin
+  const mx = cx + (outerRadius + 30) * cos
+  const my = cy + (outerRadius + 30) * sin
+  const ex = mx + (cos >= 0 ? 1 : -1) * 22
+  const ey = my
+  const textAnchor = cos >= 0 ? 'start' : 'end'
+
+  const formatCurrencyLocal = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(val)
+  }
+
+  return (
+    <g>
+      <text x={cx} y={cy} dy={-5} textAnchor="middle" fill={fill} className="text-sm font-semibold">
+        {payload.name}
+      </text>
+      <text x={cx} y={cy} dy={15} textAnchor="middle" fill="#666" className="text-xs">
+        {formatCurrencyLocal(value)}
+      </text>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+      />
+      <Sector
+        cx={cx}
+        cy={cy}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        innerRadius={outerRadius + 6}
+        outerRadius={outerRadius + 10}
+        fill={fill}
+      />
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
+      <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333" className="text-xs">
+        {`${(percent * 100).toFixed(1)}%`}
+      </text>
+    </g>
+  )
+}
+
 export default function PerdasPage() {
   const { currentTenant, userProfile } = useTenantContext()
   const { branchOptions: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
@@ -304,6 +381,9 @@ export default function PerdasPage() {
   const [expandedDept1, setExpandedDept1] = useState<Record<string, boolean>>({})
   const [expandedDept2, setExpandedDept2] = useState<Record<string, boolean>>({})
   const [expandedDept3, setExpandedDept3] = useState<Record<string, boolean>>({})
+
+  // Estado para gráfico de pizza (active index)
+  const [activePieIndex, setActivePieIndex] = useState(0)
 
   // Filtro de produto - COM DEBOUNCE REAL
   const [filtroProduto, setFiltroProduto] = useState('')
@@ -431,6 +511,56 @@ export default function PerdasPage() {
       { totalQuantidade: 0, totalValor: 0 }
     )
   }, [hierarquiaFiltrada])
+
+  // Dados para o gráfico de pizza (perdas por filial)
+  const pieChartData = useMemo(() => {
+    if (!data?.perdas_por_filial) return []
+
+    return Object.entries(data.perdas_por_filial)
+      .map(([filialId, valor]) => {
+        const filialInfo = todasAsFiliais.find(f => f.value === filialId)
+        return {
+          name: filialInfo?.label || `Filial ${filialId}`,
+          value: valor,
+          filialId
+        }
+      })
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [data?.perdas_por_filial, todasAsFiliais])
+
+  // Dados para o gráfico de barras horizontais (perdas por departamento nível 3)
+  const barChartData = useMemo(() => {
+    if (!hierarquiaFiltrada || hierarquiaFiltrada.length === 0) return []
+
+    return hierarquiaFiltrada
+      .map(dept3 => ({
+        name: dept3.dept_nivel3.length > 20 ? dept3.dept_nivel3.substring(0, 20) + '...' : dept3.dept_nivel3,
+        fullName: dept3.dept_nivel3,
+        value: dept3.total_valor
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10) // Limitar aos 10 maiores
+  }, [hierarquiaFiltrada])
+
+  // Calcular variação percentual em relação ao mês anterior
+  const variacaoMesAnterior = useMemo(() => {
+    if (!data) return { percentual: 0, direcao: 'igual' as 'alta' | 'baixa' | 'igual' }
+
+    const atual = data.total_perdas_atual || 0
+    const anterior = data.total_perdas_mes_anterior || 0
+
+    if (anterior === 0) {
+      return { percentual: atual > 0 ? 100 : 0, direcao: atual > 0 ? 'alta' as const : 'igual' as const }
+    }
+
+    const percentual = ((atual - anterior) / anterior) * 100
+
+    return {
+      percentual: Math.abs(percentual),
+      direcao: percentual > 0 ? 'alta' as const : percentual < 0 ? 'baixa' as const : 'igual' as const
+    }
+  }, [data])
 
   // Expandir automaticamente os collapsibles quando houver filtro ativo
   useEffect(() => {
@@ -825,6 +955,189 @@ export default function PerdasPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Cards de Resumo e Gráficos */}
+      {!loading && data && data.hierarquia && data.hierarquia.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Card 1: Total de Perdas com Comparativo */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total de Perdas</CardDescription>
+              <CardTitle className="text-2xl">
+                {formatCurrency(data.total_perdas_atual || 0)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 text-sm">
+                {variacaoMesAnterior.direcao === 'alta' && (
+                  <>
+                    <TrendingUp className="h-4 w-4 text-red-500" />
+                    <span className="text-red-500 font-medium">
+                      +{variacaoMesAnterior.percentual.toFixed(1)}%
+                    </span>
+                  </>
+                )}
+                {variacaoMesAnterior.direcao === 'baixa' && (
+                  <>
+                    <TrendingDown className="h-4 w-4 text-green-500" />
+                    <span className="text-green-500 font-medium">
+                      -{variacaoMesAnterior.percentual.toFixed(1)}%
+                    </span>
+                  </>
+                )}
+                {variacaoMesAnterior.direcao === 'igual' && (
+                  <>
+                    <Minus className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground font-medium">0%</span>
+                  </>
+                )}
+                <span className="text-muted-foreground">vs mês anterior</span>
+              </div>
+              <div className="mt-2 pt-2 border-t">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {meses.find(m => m.value === data.mes_anterior?.toString())?.label || data.mes_anterior}/{data.ano_anterior}:
+                  </span>
+                  <span className="font-medium">
+                    {formatCurrency(data.total_perdas_mes_anterior || 0)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Gráfico de Pizza - Perdas por Filial */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Perdas por Filial</CardDescription>
+            </CardHeader>
+            <CardContent className="pb-2">
+              {pieChartData.length > 0 ? (
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
+                        dataKey="value"
+                        label={({ cx, cy, midAngle, outerRadius, index }) => {
+                          const RADIAN = Math.PI / 180
+                          const radius = outerRadius + 25
+                          const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                          const y = cy + radius * Math.sin(-midAngle * RADIAN)
+                          return (
+                            <text
+                              x={x}
+                              y={y}
+                              fill={COLORS[index % COLORS.length]}
+                              textAnchor={x > cx ? 'start' : 'end'}
+                              dominantBaseline="central"
+                              className="text-[10px] font-medium"
+                            >
+                              {`Filial ${pieChartData[index].filialId}`}
+                            </text>
+                          )
+                        }}
+                        labelLine={{ stroke: '#999', strokeWidth: 1 }}
+                      >
+                        {pieChartData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{ fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                  Sem dados para exibir
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Gráfico de Barras Horizontal - Perdas por Departamento */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Top 10 Setores</CardDescription>
+            </CardHeader>
+            <CardContent className="pb-2">
+              {barChartData.length > 0 ? (
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={barChartData}
+                      margin={{ top: 0, right: 70, left: 5, bottom: 0 }}
+                    >
+                      <XAxis type="number" hide />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={100}
+                        tick={{ fontSize: 9 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={5}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        labelFormatter={(label, payload) => {
+                          if (payload && payload[0]) {
+                            return payload[0].payload.fullName
+                          }
+                          return label
+                        }}
+                        contentStyle={{ fontSize: '12px' }}
+                        labelStyle={{ color: '#333', fontWeight: 'bold' }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill="#F06D54"
+                        radius={[0, 4, 4, 0]}
+                        barSize={16}
+                        label={({ x, y, width, height, value }) => {
+                          const maxValue = Math.max(...barChartData.map(d => d.value))
+                          const isSmallBar = (value as number) < maxValue * 0.3
+                          const formattedValue = new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }).format(value as number)
+
+                          return (
+                            <text
+                              x={isSmallBar ? (x as number) + (width as number) + 5 : (x as number) + (width as number) - 5}
+                              y={(y as number) + (height as number) / 2}
+                              fill={isSmallBar ? '#666' : '#fff'}
+                              textAnchor={isSmallBar ? 'start' : 'end'}
+                              dominantBaseline="middle"
+                              className="text-[8px] font-medium"
+                            >
+                              {formattedValue}
+                            </text>
+                          )
+                        }}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                  Sem dados para exibir
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Erro */}
       {error && (

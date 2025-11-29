@@ -167,6 +167,14 @@ export async function GET(request: Request) {
       p_page_size: pageSize,
     })
 
+    // Calcular mês anterior
+    let mesAnterior = mes - 1
+    let anoAnterior = ano
+    if (mesAnterior === 0) {
+      mesAnterior = 12
+      anoAnterior = ano - 1
+    }
+
     // Call RPC functions for each filial in parallel (perdas + vendas)
     const perdasPromises = finalFilialIds.map(async (filialId) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,10 +236,31 @@ export async function GET(request: Request) {
       return (data || []) as VendasDeptRow[]
     })
 
-    const [perdasResults, vendasTotalResults, vendasDeptResults] = await Promise.all([
+    // Buscar perdas do mês anterior para cada filial (para comparativo)
+    const perdasMesAnteriorPromises = finalFilialIds.map(async (filialId) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_perdas_report', {
+        p_schema: schema,
+        p_mes: mesAnterior,
+        p_ano: anoAnterior,
+        p_filial_id: filialId,
+        p_page: 1,
+        p_page_size: 10000,
+      })
+
+      if (error) {
+        console.error('[Perdas] Error fetching previous month for filial', filialId, ':', error.message)
+        return { filialId, rows: [] as RowData[] }
+      }
+
+      return { filialId, rows: (data || []) as RowData[] }
+    })
+
+    const [perdasResults, vendasTotalResults, vendasDeptResults, perdasMesAnteriorResults] = await Promise.all([
       Promise.all(perdasPromises),
       Promise.all(vendasTotalPromises),
-      Promise.all(vendasDeptPromises)
+      Promise.all(vendasDeptPromises),
+      Promise.all(perdasMesAnteriorPromises)
     ])
 
     const dataArray = perdasResults.flat()
@@ -239,6 +268,28 @@ export async function GET(request: Request) {
 
     // Agregar vendas por departamento de todas as filiais
     const vendasPorDept = aggregateVendasPorDept(vendasDeptResults.flat())
+
+    // Calcular total de perdas por filial (para gráfico de pizza)
+    const perdasPorFilial: Record<number, number> = {}
+    for (let i = 0; i < finalFilialIds.length; i++) {
+      const filialId = finalFilialIds[i]
+      const filialData = perdasResults[i] || []
+      const totalFilial = filialData.reduce((acc, row) => {
+        const valorPerda = typeof row.valor_perda === 'string' ? parseFloat(row.valor_perda || '0') : (row.valor_perda || 0)
+        return acc + valorPerda
+      }, 0)
+      perdasPorFilial[filialId] = totalFilial
+    }
+
+    // Calcular total de perdas do mês anterior
+    let totalPerdasMesAnterior = 0
+    for (const result of perdasMesAnteriorResults) {
+      const total = result.rows.reduce((acc, row) => {
+        const valorPerda = typeof row.valor_perda === 'string' ? parseFloat(row.valor_perda || '0') : (row.valor_perda || 0)
+        return acc + valorPerda
+      }, 0)
+      totalPerdasMesAnterior += total
+    }
 
     if (dataArray.length === 0) {
       console.log('[Perdas] No data received')
@@ -248,7 +299,11 @@ export async function GET(request: Request) {
         page_size: pageSize,
         total_pages: 0,
         hierarquia: [],
-        total_vendas_periodo: totalVendasPeriodo
+        total_vendas_periodo: totalVendasPeriodo,
+        perdas_por_filial: perdasPorFilial,
+        total_perdas_mes_anterior: totalPerdasMesAnterior,
+        mes_anterior: mesAnterior,
+        ano_anterior: anoAnterior
       })
     }
 
@@ -315,13 +370,21 @@ export async function GET(request: Request) {
 
     console.log('[Perdas] Total vendas periodo:', totalVendasPeriodo)
 
+    // Calcular total geral de perdas do mês atual
+    const totalPerdasAtual = Object.values(perdasPorFilial).reduce((acc, val) => acc + val, 0)
+
     return NextResponse.json({
       total_records: hierarquiaArray.length,
       page,
       page_size: pageSize,
       total_pages: Math.ceil(hierarquiaArray.length / pageSize),
       hierarquia: hierarquiaArray,
-      total_vendas_periodo: totalVendasPeriodo
+      total_vendas_periodo: totalVendasPeriodo,
+      perdas_por_filial: perdasPorFilial,
+      total_perdas_atual: totalPerdasAtual,
+      total_perdas_mes_anterior: totalPerdasMesAnterior,
+      mes_anterior: mesAnterior,
+      ano_anterior: anoAnterior
     })
   } catch (error) {
     console.error('[Perdas] Unexpected error:', error)
