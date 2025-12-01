@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency, formatPercentage } from '@/lib/chart-config'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronUp, ChevronDown, FileDown } from 'lucide-react'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
 import { DashboardFilter, type FilterType } from '@/components/dashboard/dashboard-filter'
@@ -122,6 +122,9 @@ export default function DashboardPage() {
   // Estados para ordenação da tabela
   const [sortColumn, setSortColumn] = useState<SortColumn>('filial_id')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  // Estado para exportação PDF
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
 
   // Estado para os parâmetros que serão enviados à API
   const [apiParams, setApiParams] = useState({
@@ -342,6 +345,190 @@ export default function DashboardPage() {
       // Se é uma nova coluna, ordena ascendente
       setSortColumn(column)
       setSortDirection('asc')
+    }
+  }
+
+  // Função para exportar Vendas por Filial em PDF
+  const handleExportVendasPorFilialPdf = async () => {
+    if (!sortedVendasPorFilial || sortedVendasPorFilial.length === 0) {
+      alert('Não há dados para exportar.')
+      return
+    }
+
+    setIsExportingPdf(true)
+
+    try {
+      // Dynamic imports
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      // Criar documento PDF A4 Landscape
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      // Cores
+      const greenColor: [number, number, number] = [22, 163, 74] // text-green-600
+      const redColor: [number, number, number] = [220, 38, 38] // text-red-600
+      const headerBg: [number, number, number] = [241, 245, 249] // slate-100
+      const totalRowBg: [number, number, number] = [226, 232, 240] // slate-200
+
+      // Cabeçalho do PDF
+      const tenantName = currentTenant?.name || 'Empresa'
+      const periodoLabel = `${format(dataInicio, 'dd/MM/yyyy')} a ${format(dataFim, 'dd/MM/yyyy')}`
+
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Vendas por Filial', 14, 15)
+
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Empresa: ${tenantName}`, 14, 22)
+      doc.text(`Período: ${periodoLabel}`, 14, 27)
+      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 32)
+
+      // Preparar dados da tabela
+      const tableHead = [
+        ['Filial', 'Receita Bruta', 'Δ%', 'Ticket Médio', 'Δ%', 'Custo', 'Δ%', 'Lucro Bruto', 'Δ%', 'Margem', 'Δ%']
+      ]
+
+      // Função auxiliar para formatar variação com sinal
+      const formatDelta = (value: number, suffix: string = '%') => {
+        const sign = value >= 0 ? '+' : ''
+        return `${sign}${value.toFixed(2)}${suffix}`
+      }
+
+      // Preparar linhas de dados
+      const tableBody: string[][] = sortedVendasPorFilial.map((venda) => {
+        const delta_ticket_percent = venda.pa_ticket_medio > 0
+          ? ((venda.ticket_medio - venda.pa_ticket_medio) / venda.pa_ticket_medio) * 100
+          : 0
+
+        return [
+          venda.filial_id.toString(),
+          formatCurrency(venda.valor_total),
+          formatDelta(venda.delta_valor_percent),
+          formatCurrency(venda.ticket_medio),
+          formatDelta(delta_ticket_percent),
+          formatCurrency(venda.custo_total),
+          formatDelta(venda.delta_custo_percent),
+          formatCurrency(venda.total_lucro),
+          formatDelta(venda.delta_lucro_percent),
+          `${venda.margem_lucro.toFixed(2)}%`,
+          formatDelta(venda.delta_margem, 'p.p.')
+        ]
+      })
+
+      // Calcular totais
+      const totais = sortedVendasPorFilial.reduce((acc, venda) => ({
+        valor_total: acc.valor_total + venda.valor_total,
+        pa_valor_total: acc.pa_valor_total + venda.pa_valor_total,
+        total_transacoes: acc.total_transacoes + venda.total_transacoes,
+        pa_total_transacoes: acc.pa_total_transacoes + venda.pa_total_transacoes,
+        custo_total: acc.custo_total + venda.custo_total,
+        pa_custo_total: acc.pa_custo_total + venda.pa_custo_total,
+        total_lucro: acc.total_lucro + venda.total_lucro,
+        pa_total_lucro: acc.pa_total_lucro + venda.pa_total_lucro,
+      }), {
+        valor_total: 0,
+        pa_valor_total: 0,
+        total_transacoes: 0,
+        pa_total_transacoes: 0,
+        custo_total: 0,
+        pa_custo_total: 0,
+        total_lucro: 0,
+        pa_total_lucro: 0,
+      })
+
+      const ticket_medio_total = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
+      const pa_ticket_medio_total = totais.pa_total_transacoes > 0 ? totais.pa_valor_total / totais.pa_total_transacoes : 0
+      const delta_ticket_total = pa_ticket_medio_total > 0 ? ((ticket_medio_total - pa_ticket_medio_total) / pa_ticket_medio_total) * 100 : 0
+      const margem_total = totais.valor_total > 0 ? (totais.total_lucro / totais.valor_total) * 100 : 0
+      const pa_margem_total = totais.pa_valor_total > 0 ? (totais.pa_total_lucro / totais.pa_valor_total) * 100 : 0
+      const delta_valor_total = totais.pa_valor_total > 0 ? ((totais.valor_total - totais.pa_valor_total) / totais.pa_valor_total) * 100 : 0
+      const delta_custo_total = totais.pa_custo_total > 0 ? ((totais.custo_total - totais.pa_custo_total) / totais.pa_custo_total) * 100 : 0
+      const delta_lucro_total = totais.pa_total_lucro > 0 ? ((totais.total_lucro - totais.pa_total_lucro) / totais.pa_total_lucro) * 100 : 0
+      const delta_margem_total = margem_total - pa_margem_total
+
+      // Adicionar linha de total
+      const totalRow = [
+        'TOTAL',
+        formatCurrency(totais.valor_total),
+        formatDelta(delta_valor_total),
+        formatCurrency(ticket_medio_total),
+        formatDelta(delta_ticket_total),
+        formatCurrency(totais.custo_total),
+        formatDelta(delta_custo_total),
+        formatCurrency(totais.total_lucro),
+        formatDelta(delta_lucro_total),
+        `${margem_total.toFixed(2)}%`,
+        formatDelta(delta_margem_total, 'p.p.')
+      ]
+      tableBody.push(totalRow)
+
+      // Índice das colunas de variação (Δ%)
+      const deltaColumns = [2, 4, 6, 8, 10]
+      // Coluna de custo tem lógica invertida (aumento é ruim)
+      const custoColumn = 6
+
+      // Gerar tabela
+      autoTable(doc, {
+        head: tableHead,
+        body: tableBody,
+        startY: 38,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          halign: 'right',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: headerBg,
+          textColor: [30, 41, 59], // slate-800
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { halign: 'center', fontStyle: 'bold' }, // Filial
+        },
+        didParseCell: (data) => {
+          // Aplicar cor nas colunas de variação
+          if (data.section === 'body' && deltaColumns.includes(data.column.index)) {
+            const cellText = data.cell.text[0] || ''
+            const value = parseFloat(cellText.replace(/[+%p.]/g, '').replace(',', '.'))
+
+            if (!isNaN(value)) {
+              // Para custo, lógica invertida (aumento é ruim)
+              if (data.column.index === custoColumn) {
+                data.cell.styles.textColor = value >= 0 ? redColor : greenColor
+              } else {
+                data.cell.styles.textColor = value >= 0 ? greenColor : redColor
+              }
+            }
+          }
+
+          // Estilo da linha de total (última linha)
+          if (data.section === 'body' && data.row.index === tableBody.length - 1) {
+            data.cell.styles.fillColor = totalRowBg
+            data.cell.styles.fontStyle = 'bold'
+          }
+        },
+      })
+
+      // Salvar PDF
+      const tenantSlug = tenantName.toLowerCase().replace(/\s+/g, '-')
+      const periodoSlug = `${format(dataInicio, 'yyyyMMdd')}-${format(dataFim, 'yyyyMMdd')}`
+      const nomeArquivo = `vendas-por-filial-${tenantSlug}-${periodoSlug}.pdf`
+      doc.save(nomeArquivo)
+
+    } catch (err) {
+      console.error('[PDF Export] Erro ao exportar PDF:', err)
+      alert(`Erro ao exportar PDF: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+    } finally {
+      setIsExportingPdf(false)
     }
   }
 
@@ -581,9 +768,21 @@ export default function DashboardPage() {
 
       {/* Tabela de Vendas por Filial */}
       <Card>
-        <CardHeader>
-          <CardTitle>Vendas por Filial</CardTitle>
-          <CardDescription>Análise detalhada de vendas por filial para o período selecionado.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle>Vendas por Filial</CardTitle>
+            <CardDescription>Análise detalhada de vendas por filial para o período selecionado.</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportVendasPorFilialPdf}
+            disabled={isExportingPdf || isLoadingVendasFilial || !sortedVendasPorFilial || sortedVendasPorFilial.length === 0}
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            {isExportingPdf ? 'Exportando...' : 'Exportar PDF'}
+          </Button>
         </CardHeader>
         <CardContent>
           {isLoadingVendasFilial ? (
