@@ -39,6 +39,7 @@ interface DRELineData {
   valores: Record<string, number> // contextoId -> valor
   expandable?: boolean
   items?: DRELineData[]
+  isDeduction?: boolean // Indica se é linha de dedução (CMV, despesas)
 }
 
 interface DREComparativeData {
@@ -438,7 +439,7 @@ export default function DREComparativoPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b-2">
-                    <TableHead className="min-w-[200px] sticky left-0 bg-background z-10">
+                    <TableHead className="min-w-[200px] sticky left-0 bg-background z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                       Descrição
                     </TableHead>
                     {contexts.map((ctx) => (
@@ -466,7 +467,8 @@ export default function DREComparativoPage() {
                     const hasItems = linha.items && linha.items.length > 0
                     const isHeader = linha.tipo === 'header'
                     const isTotal = linha.tipo === 'total'
-                    const isExpense = linha.descricao.toLowerCase().includes('despesa') ||
+                    const isExpense = linha.isDeduction ||
+                                     linha.descricao.toLowerCase().includes('despesa') ||
                                      linha.descricao.toLowerCase().includes('cmv')
                     const isMargin = isMarginLine(linha.descricao)
 
@@ -486,7 +488,7 @@ export default function DREComparativoPage() {
                           `}
                           onClick={() => hasItems && toggleRow(`${idx}`)}
                         >
-                          <TableCell className={`sticky left-0 bg-background z-10 ${isHeader ? 'bg-primary/10' : ''} ${isTotal ? 'bg-muted' : ''}`}>
+                          <TableCell className={`sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] ${isHeader ? 'bg-blue-50 dark:bg-blue-950' : isTotal ? 'bg-muted' : 'bg-background'}`}>
                             <div className="flex items-center gap-2">
                               {hasItems && (
                                 isExpanded
@@ -533,10 +535,11 @@ export default function DREComparativoPage() {
                           const subValor2 = subItem.valores[contexts[1]?.id] || 0
                           const subDiffAbs = calcDiferencaAbsoluta(subValor1, subValor2)
                           const subDiffPercent = calcDiferencaPercentual(subValor1, subValor2)
+                          const subIsExpense = subItem.isDeduction || true // Subitens de despesas
 
                           return (
                             <TableRow key={`${idx}-${subIdx}`} className="bg-muted/20">
-                              <TableCell className="sticky left-0 bg-muted/20 z-10">
+                              <TableCell className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 <span style={{ paddingLeft: `${(linha.nivel + 1) * 16}px` }}>
                                   {subItem.descricao}
                                 </span>
@@ -548,10 +551,10 @@ export default function DREComparativoPage() {
                               ))}
                               {contexts.length >= 2 && (
                                 <>
-                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffAbs, true)}`}>
+                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffAbs, subIsExpense)}`}>
                                     {formatCurrency(subDiffAbs)}
                                   </TableCell>
-                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffPercent, true)}`}>
+                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffPercent, subIsExpense)}`}>
                                     {formatPercent(subDiffPercent)}
                                   </TableCell>
                                 </>

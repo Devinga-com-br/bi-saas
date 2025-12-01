@@ -34,6 +34,7 @@ interface DRELineData {
   valores: Record<string, number>
   expandable?: boolean
   items?: DRELineData[]
+  isDeduction?: boolean  // Indica se é linha de dedução (CMV, despesas)
 }
 
 export async function GET(request: NextRequest) {
@@ -228,8 +229,9 @@ function buildDRELines(
     descricao: '(-) CMV - Custo da Mercadoria Vendida',
     tipo: 'subitem',
     nivel: 1,
-    valores: createValores(d => -d.cmv),
+    valores: createValores(d => d.cmv),
     expandable: false,
+    isDeduction: true,
   })
 
   // 5. = LUCRO BRUTO
@@ -270,7 +272,7 @@ function buildDRELines(
     for (const ctx of contexts) {
       const data = dataByContext[ctx.id]
       const deptData = data?.despesas_json?.find((d) => d.departamento_id === deptId)
-      valores[ctx.id] = deptData ? -deptData.valor : 0
+      valores[ctx.id] = deptData ? deptData.valor : 0
     }
     return {
       descricao: deptName,
@@ -278,6 +280,7 @@ function buildDRELines(
       nivel: 2,
       valores,
       expandable: false,
+      isDeduction: true,
     }
   }).sort((a, b) => {
     // Sort by first context value (absolute)
@@ -291,9 +294,10 @@ function buildDRELines(
     descricao: '(-) DESPESAS OPERACIONAIS',
     tipo: 'header',
     nivel: 0,
-    valores: createValores(d => -d.despesas_operacionais),
+    valores: createValores(d => d.despesas_operacionais),
     expandable: despesasItems.length > 0,
     items: despesasItems,
+    isDeduction: true,
   })
 
   // 7. = LUCRO LÍQUIDO
