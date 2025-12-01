@@ -347,7 +347,7 @@ export default function DashboardPage() {
 
   // Dados ordenados usando useMemo para performance
   const sortedVendasPorFilial = useMemo(() => {
-    if (!vendasPorFilial || vendasPorFilial.length === 0) return vendasPorFilial
+    if (!vendasPorFilial || !Array.isArray(vendasPorFilial) || vendasPorFilial.length === 0) return []
 
     const sorted = [...vendasPorFilial].sort((a, b) => {
       let aValue: number

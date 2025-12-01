@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
-  FileText,
+  FileBarChart,
   LucideIcon,
   Package,
   TrendingUp,
@@ -68,9 +68,9 @@ const gerencialNavigation: NavigationItem[] = [
   },
   {
     name: 'DRE Comparativo',
-    href: '#',
-    icon: FileText,
-    comingSoon: true,
+    href: '/dre-comparativo',
+    icon: FileBarChart,
+    moduleId: 'dre_comparativo',
   },
   {
     name: 'Descontos de Vendas',
