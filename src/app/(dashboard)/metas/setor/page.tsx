@@ -54,14 +54,16 @@ interface MetaSetor {
   dia_semana: string
   filiais: {
     filial_id: number
-    data_referencia: string
-    dia_semana_ref: string
-    valor_referencia: number
-    meta_percentual: number
+    filial_nome?: string           // Retornado pela RPC
+    data_referencia?: string       // Opcional - nem sempre retornado
+    dia_semana_ref?: string        // Opcional - nem sempre retornado
+    valor_referencia?: number      // Opcional - nem sempre retornado
+    meta_percentual?: number       // Opcional - nem sempre retornado
     valor_meta: number
     valor_realizado: number
     diferenca: number
     diferenca_percentual: number
+    percentual_atingido?: number   // Retornado pela RPC
   }[]
 }
 
@@ -405,7 +407,7 @@ export default function MetaSetorPage() {
       alert('Informe a data de referência')
       return
     }
-    if (!generateForm.meta_percentual || generateForm.meta_percentual <= 0) {
+    if (generateForm.meta_percentual === undefined || generateForm.meta_percentual === null) {
       alert('Informe o percentual da meta')
       return
     }
@@ -548,12 +550,23 @@ export default function MetaSetorPage() {
       let novoPercentual: number
       let novoValorMeta: number
 
+      // Usar valor_referencia se existir, senão usar valor_meta atual como base
+      const valorBase = filialData.valor_referencia ?? filialData.valor_meta ?? 1
+
       if (editingCell.field === 'percentual') {
         novoPercentual = newValue
-        novoValorMeta = filialData.valor_referencia * (1 + novoPercentual / 100)
+        // Se temos valor_referencia, calcular valor_meta baseado no percentual
+        // Senão, manter o valor_meta existente (usuário pode editar diretamente)
+        novoValorMeta = filialData.valor_referencia != null
+          ? valorBase * (1 + novoPercentual / 100)
+          : filialData.valor_meta
       } else {
         novoValorMeta = newValue
-        novoPercentual = ((novoValorMeta / filialData.valor_referencia) - 1) * 100
+        // Se temos valor_referencia, calcular o percentual
+        // Senão, usar 0 como percentual padrão
+        novoPercentual = filialData.valor_referencia != null
+          ? ((novoValorMeta / valorBase) - 1) * 100
+          : 0
       }
 
       // Chamar API para atualizar (usar a mesma API de meta mensal)
@@ -1347,7 +1360,7 @@ export default function MetaSetorPage() {
                       valor_meta: acc.valor_meta + (f.valor_meta || 0),
                       valor_realizado: acc.valor_realizado + (f.valor_realizado || 0),
                       diferenca: acc.diferenca + (f.diferenca || 0),
-                      meta_percentual: acc.meta_percentual + f.meta_percentual,
+                      meta_percentual: acc.meta_percentual + (f.meta_percentual ?? f.percentual_atingido ?? 0),
                       count: acc.count + 1,
                     }),
                     {
@@ -1456,16 +1469,22 @@ export default function MetaSetorPage() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                Ref: {format(parseISO(filial.data_referencia), 'dd/MM/yyyy')}
+                                {filial.data_referencia
+                                  ? `Ref: ${format(parseISO(filial.data_referencia), 'dd/MM/yyyy')}`
+                                  : '-'
+                                }
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                {formatCurrency(filial.valor_referencia)}
+                                {filial.valor_referencia != null
+                                  ? formatCurrency(filial.valor_referencia)
+                                  : '-'
+                                }
                               </TableCell>
-                              
-                              {/* Meta % - Editável */}
-                              <TableCell 
+
+                              {/* Meta % - Editável (ou Atingido % se meta_percentual não existir) */}
+                              <TableCell
                                 className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
-                                onDoubleClick={() => startEditing(meta.data, filial.filial_id, 'percentual', filial.meta_percentual)}
+                                onDoubleClick={() => startEditing(meta.data, filial.filial_id, 'percentual', filial.meta_percentual ?? filial.percentual_atingido ?? 0)}
                                 title="Duplo clique para editar"
                               >
                                 {isEditingPercentual ? (
@@ -1482,7 +1501,10 @@ export default function MetaSetorPage() {
                                   />
                                 ) : (
                                   <span className="inline-flex items-center gap-1">
-                                    {filial.meta_percentual.toFixed(2)}%
+                                    {filial.meta_percentual != null
+                                      ? `${filial.meta_percentual.toFixed(2)}%`
+                                      : (filial.percentual_atingido != null ? `${filial.percentual_atingido.toFixed(2)}%` : '-')
+                                    }
                                     <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
                                   </span>
                                 )}

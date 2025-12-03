@@ -123,14 +123,16 @@ export async function GET(request: NextRequest) {
       dataIsUndefined: optimizedResult.data === undefined,
     })
 
-    // Use optimized if no error AND has data
+    // Use optimized if no error (even if empty array - that's valid when no metas exist)
     const optimizedData = optimizedResult.data
     const dataStr = optimizedData ? JSON.stringify(optimizedData).substring(0, 500) : 'null'
     console.log('[API/METAS/SETOR/REPORT] 🔍 Optimized data preview:', dataStr)
-    
-    const hasOptimizedData = optimizedData && (
-      (Array.isArray(optimizedData) && optimizedData.length > 0) ||
-      (typeof optimizedData === 'object' && optimizedData !== null && Object.keys(optimizedData).length > 0)
+
+    // Check if optimized function succeeded (no error)
+    // Empty array [] is a VALID result when no metas exist for the period
+    const optimizedSucceeded = !optimizedResult.error && (
+      Array.isArray(optimizedData) || // Array (even empty) is valid
+      (typeof optimizedData === 'object' && optimizedData !== null)
     )
 
     console.log('[API/METAS/SETOR/REPORT] 🔍 Data validation:', {
@@ -139,24 +141,20 @@ export async function GET(request: NextRequest) {
       arrayLength: Array.isArray(optimizedData) ? optimizedData.length : 'N/A',
       isObject: typeof optimizedData === 'object',
       isNotNull: optimizedData !== null,
-      objectKeys: (typeof optimizedData === 'object' && optimizedData !== null) ? Object.keys(optimizedData).length : 'N/A',
-      hasOptimizedData,
+      optimizedSucceeded,
       hasError: !!optimizedResult.error,
-      willUseOptimized: !optimizedResult.error && hasOptimizedData,
+      willUseOptimized: optimizedSucceeded,
     })
 
-    if (!optimizedResult.error && hasOptimizedData) {
+    if (optimizedSucceeded) {
+      // Function succeeded - use result (even if empty array)
       allData = optimizedResult.data
       error = optimizedResult.error
       console.log('[API/METAS/SETOR/REPORT] Using optimized function, data length:', Array.isArray(allData) ? allData.length : 'object')
     } else {
-      // Fallback to old function (either error or empty result)
-      if (optimizedResult.error) {
-        console.log('[API/METAS/SETOR/REPORT] Optimized function error:', optimizedResult.error.message)
-      } else {
-        console.log('[API/METAS/SETOR/REPORT] Optimized function returned empty, using fallback. Data was:', optimizedData)
-      }
-      
+      // Optimized function failed - try fallback
+      console.log('[API/METAS/SETOR/REPORT] Optimized function error:', optimizedResult.error?.message)
+
       // @ts-expect-error RPC function type not generated yet
       const fallbackResult = await supabase.rpc('get_metas_setor_report', {
         p_schema: schema,
@@ -169,28 +167,24 @@ export async function GET(request: NextRequest) {
       allData = fallbackResult.data
       error = fallbackResult.error
 
-      // ⚠️ CRITICAL: Fallback function incompatible or broken!
-      // Reasons:
-      // 1. Uses old column name 'ms.setor' instead of 'ms.setor_id'
-      // 2. Returns MONTHLY aggregated data, UI expects DAILY data
-      // SOLUTION: Apply FIX_METAS_SETOR_REALIZADO.sql to fix optimized function
-      console.error('[API/METAS/SETOR/REPORT] ⚠️  CRITICAL: Fallback function failed')
-      console.error('[API/METAS/SETOR/REPORT] ⚠️  Optimized: Returned empty')
-      console.error('[API/METAS/SETOR/REPORT] ⚠️  Fallback:', error ? `Error - ${error.message}` : 'Incompatible format')
-      console.error('[API/METAS/SETOR/REPORT] ⚠️  ACTION: Apply FIX_METAS_SETOR_REALIZADO.sql')
-      
-      return NextResponse.json(
-        { 
-          error: 'Function not available',
-          message: error 
-            ? `Optimized function returned empty and fallback failed: ${error.message}`
-            : 'Optimized function returned empty and fallback is incompatible',
-          action: 'Apply FIX_METAS_SETOR_REALIZADO.sql to fix the issue',
-          docs: 'See METAS_SETOR_CRITICAL_STATUS.md',
-          details: error || 'Fallback returns monthly data but UI expects daily data'
-        },
-        { status: 503 } // Service Unavailable
-      )
+      if (error) {
+        // Both functions failed
+        console.error('[API/METAS/SETOR/REPORT] ⚠️  CRITICAL: Both functions failed')
+        console.error('[API/METAS/SETOR/REPORT] ⚠️  Optimized:', optimizedResult.error?.message)
+        console.error('[API/METAS/SETOR/REPORT] ⚠️  Fallback:', error.message)
+
+        return NextResponse.json(
+          {
+            error: 'Function not available',
+            message: `Both RPC functions failed: ${error.message}`,
+            action: 'Check if RPC functions exist in the schema',
+            details: error
+          },
+          { status: 503 } // Service Unavailable
+        )
+      }
+
+      console.log('[API/METAS/SETOR/REPORT] Using fallback function, data length:', Array.isArray(allData) ? (allData as unknown[]).length : 'N/A')
     }
 
     if (error) {

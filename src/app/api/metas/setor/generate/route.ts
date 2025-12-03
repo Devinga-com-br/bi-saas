@@ -80,15 +80,17 @@ export async function POST(request: NextRequest) {
       meta_percentual,
     })
 
+    // Usar a função COMPLETA que tem os parâmetros de meta_percentual e data_referencia
+    // Assinatura: p_schema, p_setor_id, p_filial_id, p_mes, p_ano, p_meta_percentual, p_data_referencia_inicial
     // @ts-expect-error RPC function type not generated yet
     const { data, error }: { data: unknown; error: unknown } = await supabase.rpc('generate_metas_setor', {
       p_schema: schema,
       p_setor_id: parseInt(setor_id),
+      p_filial_id: finalFilialId,  // bigint singular (não array!)
       p_mes: parseInt(mes),
       p_ano: parseInt(ano),
-      p_filial_id: finalFilialId,
-      p_data_referencia_inicial: data_referencia,
       p_meta_percentual: parseFloat(meta_percentual),
+      p_data_referencia_inicial: data_referencia,
     })
 
     if (error) {
