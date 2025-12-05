@@ -11,9 +11,15 @@ interface ContextParam {
 }
 
 interface DREData {
+  // Receita separada por origem
+  receita_bruta_pdv: number
+  receita_bruta_faturamento: number
   receita_bruta: number
   desconto_venda: number
   receita_liquida: number
+  // CMV separado por origem
+  cmv_pdv: number
+  cmv_faturamento: number
   cmv: number
   lucro_bruto: number
   margem_bruta: number
@@ -139,9 +145,15 @@ export async function GET(request: NextRequest) {
       const result = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : rpcData
       if (result) {
         dreDataByContext[ctx.id] = {
+          // Receita separada
+          receita_bruta_pdv: parseFloat(result.receita_bruta_pdv) || 0,
+          receita_bruta_faturamento: parseFloat(result.receita_bruta_faturamento) || 0,
           receita_bruta: parseFloat(result.receita_bruta) || 0,
           desconto_venda: parseFloat(result.desconto_venda) || 0,
           receita_liquida: parseFloat(result.receita_liquida) || 0,
+          // CMV separado
+          cmv_pdv: parseFloat(result.cmv_pdv) || 0,
+          cmv_faturamento: parseFloat(result.cmv_faturamento) || 0,
           cmv: parseFloat(result.cmv) || 0,
           lucro_bruto: parseFloat(result.lucro_bruto) || 0,
           margem_bruta: parseFloat(result.margem_bruta) || 0,
@@ -153,9 +165,13 @@ export async function GET(request: NextRequest) {
       } else {
         // No data for this context
         dreDataByContext[ctx.id] = {
+          receita_bruta_pdv: 0,
+          receita_bruta_faturamento: 0,
           receita_bruta: 0,
           desconto_venda: 0,
           receita_liquida: 0,
+          cmv_pdv: 0,
+          cmv_faturamento: 0,
           cmv: 0,
           lucro_bruto: 0,
           margem_bruta: 0,
@@ -215,22 +231,73 @@ function buildDRELines(
     return valores
   }
 
-  // 1. RECEITA BRUTA (internamente já considera descontos, mas exibe como Receita Bruta)
+  // Verificar se há dados de faturamento em algum contexto
+  const hasFaturamento = Object.values(dataByContext).some(d => d.receita_bruta_faturamento > 0)
+
+  // 1. RECEITA BRUTA - Com sublinhas de PDV e Faturamento
+  const receitaSubItems: DRELineData[] = []
+
+  // Sublinha: Vendas de PDV
+  receitaSubItems.push({
+    descricao: 'Vendas de PDV',
+    tipo: 'subitem',
+    nivel: 1,
+    valores: createValores(d => d.receita_bruta_pdv),
+    expandable: false,
+  })
+
+  // Sublinha: Vendas Faturamento (só mostra se houver dados)
+  if (hasFaturamento) {
+    receitaSubItems.push({
+      descricao: 'Vendas Faturamento',
+      tipo: 'subitem',
+      nivel: 1,
+      valores: createValores(d => d.receita_bruta_faturamento),
+      expandable: false,
+    })
+  }
+
   linhas.push({
     descricao: 'RECEITA BRUTA',
     tipo: 'header',
     nivel: 0,
     valores: createValores(d => d.receita_liquida),
-    expandable: false,
+    expandable: receitaSubItems.length > 1, // Só expande se tiver mais de uma sublinha
+    items: receitaSubItems.length > 1 ? receitaSubItems : undefined,
   })
 
-  // 4. (-) CMV
+  // 2. (-) CMV - Com sublinhas de PDV e Faturamento
+  const cmvSubItems: DRELineData[] = []
+
+  // Sublinha: CMV PDV
+  cmvSubItems.push({
+    descricao: 'CMV PDV',
+    tipo: 'subitem',
+    nivel: 2,
+    valores: createValores(d => d.cmv_pdv),
+    expandable: false,
+    isDeduction: true,
+  })
+
+  // Sublinha: CMV Faturamento (só mostra se houver dados)
+  if (hasFaturamento) {
+    cmvSubItems.push({
+      descricao: 'CMV Faturamento',
+      tipo: 'subitem',
+      nivel: 2,
+      valores: createValores(d => d.cmv_faturamento),
+      expandable: false,
+      isDeduction: true,
+    })
+  }
+
   linhas.push({
     descricao: '(-) CMV - Custo da Mercadoria Vendida',
     tipo: 'subitem',
     nivel: 1,
     valores: createValores(d => d.cmv),
-    expandable: false,
+    expandable: cmvSubItems.length > 1, // Só expande se tiver mais de uma sublinha
+    items: cmvSubItems.length > 1 ? cmvSubItems : undefined,
     isDeduction: true,
   })
 

@@ -101,6 +101,21 @@ interface ReceitaBrutaPorFilial {
   total_lucro_bruto: number // Soma total do lucro bruto
 }
 
+// Interface para dados de faturamento
+interface FaturamentoData {
+  total: {
+    receita_faturamento: number
+    cmv_faturamento: number
+    lucro_bruto_faturamento: number
+    qtd_notas: number
+  }
+  por_filial: Record<number, {
+    receita_faturamento: number
+    cmv_faturamento: number
+    lucro_bruto_faturamento: number
+  }>
+}
+
 interface PDFRowData {
   descricao: string
   [key: string]: string | number // Permite propriedades dinâmicas como filial_1, filial_2, total
@@ -132,6 +147,7 @@ export default function DespesasPage() {
   const [dataPaa, setDataPaa] = useState<ReportData | null>(null)
   const [indicadores, setIndicadores] = useState<ComparacaoIndicadores | null>(null)
   const [receitaPorFilial, setReceitaPorFilial] = useState<ReceitaBrutaPorFilial | null>(null)
+  const [faturamentoData, setFaturamentoData] = useState<FaturamentoData | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingIndicadores, setLoadingIndicadores] = useState(false)
   const [error, setError] = useState('')
@@ -259,6 +275,84 @@ export default function DespesasPage() {
     } catch (err) {
       console.error('[ReceitaBruta] Erro ao buscar receita bruta:', err)
       return null
+    }
+  }
+
+  // Função para buscar dados de faturamento
+  const fetchFaturamento = async (
+    filiais: FilialOption[],
+    mesParam: number,
+    anoParam: number
+  ): Promise<FaturamentoData | null> => {
+    if (!currentTenant?.supabase_schema || filiais.length === 0) {
+      return null
+    }
+
+    try {
+      const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
+      const filialIds = filiais.map(f => f.value).join(',')
+
+      // Buscar totais agregados
+      const paramsTotal = new URLSearchParams({
+        schema: currentTenant.supabase_schema || '',
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds
+      })
+
+      // Buscar dados por filial
+      const paramsPorFilial = new URLSearchParams({
+        schema: currentTenant.supabase_schema || '',
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds,
+        por_filial: 'true'
+      })
+
+      const [responseTotal, responsePorFilial] = await Promise.all([
+        fetch(`/api/faturamento?${paramsTotal}`),
+        fetch(`/api/faturamento?${paramsPorFilial}`)
+      ])
+
+      if (!responseTotal.ok || !responsePorFilial.ok) {
+        console.error('[Faturamento] Erro ao buscar dados de faturamento')
+        return {
+          total: { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 },
+          por_filial: {}
+        }
+      }
+
+      const totalData = await responseTotal.json()
+      const porFilialData = await responsePorFilial.json()
+
+      // Montar objeto por filial
+      const por_filial: Record<number, { receita_faturamento: number; cmv_faturamento: number; lucro_bruto_faturamento: number }> = {}
+
+      if (Array.isArray(porFilialData)) {
+        porFilialData.forEach((item: { filial_id: number; receita_faturamento: number; cmv_faturamento: number; lucro_bruto_faturamento: number }) => {
+          por_filial[item.filial_id] = {
+            receita_faturamento: item.receita_faturamento || 0,
+            cmv_faturamento: item.cmv_faturamento || 0,
+            lucro_bruto_faturamento: item.lucro_bruto_faturamento || 0
+          }
+        })
+      }
+
+      return {
+        total: {
+          receita_faturamento: totalData.receita_faturamento || 0,
+          cmv_faturamento: totalData.cmv_faturamento || 0,
+          lucro_bruto_faturamento: totalData.lucro_bruto_faturamento || 0,
+          qtd_notas: totalData.qtd_notas || 0
+        },
+        por_filial
+      }
+    } catch (err) {
+      console.error('[Faturamento] Erro ao buscar faturamento:', err)
+      return {
+        total: { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 },
+        por_filial: {}
+      }
     }
   }
 
@@ -1002,22 +1096,24 @@ export default function DespesasPage() {
         // PAA - Período Anterior Acumulado (sempre usa mesmo período, mas 1 ano atrás)
         const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1, dataReferenciaYTD)
 
-        // Buscar em paralelo (despesas + receita bruta)
-        const [dataAtual, despesasPam, despesasPaa, receitaBruta] = await Promise.all([
+        // Buscar em paralelo (despesas + receita bruta + faturamento)
+        const [dataAtual, despesasPam, despesasPaa, receitaBruta, faturamento] = await Promise.all([
           fetchDespesasPeriodo(filiais, dataInicio, dataFim),
           fetchDespesasPeriodo(filiais, dataInicioPam, dataFimPam),
           fetchDespesasPeriodo(filiais, dataInicioPaa, dataFimPaa),
-          fetchReceitaBrutaPorFilial(filiais, mesParam, anoParam)
+          fetchReceitaBrutaPorFilial(filiais, mesParam, anoParam),
+          fetchFaturamento(filiais, mesParam, anoParam)
         ])
 
         setData(dataAtual)
         setDataPam(despesasPam)
         setDataPaa(despesasPaa)
         setReceitaPorFilial(receitaBruta)
+        setFaturamentoData(faturamento)
         setLoading(false)
 
-        // Agora buscar indicadores com os dados de despesas já carregados
-        await fetchIndicadores(filiais, mesParam, anoParam, dataAtual, despesasPam, despesasPaa)
+        // Agora buscar indicadores com os dados de despesas e faturamento já carregados
+        await fetchIndicadores(filiais, mesParam, anoParam, dataAtual, despesasPam, despesasPaa, faturamento)
       } catch (err) {
         const error = err as Error
         console.error('[Despesas] Erro ao buscar despesas:', error)
@@ -1073,6 +1169,41 @@ export default function DespesasPage() {
     }
   }
 
+  // Função auxiliar para buscar faturamento de um período específico (apenas totais)
+  const fetchFaturamentoPeriodo = async (
+    dataInicio: string,
+    dataFim: string,
+    filialIds: string
+  ): Promise<FaturamentoData['total'] | null> => {
+    if (!currentTenant?.supabase_schema) {
+      return null
+    }
+
+    try {
+      const params = new URLSearchParams({
+        schema: currentTenant.supabase_schema,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds
+      })
+
+      const response = await fetch(`/api/faturamento?${params}`)
+      if (!response.ok) {
+        return { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 }
+      }
+
+      const data = await response.json()
+      return {
+        receita_faturamento: data.receita_faturamento || 0,
+        cmv_faturamento: data.cmv_faturamento || 0,
+        lucro_bruto_faturamento: data.lucro_bruto_faturamento || 0,
+        qtd_notas: data.qtd_notas || 0
+      }
+    } catch {
+      return { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 }
+    }
+  }
+
   // Buscar indicadores (mesma API do DRE Gerencial)
   const fetchIndicadores = async (
     filiais: FilialOption[],
@@ -1080,7 +1211,8 @@ export default function DespesasPage() {
     anoParam: number,
     despesasAtual?: ReportData | null,
     despesasPam?: ReportData | null,
-    despesasPaa?: ReportData | null
+    despesasPaa?: ReportData | null,
+    faturamentoAtual?: FaturamentoData | null
   ) => {
     if (!currentTenant?.supabase_schema) {
       return
@@ -1091,17 +1223,6 @@ export default function DespesasPage() {
     try {
       const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
       const filialIds = filiais.map(f => f.value).join(',')
-      
-      // Buscar dados do período atual
-      const paramsAtual = new URLSearchParams({
-        schema: currentTenant.supabase_schema,
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        filiais: filialIds || 'all'
-      })
-      const responseAtual = await fetch(`/api/dashboard?${paramsAtual}`)
-      if (!responseAtual.ok) throw new Error('Erro ao buscar dados atuais')
-      const dashboardAtual = await responseAtual.json()
 
       // Buscar dados PAM - Período Anterior Mesmo (mesma lógica do handleFilter)
       let mesPam: number
@@ -1127,25 +1248,48 @@ export default function DespesasPage() {
       }
 
       const { dataInicio: dataInicioPam, dataFim: dataFimPam } = getDatasMesAno(mesPam, anoPam, dataReferenciaYTD)
-      const paramsPam = new URLSearchParams({
-        schema: currentTenant.supabase_schema,
-        data_inicio: dataInicioPam,
-        data_fim: dataFimPam,
-        filiais: filialIds || 'all'
-      })
-      const responsePam = await fetch(`/api/dashboard?${paramsPam}`)
-      const dashboardPam = responsePam.ok ? await responsePam.json() : null
 
       // Buscar dados PAA - Período Anterior Acumulado (sempre usa mesmo período, mas 1 ano atrás)
       const { dataInicio: dataInicioPaa, dataFim: dataFimPaa } = getDatasMesAno(mesParam, anoParam - 1, dataReferenciaYTD)
-      const paramsPaa = new URLSearchParams({
-        schema: currentTenant.supabase_schema,
-        data_inicio: dataInicioPaa,
-        data_fim: dataFimPaa,
-        filiais: filialIds || 'all'
-      })
-      const responsePaa = await fetch(`/api/dashboard?${paramsPaa}`)
-      const dashboardPaa = responsePaa.ok ? await responsePaa.json() : null
+
+      // Buscar todos os dados em paralelo: dashboard (atual, PAM, PAA) + faturamento (PAM, PAA)
+      const [
+        dashboardAtual,
+        dashboardPam,
+        dashboardPaa,
+        faturamentoPam,
+        faturamentoPaa
+      ] = await Promise.all([
+        // Dashboard atual
+        fetch(`/api/dashboard?${new URLSearchParams({
+          schema: currentTenant.supabase_schema,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          filiais: filialIds || 'all'
+        })}`).then(r => r.ok ? r.json() : null),
+
+        // Dashboard PAM
+        fetch(`/api/dashboard?${new URLSearchParams({
+          schema: currentTenant.supabase_schema,
+          data_inicio: dataInicioPam,
+          data_fim: dataFimPam,
+          filiais: filialIds || 'all'
+        })}`).then(r => r.ok ? r.json() : null),
+
+        // Dashboard PAA
+        fetch(`/api/dashboard?${new URLSearchParams({
+          schema: currentTenant.supabase_schema,
+          data_inicio: dataInicioPaa,
+          data_fim: dataFimPaa,
+          filiais: filialIds || 'all'
+        })}`).then(r => r.ok ? r.json() : null),
+
+        // Faturamento PAM
+        fetchFaturamentoPeriodo(dataInicioPam, dataFimPam, filialIds || 'all'),
+
+        // Faturamento PAA
+        fetchFaturamentoPeriodo(dataInicioPaa, dataFimPaa, filialIds || 'all')
+      ])
 
       const result = {
         current: dashboardAtual,
@@ -1153,20 +1297,48 @@ export default function DespesasPage() {
         paa: { data: dashboardPaa, ano: anoParam - 1 }
       }
 
-      // Processar dados do dashboard para calcular indicadores (incluindo despesas)
-      const processIndicadores = (dashboardData: DashboardData | null, despesasData: ReportData | null): IndicadoresData => {
-        const receitaBruta = dashboardData?.total_vendas || 0
-        const lucroBruto = dashboardData?.total_lucro || 0
-        // CMV = Receita Bruta - Lucro Bruto (custo das mercadorias vendidas)
-        const cmv = receitaBruta - lucroBruto
-        const margemLucroBruto = dashboardData?.margem_lucro || 0
+      // Estruturar dados de faturamento para PAM e PAA
+      const faturamentoPamData: FaturamentoData | null = faturamentoPam ? {
+        total: faturamentoPam,
+        por_filial: {}
+      } : null
+
+      const faturamentoPaaData: FaturamentoData | null = faturamentoPaa ? {
+        total: faturamentoPaa,
+        por_filial: {}
+      } : null
+
+      // Processar dados do dashboard para calcular indicadores (incluindo despesas e faturamento)
+      const processIndicadores = (
+        dashboardData: DashboardData | null,
+        despesasData: ReportData | null,
+        faturamento?: FaturamentoData | null
+      ): IndicadoresData => {
+        // Receita PDV (do dashboard)
+        const receitaPDV = dashboardData?.total_vendas || 0
+        const lucroBrutoPDV = dashboardData?.total_lucro || 0
+        // CMV PDV = Receita PDV - Lucro Bruto PDV
+        const cmvPDV = receitaPDV - lucroBrutoPDV
+
+        // Receita e CMV de Faturamento (nova fonte)
+        const receitaFaturamento = faturamento?.total?.receita_faturamento || 0
+        const cmvFaturamento = faturamento?.total?.cmv_faturamento || 0
+        const lucroBrutoFaturamento = faturamento?.total?.lucro_bruto_faturamento || 0
+
+        // Totais combinados (PDV + Faturamento)
+        const receitaBruta = receitaPDV + receitaFaturamento
+        const cmv = cmvPDV + cmvFaturamento
+        const lucroBruto = lucroBrutoPDV + lucroBrutoFaturamento
+
+        // Calcular margem de lucro bruto
+        const margemLucroBruto = receitaBruta > 0 ? (lucroBruto / receitaBruta) * 100 : 0
 
         // Calcular total de despesas
         const totalDespesas = despesasData?.totalizador?.valorTotal || 0
-        
+
         // Calcular lucro líquido: Lucro Bruto - Total Despesas
         const lucroLiquido = lucroBruto - totalDespesas
-        
+
         // Calcular margem líquida: (Lucro Líquido / Receita Bruta) * 100
         const margemLucroLiquido = receitaBruta > 0 ? (lucroLiquido / receitaBruta) * 100 : 0
 
@@ -1182,13 +1354,16 @@ export default function DespesasPage() {
       }
 
       const processedIndicadores = {
-        current: processIndicadores(result.current, despesasAtual || data),
+        // Para o período atual, incluir dados de faturamento
+        current: processIndicadores(result.current, despesasAtual || data, faturamentoAtual),
         pam: {
-          data: processIndicadores(result.pam.data, despesasPam || dataPam),
+          // Incluir dados de faturamento do período PAM
+          data: processIndicadores(result.pam.data, despesasPam || dataPam, faturamentoPamData),
           ano: result.pam.ano
         },
         paa: {
-          data: processIndicadores(result.paa.data, despesasPaa || dataPaa),
+          // Incluir dados de faturamento do período PAA
+          data: processIndicadores(result.paa.data, despesasPaa || dataPaa, faturamentoPaaData),
           ano: result.paa.ano
         }
       }
@@ -1454,55 +1629,173 @@ export default function DespesasPage() {
       totalRow.subRows!.push(deptRow)
     })
 
-    // 1. Linha de receita bruta (se disponível)
+    // 1. Linha de receita bruta (se disponível) - COM SUBLINHAS para PDV e Faturamento
     if (receitaPorFilial) {
+      // Calcular valores de receita PDV por filial (já existente)
+      const receitaPDVFiliais = receitaPorFilial.valores_filiais
+      const totalReceitaPDV = receitaPorFilial.total
+
+      // Calcular valores de receita Faturamento por filial
+      const receitaFaturamentoFiliais: Record<number, number> = {}
+      let totalReceitaFaturamento = 0
+
+      reportData.filiais.forEach(filialId => {
+        const faturamentoFilial = faturamentoData?.por_filial[filialId]?.receita_faturamento || 0
+        receitaFaturamentoFiliais[filialId] = faturamentoFilial
+        totalReceitaFaturamento += faturamentoFilial
+      })
+
+      // Se não temos dados por filial mas temos total, usar o total
+      if (totalReceitaFaturamento === 0 && faturamentoData?.total?.receita_faturamento) {
+        totalReceitaFaturamento = faturamentoData.total.receita_faturamento
+      }
+
+      // Calcular receita bruta total (PDV + Faturamento)
+      const receitaBrutaTotalFiliais: Record<number, number> = {}
+      reportData.filiais.forEach(filialId => {
+        receitaBrutaTotalFiliais[filialId] = (receitaPDVFiliais[filialId] || 0) + (receitaFaturamentoFiliais[filialId] || 0)
+      })
+      const totalReceitaBruta = totalReceitaPDV + totalReceitaFaturamento
+
+      // Sublinha: Vendas de PDV
+      const receitaPDVRow: DespesaRow = {
+        id: 'receita_pdv',
+        tipo: 'receita_pdv',
+        descricao: 'Vendas de PDV',
+        total: totalReceitaPDV,
+        percentual: totalReceitaBruta > 0 ? (totalReceitaPDV / totalReceitaBruta) * 100 : 0,
+        valores_filiais: receitaPDVFiliais,
+        filiais: reportData.filiais,
+      }
+
+      // Sublinha: Vendas Faturamento
+      const receitaFaturamentoRow: DespesaRow = {
+        id: 'receita_faturamento',
+        tipo: 'receita_faturamento',
+        descricao: 'Vendas Faturamento',
+        total: totalReceitaFaturamento,
+        percentual: totalReceitaBruta > 0 ? (totalReceitaFaturamento / totalReceitaBruta) * 100 : 0,
+        valores_filiais: receitaFaturamentoFiliais,
+        filiais: reportData.filiais,
+      }
+
+      // Linha principal: Receita Bruta (soma de PDV + Faturamento) - expansível
       const receitaRow: DespesaRow = {
         id: 'receita',
         tipo: 'receita',
         descricao: 'RECEITA BRUTA',
-        total: receitaPorFilial.total,
+        total: totalReceitaBruta,
         percentual: 0,
-        valores_filiais: receitaPorFilial.valores_filiais,
+        valores_filiais: receitaBrutaTotalFiliais,
         filiais: reportData.filiais,
+        subRows: [receitaPDVRow, receitaFaturamentoRow]
       }
       rows.push(receitaRow)
     }
 
-    // 2. Linha de CMV (se disponível)
+    // 2. Linha de CMV (se disponível) - COM SUBLINHAS para PDV e Faturamento
     if (receitaPorFilial) {
-      const cmvFiliais: Record<number, number> = {}
-      let totalCMV = 0
+      // Calcular CMV PDV por filial
+      const cmvPDVFiliais: Record<number, number> = {}
+      let totalCMVPDV = 0
 
       reportData.filiais.forEach(filialId => {
         const receitaBrutaFilial = receitaPorFilial.valores_filiais[filialId] || 0
         const lucroBrutoFilial = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
         const cmv = receitaBrutaFilial - lucroBrutoFilial
 
-        cmvFiliais[filialId] = cmv
-        totalCMV += cmv
+        cmvPDVFiliais[filialId] = cmv
+        totalCMVPDV += cmv
       })
 
+      // Calcular CMV Faturamento por filial
+      const cmvFaturamentoFiliais: Record<number, number> = {}
+      let totalCMVFaturamento = 0
+
+      reportData.filiais.forEach(filialId => {
+        const cmvFilial = faturamentoData?.por_filial[filialId]?.cmv_faturamento || 0
+        cmvFaturamentoFiliais[filialId] = cmvFilial
+        totalCMVFaturamento += cmvFilial
+      })
+
+      // Se não temos dados por filial mas temos total, usar o total
+      if (totalCMVFaturamento === 0 && faturamentoData?.total?.cmv_faturamento) {
+        totalCMVFaturamento = faturamentoData.total.cmv_faturamento
+      }
+
+      // Calcular CMV total (PDV + Faturamento)
+      const cmvTotalFiliais: Record<number, number> = {}
+      reportData.filiais.forEach(filialId => {
+        cmvTotalFiliais[filialId] = (cmvPDVFiliais[filialId] || 0) + (cmvFaturamentoFiliais[filialId] || 0)
+      })
+      const totalCMV = totalCMVPDV + totalCMVFaturamento
+
+      // Sublinha: CMV PDV
+      const cmvPDVRow: DespesaRow = {
+        id: 'cmv_pdv',
+        tipo: 'cmv_pdv',
+        descricao: 'CMV PDV',
+        total: totalCMVPDV,
+        percentual: totalCMV > 0 ? (totalCMVPDV / totalCMV) * 100 : 0,
+        valores_filiais: cmvPDVFiliais,
+        filiais: reportData.filiais,
+      }
+
+      // Sublinha: CMV Faturamento
+      const cmvFaturamentoRow: DespesaRow = {
+        id: 'cmv_faturamento',
+        tipo: 'cmv_faturamento',
+        descricao: 'CMV Faturamento',
+        total: totalCMVFaturamento,
+        percentual: totalCMV > 0 ? (totalCMVFaturamento / totalCMV) * 100 : 0,
+        valores_filiais: cmvFaturamentoFiliais,
+        filiais: reportData.filiais,
+      }
+
+      // Linha principal: CMV (soma de PDV + Faturamento) - expansível
       const cmvRow: DespesaRow = {
         id: 'cmv',
         tipo: 'cmv',
         descricao: 'CMV',
         total: totalCMV,
         percentual: 0,
-        valores_filiais: cmvFiliais,
+        valores_filiais: cmvTotalFiliais,
         filiais: reportData.filiais,
+        subRows: [cmvPDVRow, cmvFaturamentoRow]
       }
       rows.push(cmvRow)
     }
 
-    // 3. Linha de lucro bruto (se disponível)
+    // 3. Linha de lucro bruto (se disponível) - Agora usando receita bruta total (PDV + Faturamento)
     if (receitaPorFilial) {
+      // Calcular lucro bruto por filial considerando faturamento
+      const lucroBrutoFiliais: Record<number, number> = {}
+      let totalLucroBruto = 0
+
+      reportData.filiais.forEach(filialId => {
+        // Lucro bruto PDV
+        const lucroBrutoPDV = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
+        // Lucro bruto Faturamento
+        const lucroBrutoFaturamento = faturamentoData?.por_filial[filialId]?.lucro_bruto_faturamento || 0
+
+        lucroBrutoFiliais[filialId] = lucroBrutoPDV + lucroBrutoFaturamento
+        totalLucroBruto += lucroBrutoPDV + lucroBrutoFaturamento
+      })
+
+      // Se não temos dados por filial mas temos total de faturamento, ajustar
+      if (faturamentoData?.total?.lucro_bruto_faturamento) {
+        const lucroBrutoFaturamentoTotal = faturamentoData.total.lucro_bruto_faturamento
+        const lucroBrutoPDVTotal = receitaPorFilial.total_lucro_bruto
+        totalLucroBruto = lucroBrutoPDVTotal + lucroBrutoFaturamentoTotal
+      }
+
       const lucroBrutoRow: DespesaRow = {
         id: 'lucro_bruto',
         tipo: 'lucro_bruto',
         descricao: 'LUCRO BRUTO',
-        total: receitaPorFilial.total_lucro_bruto,
+        total: totalLucroBruto,
         percentual: 0,
-        valores_filiais: receitaPorFilial.lucro_bruto_filiais,
+        valores_filiais: lucroBrutoFiliais,
         filiais: reportData.filiais,
       }
       rows.push(lucroBrutoRow)
@@ -1514,7 +1807,11 @@ export default function DespesasPage() {
       let totalLucroLiquido = 0
 
       reportData.filiais.forEach(filialId => {
-        const lucroBruto = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
+        // Lucro bruto combinado (PDV + Faturamento)
+        const lucroBrutoPDV = receitaPorFilial.lucro_bruto_filiais[filialId] || 0
+        const lucroBrutoFaturamento = faturamentoData?.por_filial[filialId]?.lucro_bruto_faturamento || 0
+        const lucroBruto = lucroBrutoPDV + lucroBrutoFaturamento
+
         const totalDespesas = totalRow.valores_filiais[filialId] || 0
         const lucroLiquido = lucroBruto - totalDespesas
 
