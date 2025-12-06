@@ -109,28 +109,51 @@ export async function GET(req: Request) {
       console.warn('[API/CHARTS/SALES-BY-MONTH] Continuing without lucro data');
     }
 
+    // Call RPC to get faturamento by month
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: faturamentoData, error: faturamentoError } = await (directSupabase as any).rpc('get_faturamento_by_month_chart', {
+      schema_name: requestedSchema,
+      p_filiais: finalFiliais || 'all'
+    });
+
+    if (faturamentoError) {
+      console.error('[API/CHARTS/SALES-BY-MONTH] Faturamento RPC Error:', faturamentoError);
+      console.warn('[API/CHARTS/SALES-BY-MONTH] Continuing without faturamento data');
+    }
+
     console.log('[API/CHARTS/SALES-BY-MONTH] Sales data:', salesData?.length || 0, 'records')
     console.log('[API/CHARTS/SALES-BY-MONTH] Expenses data:', expensesData?.length || 0, 'records')
     console.log('[API/CHARTS/SALES-BY-MONTH] Lucro data:', lucroData?.length || 0, 'records')
+    console.log('[API/CHARTS/SALES-BY-MONTH] Faturamento data:', faturamentoData?.length || 0, 'records')
     if (expensesData && expensesData.length > 0) {
       console.log('[API/CHARTS/SALES-BY-MONTH] Sample expense:', expensesData[0])
     }
     if (lucroData && lucroData.length > 0) {
       console.log('[API/CHARTS/SALES-BY-MONTH] Sample lucro:', lucroData[0])
     }
+    if (faturamentoData && faturamentoData.length > 0) {
+      console.log('[API/CHARTS/SALES-BY-MONTH] Sample faturamento:', faturamentoData[0])
+    }
 
-    // Merge sales, expenses and lucro data by month
+    // Merge sales, expenses, lucro and faturamento data by month
     const mergedData = (salesData || []).map((sale: { mes: string; total_vendas: number; total_vendas_ano_anterior: number }) => {
       const expense = expensesData?.find((exp: { mes: string }) => exp.mes === sale.mes)
       const lucro = lucroData?.find((luc: { mes: string }) => luc.mes === sale.mes)
+      const faturamento = faturamentoData?.find((fat: { mes: string }) => fat.mes === sale.mes)
       return {
         mes: sale.mes,
+        // PDV data
         total_vendas: sale.total_vendas,
         total_vendas_ano_anterior: sale.total_vendas_ano_anterior,
         total_despesas: expense?.total_despesas || 0,
         total_despesas_ano_anterior: expense?.total_despesas_ano_anterior || 0,
         total_lucro: lucro?.total_lucro || 0,
         total_lucro_ano_anterior: lucro?.total_lucro_ano_anterior || 0,
+        // Faturamento data
+        total_faturamento: faturamento?.total_faturamento || 0,
+        total_faturamento_ano_anterior: faturamento?.total_faturamento_ano_anterior || 0,
+        total_lucro_faturamento: faturamento?.total_lucro_faturamento || 0,
+        total_lucro_faturamento_ano_anterior: faturamento?.total_lucro_faturamento_ano_anterior || 0,
       }
     })
 

@@ -16,19 +16,29 @@ import { formatCurrency } from '@/lib/chart-config'
 
 interface SalesChartData {
   mes: string
+  // PDV data
   total_vendas: number
   total_vendas_ano_anterior: number
   total_despesas?: number
   total_despesas_ano_anterior?: number
   total_lucro?: number
   total_lucro_ano_anterior?: number
+  // Faturamento data
+  total_faturamento?: number
+  total_faturamento_ano_anterior?: number
+  total_lucro_faturamento?: number
+  total_lucro_faturamento_ano_anterior?: number
 }
+
+// Tipo de venda para o filtro
+type SalesType = 'complete' | 'pdv' | 'faturamento'
 
 interface ChartVendasProps {
   data: SalesChartData[]
+  salesType?: SalesType
 }
 
-export function ChartVendas({ data = [] }: ChartVendasProps) {
+export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasProps) {
   // Validate data is an array
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
@@ -165,11 +175,39 @@ export function ChartVendas({ data = [] }: ChartVendasProps) {
     )
   }
 
-  // Transform data: receita (positivo), despesa (negativo), lucro (da tabela vendas_diarias_por_filial)
+  // Transform data: receita (positivo), despesa (negativo), lucro
+  // Considera o tipo de venda selecionado: complete (PDV + Faturamento), pdv, faturamento
   const chartData = data.map((d) => {
-    const receita = d.total_vendas
+    // Valores PDV
+    const receitaPdv = d.total_vendas || 0
+    const lucroPdv = d.total_lucro || 0
+
+    // Valores Faturamento
+    const receitaFaturamento = d.total_faturamento || 0
+    const lucroFaturamento = d.total_lucro_faturamento || 0
+
+    // Despesas (sempre as mesmas, independente do tipo de venda)
     const despesaAbsoluta = d.total_despesas || 0
-    const lucro = d.total_lucro || 0
+
+    // Calcular valores baseado no tipo de venda selecionado
+    let receita: number
+    let lucro: number
+
+    switch (salesType) {
+      case 'pdv':
+        receita = receitaPdv
+        lucro = lucroPdv
+        break
+      case 'faturamento':
+        receita = receitaFaturamento
+        lucro = lucroFaturamento
+        break
+      case 'complete':
+      default:
+        receita = receitaPdv + receitaFaturamento
+        lucro = lucroPdv + lucroFaturamento
+        break
+    }
 
     return {
       name: d.mes.toUpperCase(),

@@ -19,6 +19,10 @@ import { createClient } from '@/lib/supabase/client'
 import { DashboardFilter, type FilterType } from '@/components/dashboard/dashboard-filter'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+// Tipo de venda para o filtro
+type SalesType = 'complete' | 'pdv' | 'faturamento'
 
 // Estrutura de dados da API
 interface DashboardData {
@@ -104,6 +108,22 @@ interface VendaPorFilial {
   delta_margem: number
 }
 
+// Interface para dados de faturamento
+interface FaturamentoData {
+  receita_faturamento: number
+  cmv_faturamento: number
+  lucro_bruto_faturamento: number
+  qtd_notas: number
+}
+
+// Interface para faturamento por filial
+interface FaturamentoPorFilial {
+  filial_id: number
+  receita_faturamento: number
+  cmv_faturamento: number
+  lucro_bruto_faturamento: number
+}
+
 // Tipos para ordenação
 type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro'
 type SortDirection = 'asc' | 'desc'
@@ -118,6 +138,7 @@ export default function DashboardPage() {
   const [dataFim, setDataFim] = useState<Date>(new Date())
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [filterType, setFilterType] = useState<FilterType>('month')
+  const [salesType, setSalesType] = useState<SalesType>('complete')
 
   // Estados para ordenação da tabela
   const [sortColumn, setSortColumn] = useState<SortColumn>('filial_id')
@@ -335,6 +356,299 @@ export default function DashboardPage() {
     ? `/api/dashboard/vendas-por-filial?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&filter_type=${apiParams.filter_type}`
     : null
   const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(vendasFilialUrl, fetcher, { refreshInterval: 0 });
+
+  // Buscar dados de faturamento (totais)
+  const faturamentoUrl = apiParams.schema
+    ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: faturamentoData } = useSWR<FaturamentoData>(faturamentoUrl, fetcher, { refreshInterval: 0 });
+
+  // Buscar dados de faturamento por filial
+  const faturamentoPorFilialUrl = apiParams.schema
+    ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&por_filial=true`
+    : null
+  const { data: faturamentoPorFilialData } = useSWR<FaturamentoPorFilial[]>(faturamentoPorFilialUrl, fetcher, { refreshInterval: 0 });
+
+  // Calcular datas do período anterior (PA) para buscar faturamento
+  const paDates = useMemo(() => {
+    if (!apiParams.data_inicio || !apiParams.data_fim) return null
+
+    const dataInicio = new Date(apiParams.data_inicio + 'T00:00:00')
+    const dataFim = new Date(apiParams.data_fim + 'T00:00:00')
+
+    // Verificar se é ano completo (01/Jan a 31/Dez)
+    const isFullYear =
+      dataInicio.getMonth() === 0 && dataInicio.getDate() === 1 &&
+      dataFim.getMonth() === 11 && dataFim.getDate() === 31 &&
+      dataInicio.getFullYear() === dataFim.getFullYear()
+
+    let paInicio: Date
+    let paFim: Date
+
+    if (isFullYear) {
+      // Para ano completo: usar ano anterior completo
+      paInicio = new Date(dataInicio.getFullYear() - 1, 0, 1)
+      paFim = new Date(dataInicio.getFullYear() - 1, 11, 31)
+    } else {
+      // Para outros períodos: mesmo período, um mês antes
+      paInicio = new Date(dataInicio)
+      paInicio.setMonth(paInicio.getMonth() - 1)
+      paFim = new Date(dataFim)
+      paFim.setMonth(paFim.getMonth() - 1)
+    }
+
+    return {
+      data_inicio: format(paInicio, 'yyyy-MM-dd'),
+      data_fim: format(paFim, 'yyyy-MM-dd')
+    }
+  }, [apiParams.data_inicio, apiParams.data_fim])
+
+  // Buscar dados de faturamento do período anterior (PA)
+  const faturamentoPaUrl = apiParams.schema && paDates
+    ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${paDates.data_inicio}&data_fim=${paDates.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: faturamentoPaData } = useSWR<FaturamentoData>(faturamentoPaUrl, fetcher, { refreshInterval: 0 });
+
+  // Calcular datas MTD para mês anterior (ex: OUT/2025 quando atual é NOV/2025)
+  // Quando filtro é mês passado completo, busca mês anterior completo
+  const mtdPreviousMonthDates = useMemo(() => {
+    if (!apiParams.data_inicio || !apiParams.data_fim) return null
+
+    const dataInicio = new Date(apiParams.data_inicio + 'T00:00:00')
+    const dataFim = new Date(apiParams.data_fim + 'T00:00:00')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Verificar se é mês passado completo
+    const isFirstDayOfMonth = dataInicio.getDate() === 1
+    const lastDayOfFilterMonth = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + 1, 0).getDate()
+    const isLastDayOfMonth = dataFim.getDate() === lastDayOfFilterMonth
+    const isPastMonth = dataFim < today
+    const isFullPastMonth = isFirstDayOfMonth && isLastDayOfMonth && isPastMonth
+
+    // Primeiro dia do mês anterior
+    const mtdInicio = new Date(dataInicio.getFullYear(), dataInicio.getMonth() - 1, 1)
+
+    // Último dia do mês anterior
+    const lastDayPrevMonth = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 0).getDate()
+
+    let mtdFim: Date
+    if (isFullPastMonth) {
+      // Mês passado completo: buscar mês anterior completo
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), lastDayPrevMonth)
+    } else {
+      // MTD proporcional: usar mesmo número de dias
+      const referenceDay = dataFim >= today ? today.getDate() : dataFim.getDate()
+      const mtdEndDay = Math.min(referenceDay, lastDayPrevMonth)
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), mtdEndDay)
+    }
+
+    return {
+      data_inicio: format(mtdInicio, 'yyyy-MM-dd'),
+      data_fim: format(mtdFim, 'yyyy-MM-dd')
+    }
+  }, [apiParams.data_inicio, apiParams.data_fim])
+
+  // Calcular datas MTD para mesmo mês do ano anterior (ex: NOV/2024 quando atual é NOV/2025)
+  // Quando filtro é mês passado completo, busca mesmo mês do ano anterior completo
+  const mtdPreviousYearDates = useMemo(() => {
+    if (!apiParams.data_inicio || !apiParams.data_fim) return null
+
+    const dataInicio = new Date(apiParams.data_inicio + 'T00:00:00')
+    const dataFim = new Date(apiParams.data_fim + 'T00:00:00')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Verificar se é mês passado completo
+    const isFirstDayOfMonth = dataInicio.getDate() === 1
+    const lastDayOfFilterMonth = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + 1, 0).getDate()
+    const isLastDayOfMonth = dataFim.getDate() === lastDayOfFilterMonth
+    const isPastMonth = dataFim < today
+    const isFullPastMonth = isFirstDayOfMonth && isLastDayOfMonth && isPastMonth
+
+    // Primeiro dia do mesmo mês no ano anterior
+    const mtdInicio = new Date(dataInicio.getFullYear() - 1, dataInicio.getMonth(), 1)
+
+    // Último dia do mesmo mês no ano anterior
+    const lastDayPrevYear = new Date(dataInicio.getFullYear() - 1, dataInicio.getMonth() + 1, 0).getDate()
+
+    let mtdFim: Date
+    if (isFullPastMonth) {
+      // Mês passado completo: buscar mesmo mês do ano anterior completo
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), lastDayPrevYear)
+    } else {
+      // MTD proporcional: usar mesmo número de dias
+      const referenceDay = dataFim >= today ? today.getDate() : dataFim.getDate()
+      const mtdEndDay = Math.min(referenceDay, lastDayPrevYear)
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), mtdEndDay)
+    }
+
+    return {
+      data_inicio: format(mtdInicio, 'yyyy-MM-dd'),
+      data_fim: format(mtdFim, 'yyyy-MM-dd')
+    }
+  }, [apiParams.data_inicio, apiParams.data_fim])
+
+  // Buscar faturamento do mês anterior (MTD)
+  const shouldFetchMTDFaturamento = apiParams.schema && shouldShowMTD()
+  const faturamentoMtdPreviousMonthUrl = shouldFetchMTDFaturamento && mtdPreviousMonthDates
+    ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${mtdPreviousMonthDates.data_inicio}&data_fim=${mtdPreviousMonthDates.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: faturamentoMtdPreviousMonthData } = useSWR<FaturamentoData>(faturamentoMtdPreviousMonthUrl, fetcher, { refreshInterval: 0 });
+
+  // Buscar faturamento do ano anterior (MTD)
+  const faturamentoMtdPreviousYearUrl = shouldFetchMTDFaturamento && mtdPreviousYearDates
+    ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${mtdPreviousYearDates.data_inicio}&data_fim=${mtdPreviousYearDates.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: faturamentoMtdPreviousYearData } = useSWR<FaturamentoData>(faturamentoMtdPreviousYearUrl, fetcher, { refreshInterval: 0 });
+
+  // Criar mapa de faturamento por filial para acesso rápido
+  const faturamentoPorFilialMap = useMemo(() => {
+    const map = new Map<number, FaturamentoPorFilial>()
+    if (faturamentoPorFilialData) {
+      faturamentoPorFilialData.forEach(f => map.set(f.filial_id, f))
+    }
+    return map
+  }, [faturamentoPorFilialData])
+
+  // Calcular totais consolidados baseado no tipo de venda selecionado
+  const consolidatedTotals = useMemo(() => {
+    // Dados PDV
+    const pdvReceita = data?.total_vendas || 0
+    const pdvLucro = data?.total_lucro || 0
+    const pdvPaReceita = data?.pa_vendas || 0
+    const pdvPaLucro = data?.pa_lucro || 0
+
+    // Dados Faturamento
+    const fatReceita = faturamentoData?.receita_faturamento || 0
+    const fatLucro = faturamentoData?.lucro_bruto_faturamento || 0
+    const fatPaReceita = faturamentoPaData?.receita_faturamento || 0
+    const fatPaLucro = faturamentoPaData?.lucro_bruto_faturamento || 0
+
+    // Calcular valores baseado no tipo de venda selecionado
+    let receitaTotal: number
+    let lucroTotal: number
+    let paReceita: number
+    let paLucro: number
+
+    switch (salesType) {
+      case 'pdv':
+        receitaTotal = pdvReceita
+        lucroTotal = pdvLucro
+        paReceita = pdvPaReceita
+        paLucro = pdvPaLucro
+        break
+      case 'faturamento':
+        receitaTotal = fatReceita
+        lucroTotal = fatLucro
+        paReceita = fatPaReceita
+        paLucro = fatPaLucro
+        break
+      case 'complete':
+      default:
+        receitaTotal = pdvReceita + fatReceita
+        lucroTotal = pdvLucro + fatLucro
+        paReceita = pdvPaReceita + fatPaReceita
+        paLucro = pdvPaLucro + fatPaLucro
+        break
+    }
+
+    const margemTotal = receitaTotal > 0 ? (lucroTotal / receitaTotal) * 100 : 0
+    const paMargem = paReceita > 0 ? (paLucro / paReceita) * 100 : 0
+
+    return {
+      receitaTotal,
+      lucroTotal,
+      margemTotal,
+      paReceita,
+      paLucro,
+      paMargem,
+    }
+  }, [data, faturamentoData, faturamentoPaData, salesType])
+
+  // Calcular totais consolidados MTD baseado no tipo de venda selecionado
+  const consolidatedMTD = useMemo(() => {
+    // Dados PDV - Mês anterior (ex: OUT/2025)
+    const pdvMtdPrevMonthReceita = mtdData?.mtd_mes_anterior_vendas || 0
+    const pdvMtdPrevMonthLucro = mtdData?.mtd_mes_anterior_lucro || 0
+
+    // Dados Faturamento - Mês anterior
+    const fatMtdPrevMonthReceita = faturamentoMtdPreviousMonthData?.receita_faturamento || 0
+    const fatMtdPrevMonthLucro = faturamentoMtdPreviousMonthData?.lucro_bruto_faturamento || 0
+
+    // Dados PDV - Ano anterior (ex: NOV/2024)
+    const pdvMtdPrevYearReceita = mtdData?.mtd_ano_anterior_vendas || 0
+    const pdvMtdPrevYearLucro = mtdData?.mtd_ano_anterior_lucro || 0
+
+    // Dados Faturamento - Ano anterior
+    const fatMtdPrevYearReceita = faturamentoMtdPreviousYearData?.receita_faturamento || 0
+    const fatMtdPrevYearLucro = faturamentoMtdPreviousYearData?.lucro_bruto_faturamento || 0
+
+    // Calcular valores baseado no tipo de venda selecionado
+    let mtdPrevMonthReceita: number
+    let mtdPrevMonthLucro: number
+    let mtdPrevYearReceita: number
+    let mtdPrevYearLucro: number
+
+    switch (salesType) {
+      case 'pdv':
+        mtdPrevMonthReceita = pdvMtdPrevMonthReceita
+        mtdPrevMonthLucro = pdvMtdPrevMonthLucro
+        mtdPrevYearReceita = pdvMtdPrevYearReceita
+        mtdPrevYearLucro = pdvMtdPrevYearLucro
+        break
+      case 'faturamento':
+        mtdPrevMonthReceita = fatMtdPrevMonthReceita
+        mtdPrevMonthLucro = fatMtdPrevMonthLucro
+        mtdPrevYearReceita = fatMtdPrevYearReceita
+        mtdPrevYearLucro = fatMtdPrevYearLucro
+        break
+      case 'complete':
+      default:
+        mtdPrevMonthReceita = pdvMtdPrevMonthReceita + fatMtdPrevMonthReceita
+        mtdPrevMonthLucro = pdvMtdPrevMonthLucro + fatMtdPrevMonthLucro
+        mtdPrevYearReceita = pdvMtdPrevYearReceita + fatMtdPrevYearReceita
+        mtdPrevYearLucro = pdvMtdPrevYearLucro + fatMtdPrevYearLucro
+        break
+    }
+
+    const mtdPrevMonthMargem = mtdPrevMonthReceita > 0 ? (mtdPrevMonthLucro / mtdPrevMonthReceita) * 100 : 0
+    const mtdPrevYearMargem = mtdPrevYearReceita > 0 ? (mtdPrevYearLucro / mtdPrevYearReceita) * 100 : 0
+
+    // Calcular variações
+    const variacaoPrevMonthReceita = mtdPrevMonthReceita > 0
+      ? ((consolidatedTotals.receitaTotal - mtdPrevMonthReceita) / mtdPrevMonthReceita) * 100
+      : 0
+    const variacaoPrevMonthLucro = mtdPrevMonthLucro > 0
+      ? ((consolidatedTotals.lucroTotal - mtdPrevMonthLucro) / mtdPrevMonthLucro) * 100
+      : 0
+    const variacaoPrevMonthMargem = consolidatedTotals.margemTotal - mtdPrevMonthMargem
+
+    const variacaoPrevYearReceita = mtdPrevYearReceita > 0
+      ? ((consolidatedTotals.receitaTotal - mtdPrevYearReceita) / mtdPrevYearReceita) * 100
+      : 0
+    const variacaoPrevYearLucro = mtdPrevYearLucro > 0
+      ? ((consolidatedTotals.lucroTotal - mtdPrevYearLucro) / mtdPrevYearLucro) * 100
+      : 0
+    const variacaoPrevYearMargem = consolidatedTotals.margemTotal - mtdPrevYearMargem
+
+    return {
+      // Mês anterior
+      mtdPrevMonthReceita,
+      mtdPrevMonthLucro,
+      mtdPrevMonthMargem,
+      variacaoPrevMonthReceita,
+      variacaoPrevMonthLucro,
+      variacaoPrevMonthMargem,
+      // Ano anterior
+      mtdPrevYearReceita,
+      mtdPrevYearLucro,
+      mtdPrevYearMargem,
+      variacaoPrevYearReceita,
+      variacaoPrevYearLucro,
+      variacaoPrevYearMargem,
+    }
+  }, [mtdData, faturamentoMtdPreviousMonthData, faturamentoMtdPreviousYearData, consolidatedTotals, salesType])
 
   // Função para lidar com clique no cabeçalho da coluna
   const handleSort = (column: SortColumn) => {
@@ -621,6 +935,23 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* TIPO DE VENDA */}
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Label>Tipo de Venda</Label>
+              <div className="h-10">
+                <Select value={salesType} onValueChange={(value: SalesType) => setSalesType(value)}>
+                  <SelectTrigger className="w-full sm:w-[180px] h-10">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="complete">Completo</SelectItem>
+                    <SelectItem value="pdv">Venda PDV</SelectItem>
+                    <SelectItem value="faturamento">Venda Faturamento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* FILTRO DE PERÍODO */}
             <DashboardFilter onPeriodChange={handlePeriodChange} />
           </div>
@@ -657,75 +988,75 @@ export default function DashboardPage() {
           <>
             <CardMetric
               title="Receita Bruta"
-              value={formatCurrency(data.total_vendas)}
-              previousValue={!shouldShowMTD() ? formatCurrency(data.pa_vendas) : undefined}
+              value={formatCurrency(consolidatedTotals.receitaTotal)}
+              previousValue={!shouldShowMTD() ? formatCurrency(consolidatedTotals.paReceita) : undefined}
               variationPercent={!shouldShowMTD() ? (() => {
-                const variation = calculateVariationPercent(data.total_vendas, data.pa_vendas)
+                const variation = calculateVariationPercent(consolidatedTotals.receitaTotal, consolidatedTotals.paReceita)
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
               })() : undefined}
               variationYear={!shouldShowMTD() ? `${(data.variacao_vendas_ano || 0) >= 0 ? '+' : ''}${(data.variacao_vendas_ano || 0).toFixed(2)}%` : undefined}
-              isPositive={data.total_vendas >= data.pa_vendas}
+              isPositive={consolidatedTotals.receitaTotal >= consolidatedTotals.paReceita}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_vendas_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? `${ytdData.ytd_variacao_vendas_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_vendas_percent.toFixed(2)}%` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_vendas_percent != null ? ytdData.ytd_variacao_vendas_percent >= 0 : undefined}
-              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_mes_anterior_vendas) : undefined}
-              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_vendas_percent != null ? `${mtdData.mtd_variacao_mes_anterior_vendas_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_vendas_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() ? formatCurrency(consolidatedMTD.mtdPrevMonthReceita) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevMonthReceita >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevMonthReceita.toFixed(2)}%` : undefined}
               mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
-              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_vendas_percent != null ? mtdData.mtd_variacao_mes_anterior_vendas_percent >= 0 : undefined}
-              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_ano_anterior_vendas) : undefined}
-              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_vendas_percent != null ? `${mtdData.mtd_variacao_ano_anterior_vendas_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_vendas_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevMonthReceita >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() ? formatCurrency(consolidatedMTD.mtdPrevYearReceita) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevYearReceita >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevYearReceita.toFixed(2)}%` : undefined}
               mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
-              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_vendas_percent != null ? mtdData.mtd_variacao_ano_anterior_vendas_percent >= 0 : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevYearReceita >= 0 : undefined}
             />
             <CardMetric
               title="Lucro Bruto"
-              value={formatCurrency(data.total_lucro)}
-              previousValue={!shouldShowMTD() ? formatCurrency(data.pa_lucro) : undefined}
+              value={formatCurrency(consolidatedTotals.lucroTotal)}
+              previousValue={!shouldShowMTD() ? formatCurrency(consolidatedTotals.paLucro) : undefined}
               variationPercent={!shouldShowMTD() ? (() => {
-                const variation = calculateVariationPercent(data.total_lucro, data.pa_lucro)
+                const variation = calculateVariationPercent(consolidatedTotals.lucroTotal, consolidatedTotals.paLucro)
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}%`
               })() : undefined}
               variationYear={!shouldShowMTD() ? `${(data.variacao_lucro_ano || 0) >= 0 ? '+' : ''}${(data.variacao_lucro_ano || 0).toFixed(2)}%` : undefined}
-              isPositive={data.total_lucro >= data.pa_lucro}
+              isPositive={consolidatedTotals.lucroTotal >= consolidatedTotals.paLucro}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatCurrency(ytdData.ytd_lucro_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? `${ytdData.ytd_variacao_lucro_percent >= 0 ? '+' : ''}${ytdData.ytd_variacao_lucro_percent.toFixed(2)}%` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_lucro_percent != null ? ytdData.ytd_variacao_lucro_percent >= 0 : undefined}
-              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_mes_anterior_lucro) : undefined}
-              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_lucro_percent != null ? `${mtdData.mtd_variacao_mes_anterior_lucro_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_lucro_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() ? formatCurrency(consolidatedMTD.mtdPrevMonthLucro) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevMonthLucro >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevMonthLucro.toFixed(2)}%` : undefined}
               mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
-              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_lucro_percent != null ? mtdData.mtd_variacao_mes_anterior_lucro_percent >= 0 : undefined}
-              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatCurrency(mtdData.mtd_ano_anterior_lucro) : undefined}
-              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_lucro_percent != null ? `${mtdData.mtd_variacao_ano_anterior_lucro_percent >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_lucro_percent.toFixed(2)}%` : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevMonthLucro >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() ? formatCurrency(consolidatedMTD.mtdPrevYearLucro) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevYearLucro >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevYearLucro.toFixed(2)}%` : undefined}
               mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
-              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_lucro_percent != null ? mtdData.mtd_variacao_ano_anterior_lucro_percent >= 0 : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevYearLucro >= 0 : undefined}
             />
             <CardMetric
               title="Margem Bruta"
-              value={formatPercentage(data.margem_lucro)}
-              previousValue={!shouldShowMTD() ? formatPercentage(data.pa_margem_lucro) : undefined}
+              value={formatPercentage(consolidatedTotals.margemTotal)}
+              previousValue={!shouldShowMTD() ? formatPercentage(consolidatedTotals.paMargem) : undefined}
               variationPercent={!shouldShowMTD() ? (() => {
-                const variation = data.margem_lucro - data.pa_margem_lucro
+                const variation = consolidatedTotals.margemTotal - consolidatedTotals.paMargem
                 return `${variation >= 0 ? '+' : ''}${variation.toFixed(2)}p.p.`
               })() : undefined}
               variationYear={!shouldShowMTD() ? `${(data.variacao_margem_ano || 0) >= 0 ? '+' : ''}${(data.variacao_margem_ano || 0).toFixed(2)}p.p.` : undefined}
-              isPositive={data.margem_lucro >= data.pa_margem_lucro}
+              isPositive={consolidatedTotals.margemTotal >= consolidatedTotals.paMargem}
               comparisonLabel={getComparisonLabel()}
               ytdValue={shouldShowYTD() && ytdData ? formatPercentage(ytdData.ytd_margem_ano_anterior) : undefined}
               ytdVariationPercent={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? `${ytdData.ytd_variacao_margem >= 0 ? '+' : ''}${ytdData.ytd_variacao_margem.toFixed(2)}p.p.` : undefined}
               ytdLabel={shouldShowYTD() ? getYTDLabel() : undefined}
               ytdIsPositive={shouldShowYTD() && ytdData && ytdData.ytd_variacao_margem != null ? ytdData.ytd_variacao_margem >= 0 : undefined}
-              mtdPreviousMonthValue={shouldShowMTD() && mtdData ? formatPercentage(mtdData.mtd_mes_anterior_margem) : undefined}
-              mtdPreviousMonthVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_margem != null ? `${mtdData.mtd_variacao_mes_anterior_margem >= 0 ? '+' : ''}${mtdData.mtd_variacao_mes_anterior_margem.toFixed(2)}p.p.` : undefined}
+              mtdPreviousMonthValue={shouldShowMTD() ? formatPercentage(consolidatedMTD.mtdPrevMonthMargem) : undefined}
+              mtdPreviousMonthVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevMonthMargem >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevMonthMargem.toFixed(2)}p.p.` : undefined}
               mtdPreviousMonthLabel={shouldShowMTD() ? getMTDPreviousMonthLabel() : undefined}
-              mtdPreviousMonthIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_mes_anterior_margem != null ? mtdData.mtd_variacao_mes_anterior_margem >= 0 : undefined}
-              mtdPreviousYearValue={shouldShowMTD() && mtdData ? formatPercentage(mtdData.mtd_ano_anterior_margem) : undefined}
-              mtdPreviousYearVariationPercent={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_margem != null ? `${mtdData.mtd_variacao_ano_anterior_margem >= 0 ? '+' : ''}${mtdData.mtd_variacao_ano_anterior_margem.toFixed(2)}p.p.` : undefined}
+              mtdPreviousMonthIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevMonthMargem >= 0 : undefined}
+              mtdPreviousYearValue={shouldShowMTD() ? formatPercentage(consolidatedMTD.mtdPrevYearMargem) : undefined}
+              mtdPreviousYearVariationPercent={shouldShowMTD() ? `${consolidatedMTD.variacaoPrevYearMargem >= 0 ? '+' : ''}${consolidatedMTD.variacaoPrevYearMargem.toFixed(2)}p.p.` : undefined}
               mtdPreviousYearLabel={shouldShowMTD() ? getMTDPreviousYearLabel() : undefined}
-              mtdPreviousYearIsPositive={shouldShowMTD() && mtdData && mtdData.mtd_variacao_ano_anterior_margem != null ? mtdData.mtd_variacao_ano_anterior_margem >= 0 : undefined}
+              mtdPreviousYearIsPositive={shouldShowMTD() ? consolidatedMTD.variacaoPrevYearMargem >= 0 : undefined}
             />
           </>
         ) : null}
@@ -757,7 +1088,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : chartData ? (
-            <ChartVendas data={chartData} />
+            <ChartVendas data={chartData} salesType={salesType} />
           ) : (
             <div className="text-center text-muted-foreground">
               {error ? 'Erro ao carregar dados do gráfico.' : 'Nenhum dado para exibir.'}
@@ -871,27 +1202,72 @@ export default function DashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedVendasPorFilial.map((venda) => {
-                    const delta_ticket_percent = venda.pa_ticket_medio > 0 
-                      ? ((venda.ticket_medio - venda.pa_ticket_medio) / venda.pa_ticket_medio) * 100 
+                    const delta_ticket_percent = venda.pa_ticket_medio > 0
+                      ? ((venda.ticket_medio - venda.pa_ticket_medio) / venda.pa_ticket_medio) * 100
                       : 0
-                    
+
+                    // Dados de faturamento para esta filial
+                    const fatFilial = faturamentoPorFilialMap.get(venda.filial_id)
+                    const receitaFaturamento = fatFilial?.receita_faturamento || 0
+                    const lucroFaturamento = fatFilial?.lucro_bruto_faturamento || 0
+                    const cmvFaturamento = fatFilial?.cmv_faturamento || 0
+
+                    // Calcular receita baseada no tipo de venda selecionado
+                    let receitaFilial: number
+                    let lucroFilial: number
+                    let custoFilial: number
+
+                    switch (salesType) {
+                      case 'pdv':
+                        receitaFilial = venda.valor_total
+                        lucroFilial = venda.total_lucro
+                        custoFilial = venda.custo_total
+                        break
+                      case 'faturamento':
+                        receitaFilial = receitaFaturamento
+                        lucroFilial = lucroFaturamento
+                        custoFilial = cmvFaturamento
+                        break
+                      case 'complete':
+                      default:
+                        receitaFilial = venda.valor_total + receitaFaturamento
+                        lucroFilial = venda.total_lucro + lucroFaturamento
+                        custoFilial = venda.custo_total + cmvFaturamento
+                        break
+                    }
+
+                    // Margem baseada nos valores filtrados
+                    const margemFilial = receitaFilial > 0 ? (lucroFilial / receitaFilial) * 100 : 0
+
+                    // Variação baseada no PA do PDV (faturamento PA não disponível por filial)
+                    const deltaReceitaFilial = venda.pa_valor_total > 0
+                      ? ((receitaFilial - venda.pa_valor_total) / venda.pa_valor_total) * 100
+                      : 0
+                    const deltaLucroFilial = venda.pa_total_lucro > 0
+                      ? ((lucroFilial - venda.pa_total_lucro) / venda.pa_total_lucro) * 100
+                      : 0
+                    const deltaCustoFilial = venda.pa_custo_total > 0
+                      ? ((custoFilial - venda.pa_custo_total) / venda.pa_custo_total) * 100
+                      : 0
+                    const deltaMargemFilial = margemFilial - venda.pa_margem_lucro
+
                     return (
                       <TableRow key={venda.filial_id}>
                         <TableCell className="font-medium">{venda.filial_id}</TableCell>
 
-                        {/* Receita Bruta */}
+                        {/* Receita Bruta (baseada no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div className="font-medium">
-                            {formatCurrency(venda.valor_total)}
+                            {formatCurrency(receitaFilial)}
                           </div>
-                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {venda.delta_valor_percent >= 0 ? (
+                          <div className={`flex items-center justify-end gap-1 text-xs ${deltaReceitaFilial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {deltaReceitaFilial >= 0 ? (
                               <ArrowUp className="h-3 w-3" />
                             ) : (
                               <ArrowDown className="h-3 w-3" />
                             )}
                             <span>
-                              {venda.delta_valor_percent >= 0 ? '+' : ''}{venda.delta_valor_percent.toFixed(2)}%
+                              {deltaReceitaFilial >= 0 ? '+' : ''}{deltaReceitaFilial.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -919,19 +1295,19 @@ export default function DashboardPage() {
                           </div>
                         </TableCell>
 
-                        {/* Custo */}
+                        {/* Custo (baseado no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div className="font-medium">
-                            {formatCurrency(venda.custo_total)}
+                            {formatCurrency(custoFilial)}
                           </div>
-                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {venda.delta_custo_percent >= 0 ? (
+                          <div className={`flex items-center justify-end gap-1 text-xs ${deltaCustoFilial >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {deltaCustoFilial >= 0 ? (
                               <ArrowUp className="h-3 w-3" />
                             ) : (
                               <ArrowDown className="h-3 w-3" />
                             )}
                             <span>
-                              {venda.delta_custo_percent >= 0 ? '+' : ''}{venda.delta_custo_percent.toFixed(2)}%
+                              {deltaCustoFilial >= 0 ? '+' : ''}{deltaCustoFilial.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -939,19 +1315,19 @@ export default function DashboardPage() {
                           </div>
                         </TableCell>
 
-                        {/* Lucro Bruto */}
+                        {/* Lucro Bruto (baseado no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div className="font-medium">
-                            {formatCurrency(venda.total_lucro)}
+                            {formatCurrency(lucroFilial)}
                           </div>
-                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {venda.delta_lucro_percent >= 0 ? (
+                          <div className={`flex items-center justify-end gap-1 text-xs ${deltaLucroFilial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {deltaLucroFilial >= 0 ? (
                               <ArrowUp className="h-3 w-3" />
                             ) : (
                               <ArrowDown className="h-3 w-3" />
                             )}
                             <span>
-                              {venda.delta_lucro_percent >= 0 ? '+' : ''}{venda.delta_lucro_percent.toFixed(2)}%
+                              {deltaLucroFilial >= 0 ? '+' : ''}{deltaLucroFilial.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -959,19 +1335,19 @@ export default function DashboardPage() {
                           </div>
                         </TableCell>
 
-                        {/* Margem Bruta */}
+                        {/* Margem Bruta (baseada no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div className="font-medium">
-                            {venda.margem_lucro.toFixed(2)}%
+                            {margemFilial.toFixed(2)}%
                           </div>
-                          <div className={`flex items-center justify-end gap-1 text-xs ${venda.delta_margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {venda.delta_margem >= 0 ? (
+                          <div className={`flex items-center justify-end gap-1 text-xs ${deltaMargemFilial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {deltaMargemFilial >= 0 ? (
                               <ArrowUp className="h-3 w-3" />
                             ) : (
                               <ArrowDown className="h-3 w-3" />
                             )}
                             <span>
-                              {venda.delta_margem >= 0 ? '+' : ''}{venda.delta_margem.toFixed(2)}p.p.
+                              {deltaMargemFilial >= 0 ? '+' : ''}{deltaMargemFilial.toFixed(2)}p.p.
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -984,7 +1360,8 @@ export default function DashboardPage() {
 
                   {/* Linha de Totalização */}
                   {sortedVendasPorFilial && sortedVendasPorFilial.length > 0 && (() => {
-                    const totais = sortedVendasPorFilial.reduce((acc, venda) => ({
+                    // Totais PDV
+                    const totaisPdv = sortedVendasPorFilial.reduce((acc, venda) => ({
                       valor_total: acc.valor_total + venda.valor_total,
                       pa_valor_total: acc.pa_valor_total + venda.pa_valor_total,
                       total_transacoes: acc.total_transacoes + venda.total_transacoes,
@@ -1004,44 +1381,72 @@ export default function DashboardPage() {
                       pa_total_lucro: 0,
                     })
 
-                    const ticket_medio = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
-                    const pa_ticket_medio = totais.pa_total_transacoes > 0 ? totais.pa_valor_total / totais.pa_total_transacoes : 0
+                    // Totais Faturamento
+                    const totalFaturamentoReceita = faturamentoData?.receita_faturamento || 0
+                    const totalFaturamentoLucro = faturamentoData?.lucro_bruto_faturamento || 0
+                    const totalFaturamentoCmv = faturamentoData?.cmv_faturamento || 0
+
+                    // Calcular totais baseados no tipo de venda selecionado
+                    let receitaTotal: number
+                    let lucroTotal: number
+                    let custoTotal: number
+
+                    switch (salesType) {
+                      case 'pdv':
+                        receitaTotal = totaisPdv.valor_total
+                        lucroTotal = totaisPdv.total_lucro
+                        custoTotal = totaisPdv.custo_total
+                        break
+                      case 'faturamento':
+                        receitaTotal = totalFaturamentoReceita
+                        lucroTotal = totalFaturamentoLucro
+                        custoTotal = totalFaturamentoCmv
+                        break
+                      case 'complete':
+                      default:
+                        receitaTotal = totaisPdv.valor_total + totalFaturamentoReceita
+                        lucroTotal = totaisPdv.total_lucro + totalFaturamentoLucro
+                        custoTotal = totaisPdv.custo_total + totalFaturamentoCmv
+                        break
+                    }
+
+                    const ticket_medio = totaisPdv.total_transacoes > 0 ? totaisPdv.valor_total / totaisPdv.total_transacoes : 0
+                    const pa_ticket_medio = totaisPdv.pa_total_transacoes > 0 ? totaisPdv.pa_valor_total / totaisPdv.pa_total_transacoes : 0
                     const delta_ticket_percent = pa_ticket_medio > 0 ? ((ticket_medio - pa_ticket_medio) / pa_ticket_medio) * 100 : 0
-                    const margem_lucro = totais.valor_total > 0 ? (totais.total_lucro / totais.valor_total) * 100 : 0
-                    const pa_margem_lucro = totais.pa_valor_total > 0 ? (totais.pa_total_lucro / totais.pa_valor_total) * 100 : 0
-                    
-                    const delta_valor = totais.valor_total - totais.pa_valor_total
-                    const delta_valor_percent = totais.pa_valor_total > 0 ? (delta_valor / totais.pa_valor_total) * 100 : 0
-                    const delta_custo = totais.custo_total - totais.pa_custo_total
-                    const delta_custo_percent = totais.pa_custo_total > 0 ? (delta_custo / totais.pa_custo_total) * 100 : 0
-                    const delta_lucro = totais.total_lucro - totais.pa_total_lucro
-                    const delta_lucro_percent = totais.pa_total_lucro > 0 ? (delta_lucro / totais.pa_total_lucro) * 100 : 0
+
+                    const margem_lucro = receitaTotal > 0 ? (lucroTotal / receitaTotal) * 100 : 0
+                    const pa_margem_lucro = totaisPdv.pa_valor_total > 0 ? (totaisPdv.pa_total_lucro / totaisPdv.pa_valor_total) * 100 : 0
+
+                    // Variações baseadas no PA do PDV
+                    const delta_receita_percent = totaisPdv.pa_valor_total > 0 ? ((receitaTotal - totaisPdv.pa_valor_total) / totaisPdv.pa_valor_total) * 100 : 0
+                    const delta_custo_percent = totaisPdv.pa_custo_total > 0 ? ((custoTotal - totaisPdv.pa_custo_total) / totaisPdv.pa_custo_total) * 100 : 0
+                    const delta_lucro_percent = totaisPdv.pa_total_lucro > 0 ? ((lucroTotal - totaisPdv.pa_total_lucro) / totaisPdv.pa_total_lucro) * 100 : 0
                     const delta_margem = margem_lucro - pa_margem_lucro
 
                     return (
                       <TableRow className="bg-muted/30 font-bold border-t-2">
                         <TableCell>=</TableCell>
 
-                        {/* Receita Bruta */}
+                        {/* Receita Bruta (baseada no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div>
-                            {formatCurrency(totais.valor_total)}
+                            {formatCurrency(receitaTotal)}
                           </div>
-                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_valor_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {delta_valor_percent >= 0 ? (
+                          <div className={`flex items-center justify-end gap-1 text-xs ${delta_receita_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {delta_receita_percent >= 0 ? (
                               <ArrowUp className="h-3 w-3" />
                             ) : (
                               <ArrowDown className="h-3 w-3" />
                             )}
                             <span>
-                              {delta_valor_percent >= 0 ? '+' : ''}{delta_valor_percent.toFixed(2)}%
+                              {delta_receita_percent >= 0 ? '+' : ''}{delta_receita_percent.toFixed(2)}%
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(totais.pa_valor_total)}
+                            {formatCurrency(totaisPdv.pa_valor_total)}
                           </div>
                         </TableCell>
-                        
+
                         {/* Ticket Médio */}
                         <TableCell className="text-right">
                           <div>
@@ -1062,10 +1467,10 @@ export default function DashboardPage() {
                           </div>
                         </TableCell>
 
-                        {/* Custo */}
+                        {/* Custo (baseado no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div>
-                            {formatCurrency(totais.custo_total)}
+                            {formatCurrency(custoTotal)}
                           </div>
                           <div className={`flex items-center justify-end gap-1 text-xs ${delta_custo_percent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {delta_custo_percent >= 0 ? (
@@ -1078,14 +1483,14 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(totais.pa_custo_total)}
+                            {formatCurrency(totaisPdv.pa_custo_total)}
                           </div>
                         </TableCell>
 
-                        {/* Lucro Bruto */}
+                        {/* Lucro Bruto (baseado no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div>
-                            {formatCurrency(totais.total_lucro)}
+                            {formatCurrency(lucroTotal)}
                           </div>
                           <div className={`flex items-center justify-end gap-1 text-xs ${delta_lucro_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {delta_lucro_percent >= 0 ? (
@@ -1098,11 +1503,11 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(totais.pa_total_lucro)}
+                            {formatCurrency(totaisPdv.pa_total_lucro)}
                           </div>
                         </TableCell>
 
-                        {/* Margem Bruta */}
+                        {/* Margem Bruta (baseada no filtro de tipo de venda) */}
                         <TableCell className="text-right">
                           <div>
                             {margem_lucro.toFixed(2)}%
