@@ -34,6 +34,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronDown, ChevronRight, Plus, Target, Loader2, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
@@ -528,7 +529,9 @@ export default function MetaSetorPage() {
 
     const newValue = parseFloat(editingValue)
     if (isNaN(newValue)) {
-      alert('Valor inválido')
+      toast.error('Valor inválido', {
+        description: 'Digite um número válido'
+      })
       return
     }
 
@@ -542,7 +545,9 @@ export default function MetaSetorPage() {
       const filialData = metaDoDia?.filiais.find(f => f.filial_id === filialIdNum)
 
       if (!filialData) {
-        alert('Meta não encontrada')
+        toast.error('Meta não encontrada', {
+          description: 'Não foi possível localizar a meta para atualização'
+        })
         return
       }
 
@@ -569,7 +574,7 @@ export default function MetaSetorPage() {
           : 0
       }
 
-      // Chamar API para atualizar (usar a mesma API de meta mensal)
+      // Chamar API para atualizar
       const response = await fetch('/api/metas/setor/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -583,9 +588,10 @@ export default function MetaSetorPage() {
         }),
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Erro ao atualizar meta')
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Erro ao atualizar meta')
       }
 
       // Atualizar estado local
@@ -593,35 +599,41 @@ export default function MetaSetorPage() {
         const updated = { ...prev }
         const setorMetas = [...(updated[setorIdNum] || [])]
         const diaIndex = setorMetas.findIndex(m => m.data === editingCell.data)
-        
+
         if (diaIndex >= 0) {
           const filialIndex = setorMetas[diaIndex].filiais.findIndex(f => f.filial_id === filialIdNum)
           if (filialIndex >= 0) {
             setorMetas[diaIndex] = {
               ...setorMetas[diaIndex],
-              filiais: setorMetas[diaIndex].filiais.map((f, idx) => 
-                idx === filialIndex 
+              filiais: setorMetas[diaIndex].filiais.map((f, idx) =>
+                idx === filialIndex
                   ? {
                       ...f,
                       meta_percentual: novoPercentual,
                       valor_meta: novoValorMeta,
                       diferenca: f.valor_realizado - novoValorMeta,
-                      diferenca_percentual: ((f.valor_realizado / novoValorMeta) - 1) * 100
+                      diferenca_percentual: novoValorMeta > 0 ? ((f.valor_realizado - novoValorMeta) / novoValorMeta) * 100 : 0
                     }
                   : f
               )
             }
           }
         }
-        
+
         updated[setorIdNum] = setorMetas
         return updated
+      })
+
+      toast.success('Meta atualizada', {
+        description: `${editingCell.field === 'percentual' ? 'Percentual' : 'Valor'} alterado com sucesso`
       })
 
       cancelEditing()
     } catch (error) {
       console.error('Error updating meta:', error)
-      alert(error instanceof Error ? error.message : 'Erro ao atualizar meta')
+      toast.error('Erro ao atualizar meta', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
     } finally {
       setSavingEdit(false)
     }

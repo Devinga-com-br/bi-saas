@@ -24,15 +24,15 @@ export async function POST(request: Request) {
     })
 
     // Atualizar meta usando RPC
-    // @ts-expect-error - Function will exist after migration is applied
-    const { data: result, error } = await supabase.rpc('update_meta_setor', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: result, error } = await (supabase as any).rpc('update_meta_setor', {
       p_schema: schema,
       p_setor_id: setor_id,
       p_filial_id: filial_id,
       p_data: data,
       p_meta_percentual: meta_percentual,
       p_valor_meta: valor_meta
-    })
+    }) as { data: { success: boolean; error?: string; message?: string; data?: unknown; calculated?: unknown } | null; error: { message: string; details?: string } | null }
 
     if (error) {
       console.error('[API/METAS/SETOR/UPDATE] RPC Error:', error)
@@ -46,12 +46,27 @@ export async function POST(request: Request) {
       )
     }
 
+    // Verificar se a função SQL retornou sucesso
+    // A função pode retornar { success: false, error: '...' } sem gerar erro no Supabase
+    if (result && result.success === false) {
+      console.error('[API/METAS/SETOR/UPDATE] Function returned error:', result)
+      return NextResponse.json(
+        {
+          error: result.error || 'Erro ao atualizar meta',
+          success: false
+        },
+        { status: 400 }
+      )
+    }
+
     console.log('[API/METAS/SETOR/UPDATE] Meta updated successfully:', result)
 
+    // Retornar o resultado completo da função (inclui calculated com diferenças)
     return NextResponse.json({
-      message: 'Meta atualizada com sucesso',
+      message: result?.message || 'Meta atualizada com sucesso',
       success: true,
-      data: result
+      data: result?.data,
+      calculated: result?.calculated
     })
 
   } catch (error) {
