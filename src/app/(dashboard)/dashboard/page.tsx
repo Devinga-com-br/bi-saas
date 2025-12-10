@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardMetric } from '@/components/dashboard/card-metric'
 import { ChartVendas } from '@/components/dashboard/chart-vendas'
 import { useTenantContext } from '@/contexts/tenant-context'
-import { format, startOfMonth, subDays } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatPercentage } from '@/lib/chart-config'
@@ -322,6 +322,7 @@ export default function DashboardPage() {
       dataInicio,
       dataFim
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldFetchYTD, ytdApiUrl, ytdData, ytdError, dataInicio, dataFim])
 
   // Buscar dados MTD (Month-to-Date) - apenas quando shouldShowMTD() === true
@@ -343,6 +344,7 @@ export default function DashboardPage() {
       dataInicio,
       dataFim
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldFetchMTD, mtdApiUrl, mtdData, mtdError, filterType, dataInicio, dataFim])
 
   // Buscar dados para o gráfico de vendas (com filtro de filiais)

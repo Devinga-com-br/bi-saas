@@ -298,8 +298,8 @@ const ProdutoTable = memo(function ProdutoTable({
 // Cores para os gráficos
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6']
 
-// Componente para renderizar setor ativo do gráfico de pizza
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// Componente para renderizar setor ativo do gráfico de pizza (reservado para uso futuro)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
 const renderActiveShape = (props: any) => {
   const RADIAN = Math.PI / 180
   const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props
@@ -382,7 +382,8 @@ export default function PerdasPage() {
   const [expandedDept2, setExpandedDept2] = useState<Record<string, boolean>>({})
   const [expandedDept3, setExpandedDept3] = useState<Record<string, boolean>>({})
 
-  // Estado para gráfico de pizza (active index)
+  // Estado para gráfico de pizza (active index) - reservado para uso futuro
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [activePieIndex, setActivePieIndex] = useState(0)
 
   // Filtro de produto - COM DEBOUNCE REAL

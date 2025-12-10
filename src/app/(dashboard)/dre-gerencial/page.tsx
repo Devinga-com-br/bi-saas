@@ -828,7 +828,6 @@ export default function DespesasPage() {
       }
 
       // Título e informações do relatório (tudo maiúsculo e alinhado à esquerda)
-      const pageWidth = doc.internal.pageSize.getWidth()
       const marginLeft = 5
 
       doc.setFontSize(16)
@@ -950,15 +949,6 @@ export default function DespesasPage() {
               const lines = cellText.split('\n')
               if (lines.length > 1) {
                 const doc = data.doc
-                const cell = data.cell
-
-                // Posição inicial do texto
-                const x = cell.x + cell.padding('left')
-                let y = cell.y + cell.padding('top')
-                const lineHeight = data.row.height / (lines.length + 1)
-
-                // Primeira linha (valor) - cor preta (já desenhada)
-                y += lineHeight
 
                 // Segunda linha (%TDF ou %TD) - cor específica
                 if (lines[1]) {

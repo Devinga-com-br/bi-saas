@@ -82,7 +82,7 @@ export default function DREComparativoPage() {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
 
   // Data atual para defaults
-  const currentDate = new Date()
+  const currentDate = useMemo(() => new Date(), [])
   const currentMonth = (currentDate.getMonth() + 1).toString()
   const currentYear = currentDate.getFullYear().toString()
 
@@ -301,7 +301,7 @@ export default function DREComparativoPage() {
         <CardContent className="space-y-4">
           {/* Contextos */}
           <div className="grid gap-4 md:grid-cols-2">
-            {contexts.map((ctx, index) => (
+            {contexts.map((ctx) => (
               <Card key={ctx.id} className="relative border-2">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">

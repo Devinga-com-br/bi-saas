@@ -138,6 +138,7 @@ export default function MetaSetorPage() {
       setFiliaisSelecionadas([])
       setTempFiliaisSelecionadas([])
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.id])
 
   const loadSetores = useCallback(async () => {
