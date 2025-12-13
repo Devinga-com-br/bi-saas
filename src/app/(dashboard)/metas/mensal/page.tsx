@@ -454,7 +454,12 @@ export default function MetaMensalPage() {
       } else {
         // Usuário alterou o valor da meta
         valorMeta = newValue
-        metaPercentual = ((valorMeta / meta.valor_referencia) - 1) * 100
+        // Tratar divisão por zero quando valor_referencia = 0 ou null
+        if (meta.valor_referencia === 0 || meta.valor_referencia === null || !meta.valor_referencia) {
+          metaPercentual = 0  // Não é possível calcular % sem referência
+        } else {
+          metaPercentual = ((valorMeta / meta.valor_referencia) - 1) * 100
+        }
       }
 
       const response = await fetch('/api/metas/update', {
