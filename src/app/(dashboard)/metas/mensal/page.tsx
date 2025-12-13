@@ -10,7 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, Loader2, RefreshCw, Target } from 'lucide-react'
+import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { logModuleAccess } from '@/lib/audit'
@@ -84,6 +86,9 @@ export default function MetaMensalPage() {
   const [editingCell, setEditingCell] = useState<{ id: number; field: 'percentual' | 'valor' } | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
   const [savingEdit, setSavingEdit] = useState(false)
+
+  // Estado para botão atualizar valores
+  const [isUpdatingValues, setIsUpdatingValues] = useState(false)
 
   // Log audit on mount
   useEffect(() => {
@@ -253,7 +258,9 @@ export default function MetaMensalPage() {
   const handleGenerateMetas = async () =>  {
     if (!currentTenant?.supabase_schema) return
     if (!formFilialId || !formMetaPercentual || !formDataReferencia) {
-      alert('Preencha todos os campos')
+      toast.error('Campos obrigatórios', {
+        description: 'Preencha todos os campos para gerar as metas'
+      })
       return
     }
 
@@ -275,23 +282,34 @@ export default function MetaMensalPage() {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        alert(data.message || 'Metas geradas com sucesso')
+        toast.success('Metas geradas com sucesso', {
+          description: data.message || `${data.metas_criadas || 31} metas criadas para o período`
+        })
         setDialogOpen(false)
         loadReport(filiaisSelecionadas, mes, ano)
       } else {
-        alert(`Erro: ${data.error || 'Erro ao gerar metas'}`)
+        toast.error('Erro ao gerar metas', {
+          description: data.error || 'Verifique os dados e tente novamente'
+        })
       }
     } catch (error) {
       console.error('Error generating metas:', error)
-      alert('Erro ao gerar metas')
+      toast.error('Erro ao gerar metas', {
+        description: 'Ocorreu um erro inesperado. Tente novamente.'
+      })
     } finally {
       setGenerating(false)
     }
   }
 
-  const handleUpdateValues = () => {
-    // Recarregar o relatório com os filtros atuais
-    loadReport(filiaisSelecionadas, mes, ano)
+  const handleUpdateValues = async () => {
+    setIsUpdatingValues(true)
+    try {
+      // Recarregar o relatório com os filtros atuais
+      await loadReport(filiaisSelecionadas, mes, ano)
+    } finally {
+      setIsUpdatingValues(false)
+    }
   }
 
   // Não mais necessário, carregamento feito no useEffect de seleção das filiais
@@ -434,7 +452,9 @@ export default function MetaMensalPage() {
 
     const newValue = parseFloat(editingValue)
     if (isNaN(newValue)) {
-      alert('Valor inválido')
+      toast.error('Valor inválido', {
+        description: 'Digite um número válido'
+      })
       return
     }
 
@@ -510,10 +530,15 @@ export default function MetaMensalPage() {
         }
       })
 
+      toast.success('Meta atualizada', {
+        description: `${editingCell.field === 'percentual' ? 'Percentual' : 'Valor'} alterado com sucesso`
+      })
       cancelEditing()
     } catch (error) {
       console.error('Error saving edit:', error)
-      alert(error instanceof Error ? error.message : 'Erro ao salvar alteração')
+      toast.error('Erro ao atualizar meta', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
     } finally {
       setSavingEdit(false)
     }
@@ -537,10 +562,20 @@ export default function MetaMensalPage() {
           <Button
             variant="outline"
             onClick={handleUpdateValues}
-            disabled={loading}
+            disabled={loading || isUpdatingValues}
             className="h-10"
           >
-            Atualizar Valores
+            {isUpdatingValues ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Atualizando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar Valores
+              </>
+            )}
           </Button>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -629,12 +664,19 @@ export default function MetaMensalPage() {
                     className="w-full"
                   />
                 </div>
-                <Button 
-                  onClick={handleGenerateMetas} 
+                <Button
+                  onClick={handleGenerateMetas}
                   disabled={generating}
                   className="w-full"
                 >
-                  {generating ? 'Gerando...' : 'Gerar Metas'}
+                  {generating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar Metas'
+                  )}
                 </Button>
               </div>
             </DialogContent>
@@ -656,45 +698,84 @@ export default function MetaMensalPage() {
       />
 
       {/* Cards resumo */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader className="relative">
-            <div className="absolute top-6 right-6">
-              <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                {getFilialLabel()}
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader className="relative">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-32" />
               </div>
-            </div>
-            <CardTitle>Vendas do Período</CardTitle>
-            <CardDescription>
-              {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold">{formatCurrency(report?.total_realizado || 0)}</div>
-              <div className="text-sm text-muted-foreground">
-                Meta: {formatCurrency(report?.total_meta || 0)}
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-48" />
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-24" />
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                {(report?.percentual_atingido || 0) >= 100 ? (
-                  <>
-                    <ArrowUpIcon className="h-4 w-4 text-green-500" />
-                    <span className="text-green-500 font-medium">
-                      {formatPercentage((report?.percentual_atingido || 0) - 100)}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowDownIcon className="h-4 w-4 text-red-500" />
-                    <span className="text-red-500 font-medium">
-                      {formatPercentage((report?.percentual_atingido || 0) - 100)}
-                    </span>
-                  </>
-                )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-48" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-8">
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-32 w-32 rounded-full" />
+                  <Skeleton className="h-4 w-24 mt-4" />
+                </div>
+                <div className="flex flex-col items-center">
+                  <Skeleton className="h-32 w-32 rounded-full" />
+                  <Skeleton className="h-4 w-24 mt-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader className="relative">
+              <div className="absolute top-6 right-6">
+                <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                  {getFilialLabel()}
+                </div>
+              </div>
+              <CardTitle>Vendas do Período</CardTitle>
+              <CardDescription>
+                {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="text-3xl font-bold">{formatCurrency(report?.total_realizado || 0)}</div>
+                <div className="text-sm text-muted-foreground">
+                  Meta: {formatCurrency(report?.total_meta || 0)}
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {(report?.percentual_atingido || 0) >= 100 ? (
+                    <>
+                      <ArrowUpIcon className="h-4 w-4 text-green-500" />
+                      <span className="text-green-500 font-medium">
+                        {formatPercentage((report?.percentual_atingido || 0) - 100)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownIcon className="h-4 w-4 text-red-500" />
+                      <span className="text-red-500 font-medium">
+                        {formatPercentage((report?.percentual_atingido || 0) - 100)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
         <Card>
           <CardHeader className="relative">
@@ -826,7 +907,8 @@ export default function MetaMensalPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
       {/* Tabela de metas */}
       <Card>
@@ -841,10 +923,30 @@ export default function MetaMensalPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Carregando...</div>
+            <div className="space-y-2">
+              {/* Header skeleton */}
+              <div className="grid grid-cols-9 gap-4 pb-4 border-b">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full" />
+                ))}
+              </div>
+              {/* Rows skeleton */}
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="grid grid-cols-9 gap-4 py-3 border-b">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <Skeleton key={i} className="h-4 w-full" />
+                  ))}
+                </div>
+              ))}
+            </div>
           ) : report?.metas.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma meta cadastrada para este período
+            <div className="flex flex-col items-center justify-center py-12">
+              <Target className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-center">
+                Nenhuma meta cadastrada para este período.
+                <br />
+                Clique em &quot;Cadastrar Meta&quot; para criar.
+              </p>
             </div>
           ) : filiaisSelecionadas.length !== 1 ? (
             // Visualização agrupada por data quando múltiplas ou nenhuma filial está selecionada
@@ -1028,8 +1130,8 @@ export default function MetaMensalPage() {
                               </TableCell>
                               
                               {/* Meta % - Editável */}
-                              <TableCell 
-                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                              <TableCell
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors group"
                                 onDoubleClick={() => startEditing(meta.id, 'percentual', meta.meta_percentual)}
                                 title="Duplo clique para editar"
                               >
@@ -1052,10 +1154,10 @@ export default function MetaMensalPage() {
                                   </span>
                                 )}
                               </TableCell>
-                              
+
                               {/* Valor Meta - Editável */}
-                              <TableCell 
-                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                              <TableCell
+                                className="text-right text-sm cursor-pointer hover:bg-muted/50 transition-colors group"
                                 onDoubleClick={() => startEditing(meta.id, 'valor', meta.valor_meta)}
                                 title="Duplo clique para editar"
                               >
@@ -1203,8 +1305,8 @@ export default function MetaMensalPage() {
                           </TableCell>
                           
                           {/* Meta % - Editável */}
-                          <TableCell 
-                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                          <TableCell
+                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors group"
                             onDoubleClick={() => startEditing(meta.id, 'percentual', meta.meta_percentual)}
                             title="Duplo clique para editar"
                           >
@@ -1223,13 +1325,14 @@ export default function MetaMensalPage() {
                             ) : (
                               <span className="inline-flex items-center gap-1">
                                 {meta.meta_percentual.toFixed(2)}%
+                                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
                               </span>
                             )}
                           </TableCell>
-                          
+
                           {/* Valor Meta - Editável */}
-                          <TableCell 
-                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                          <TableCell
+                            className="text-right cursor-pointer hover:bg-muted/50 transition-colors group"
                             onDoubleClick={() => startEditing(meta.id, 'valor', meta.valor_meta)}
                             title="Duplo clique para editar"
                           >
@@ -1248,6 +1351,7 @@ export default function MetaMensalPage() {
                             ) : (
                               <span className="inline-flex items-center gap-1">
                                 {formatCurrency(meta.valor_meta)}
+                                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
                               </span>
                             )}
                           </TableCell>
