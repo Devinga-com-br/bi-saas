@@ -570,9 +570,12 @@ export default function MetaSetorPage() {
         novoValorMeta = newValue
         // Se temos valor_referencia, calcular o percentual
         // Senão, usar 0 como percentual padrão
-        novoPercentual = filialData.valor_referencia != null
-          ? ((novoValorMeta / valorBase) - 1) * 100
-          : 0
+        // Tratar divisão por zero quando valorBase = 0
+        if (filialData.valor_referencia == null || valorBase === 0) {
+          novoPercentual = 0  // Não é possível calcular % sem referência válida
+        } else {
+          novoPercentual = ((novoValorMeta / valorBase) - 1) * 100
+        }
       }
 
       // Chamar API para atualizar
