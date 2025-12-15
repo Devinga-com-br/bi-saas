@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,43 +9,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, Loader2, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
-
-interface PasswordStrength {
-  score: number
-  label: string
-  color: string
-  bgColor: string
-}
-
-function calculatePasswordStrength(password: string): PasswordStrength {
-  let score = 0
-
-  if (password.length >= 6) score += 1
-  if (password.length >= 8) score += 1
-  if (/[A-Z]/.test(password)) score += 1
-  if (/[0-9]/.test(password)) score += 1
-  if (/[^A-Za-z0-9]/.test(password)) score += 1
-
-  if (score <= 1) return { score, label: 'Fraca', color: 'text-red-600', bgColor: 'bg-red-500' }
-  if (score <= 2) return { score, label: 'Razoável', color: 'text-orange-600', bgColor: 'bg-orange-500' }
-  if (score <= 3) return { score, label: 'Boa', color: 'text-yellow-600', bgColor: 'bg-yellow-500' }
-  if (score <= 4) return { score, label: 'Forte', color: 'text-green-600', bgColor: 'bg-green-500' }
-  return { score, label: 'Muito Forte', color: 'text-emerald-600', bgColor: 'bg-emerald-500' }
-}
-
-interface PasswordRequirement {
-  label: string
-  met: boolean
-}
-
-function getPasswordRequirements(password: string): PasswordRequirement[] {
-  return [
-    { label: 'Mínimo 6 caracteres', met: password.length >= 6 },
-    { label: 'Uma letra maiúscula', met: /[A-Z]/.test(password) },
-    { label: 'Um número', met: /[0-9]/.test(password) },
-    { label: 'Um caractere especial', met: /[^A-Za-z0-9]/.test(password) },
-  ]
-}
 
 type FormStatus = 'validating' | 'ready' | 'submitting' | 'success' | 'error'
 
@@ -61,19 +24,15 @@ export function ResetPasswordForm() {
   const router = useRouter()
   const supabase = createClient()
 
-  const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password])
-  const requirements = useMemo(() => getPasswordRequirements(password), [password])
   const passwordsMatch = password.trim() === confirmPassword.trim() && confirmPassword.length > 0
 
   // Check for active session on mount
-  // The session should already be established by /api/auth/recovery
   useEffect(() => {
     let isMounted = true
 
     const checkSession = async () => {
       console.log('[ResetPassword] Checking for active session...')
 
-      // Give the auth state a moment to propagate
       await new Promise(resolve => setTimeout(resolve, 500))
 
       const { data: { session } } = await supabase.auth.getSession()
@@ -90,7 +49,6 @@ export function ResetPasswordForm() {
       }
     }
 
-    // Also listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[ResetPassword] Auth state changed:', event, !!session)
 
@@ -129,7 +87,6 @@ export function ResetPasswordForm() {
 
     const trimmedPassword = password.trim()
 
-    // Validations
     if (trimmedPassword.length < 6) {
       setError('A senha deve ter pelo menos 6 caracteres')
       setStatus('ready')
@@ -142,7 +99,6 @@ export function ResetPasswordForm() {
       return
     }
 
-    // Verify session is still active
     const { data: { session: currentSession } } = await supabase.auth.getSession()
 
     if (!currentSession) {
@@ -185,7 +141,7 @@ export function ResetPasswordForm() {
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <p className="text-sm text-gray-600">Verificando sessão...</p>
+        <p className="text-sm text-zinc-400">Verificando sessão...</p>
       </div>
     )
   }
@@ -193,7 +149,7 @@ export function ResetPasswordForm() {
   // Error state
   if (status === 'error') {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <Alert className="border-red-200 bg-red-50">
           <XCircle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
@@ -220,14 +176,14 @@ export function ResetPasswordForm() {
   // Success state
   if (status === 'success') {
     return (
-      <div className="space-y-6 py-4">
+      <div className="flex flex-col gap-6 py-4">
         <div className="flex flex-col items-center text-center space-y-4">
-          <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center">
-            <ShieldCheck className="h-8 w-8 text-emerald-600" />
+          <div className="h-16 w-16 rounded-full bg-emerald-900/50 flex items-center justify-center">
+            <ShieldCheck className="h-8 w-8 text-emerald-500" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Senha redefinida com sucesso!</h3>
-            <p className="text-sm text-gray-600 mt-1">
+            <h3 className="text-lg font-semibold text-white">Senha redefinida com sucesso!</h3>
+            <p className="text-sm text-zinc-400 mt-1">
               Sua nova senha foi configurada.
             </p>
           </div>
@@ -252,147 +208,111 @@ export function ResetPasswordForm() {
 
   // Main form
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Password Field */}
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-[#1F1F1F] font-medium">
-          Nova senha
-        </Label>
-        <div className="relative">
-          <Input
-            id="password"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Digite sua nova senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={status === 'submitting'}
-            className="pr-10"
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+    <div className="flex flex-col gap-6">
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Password Field */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="password" className="text-white">Nova senha</Label>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Digite sua nova senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={status === 'submitting'}
+              className="pr-10"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-zinc-400">Mínimo de 6 caracteres</p>
         </div>
 
-        {/* Password Strength Indicator */}
-        {password && (
-          <div className="space-y-2 mt-3">
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${passwordStrength.bgColor}`}
-                  style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                />
-              </div>
-              <span className={`text-xs font-medium ${passwordStrength.color}`}>
-                {passwordStrength.label}
-              </span>
-            </div>
-
-            {/* Password Requirements */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {requirements.map((req, index) => (
-                <div
-                  key={index}
-                  className={`flex items-center gap-1.5 text-xs ${
-                    req.met ? 'text-emerald-600' : 'text-gray-400'
-                  }`}
-                >
-                  {req.met ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5" />
-                  )}
-                  {req.label}
-                </div>
-              ))}
-            </div>
+        {/* Confirm Password Field */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="confirmPassword" className="text-white">Confirmar nova senha</Label>
+          <div className="relative">
+            <Input
+              id="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              placeholder="Digite novamente sua nova senha"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              disabled={status === 'submitting'}
+              className={`pr-10 ${
+                confirmPassword && (passwordsMatch ? 'border-emerald-500 focus-visible:ring-emerald-500' : 'border-red-500 focus-visible:ring-red-500')
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+              tabIndex={-1}
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
-        )}
-      </div>
 
-      {/* Confirm Password Field */}
-      <div className="space-y-2">
-        <Label htmlFor="confirmPassword" className="text-[#1F1F1F] font-medium">
-          Confirmar nova senha
-        </Label>
-        <div className="relative">
-          <Input
-            id="confirmPassword"
-            type={showConfirmPassword ? 'text' : 'password'}
-            placeholder="Digite novamente sua nova senha"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            disabled={status === 'submitting'}
-            className={`pr-10 ${
-              confirmPassword && (passwordsMatch ? 'border-emerald-500 focus-visible:ring-emerald-500' : 'border-red-500 focus-visible:ring-red-500')
-            }`}
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-            tabIndex={-1}
-          >
-            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+          {/* Password Match Indicator */}
+          {confirmPassword && (
+            <div className={`flex items-center gap-1.5 text-xs ${
+              passwordsMatch ? 'text-emerald-600' : 'text-red-500'
+            }`}>
+              {passwordsMatch ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Senhas coincidem
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Senhas não coincidem
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Password Match Indicator */}
-        {confirmPassword && (
-          <div className={`flex items-center gap-1.5 text-xs ${
-            passwordsMatch ? 'text-emerald-600' : 'text-red-500'
-          }`}>
-            {passwordsMatch ? (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Senhas coincidem
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Senhas não coincidem
-              </>
-            )}
-          </div>
+        {/* Error Alert */}
+        {error && (
+          <Alert className="border-red-200 bg-red-50">
+            <XCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              {error}
+            </AlertDescription>
+          </Alert>
         )}
-      </div>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert className="border-red-200 bg-red-50">
-          <XCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">
-            {error}
-          </AlertDescription>
-        </Alert>
-      )}
+        {/* Submit Button */}
+        <Button
+          type="submit"
+          className="w-full bg-emerald-500 hover:bg-emerald-600 transition-all duration-200"
+          disabled={status === 'submitting' || !passwordsMatch || password.length < 6}
+        >
+          {status === 'submitting' ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Redefinindo...
+            </span>
+          ) : (
+            'Redefinir senha'
+          )}
+        </Button>
+      </form>
 
-      {/* Submit Button */}
-      <Button
-        type="submit"
-        className="w-full bg-emerald-500 hover:bg-emerald-600 transition-all duration-200"
-        disabled={status === 'submitting' || !passwordsMatch || password.length < 6}
-      >
-        {status === 'submitting' ? (
-          <span className="flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Redefinindo...
-          </span>
-        ) : (
-          'Redefinir senha'
-        )}
-      </Button>
-
-      {/* Help Link */}
-      <div className="text-center pt-2">
+      {/* WhatsApp Help Link */}
+      <div className="text-center">
         <a
           href="https://wa.me/5544997223315"
           target="_blank"
@@ -405,6 +325,6 @@ export function ResetPasswordForm() {
           Precisa de ajuda?
         </a>
       </div>
-    </form>
+    </div>
   )
 }

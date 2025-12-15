@@ -1,17 +1,14 @@
 import { LoginForm } from '@/components/auth/login-form'
 import { Suspense } from 'react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 
 function LoginFormWrapper() {
   return (
     <Suspense fallback={
-      <div className="space-y-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-gray-200 rounded" />
-          <div className="h-10 bg-gray-200 rounded" />
-          <div className="h-11 bg-gray-200 rounded" />
-        </div>
+      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+        <p className="text-sm text-muted-foreground">Carregando...</p>
       </div>
     }>
       <LoginForm />
@@ -21,36 +18,36 @@ function LoginFormWrapper() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md">
-        <Card className="w-full shadow-md rounded-xl bg-white">
-          <CardHeader className="flex flex-col items-center pt-8 pb-4">
-            <Image 
-              src="/logo_devinga_mobile.png" 
-              alt="DevIngá" 
-              width={120}
-              height={40}
-              className="h-10 w-auto"
+    <div className="bg-zinc-900 flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col gap-6">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Image
+              src="/logo_branco.webp"
+              alt="DevIngá"
+              width={384}
+              height={115}
+              className="w-full h-auto"
               priority
             />
-          </CardHeader>
+            <h1 className="text-xl font-bold text-white">Bem-vindo ao BI DevIngá</h1>
+            <p className="text-sm text-zinc-400">
+              Não possui uma conta?{' '}
+              <a
+                href="https://wa.me/5544997223315"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                Solicite aqui.
+              </a>
+            </p>
+          </div>
 
-          <CardContent>
-            <LoginFormWrapper />
-          </CardContent>
-        </Card>
-
-        <p className="text-center text-sm text-gray-600 mt-6">
-          Não possui uma conta?{' '}
-          <a 
-            href="https://wa.me/5544997223315" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            Solicite aqui.
-          </a>
-        </p>
+          {/* Form */}
+          <LoginFormWrapper />
+        </div>
       </div>
     </div>
   )
