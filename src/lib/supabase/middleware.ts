@@ -2,6 +2,24 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  // Handle password recovery codes that arrive at the root URL
+  // Supabase sometimes sends the code to the Site URL instead of the redirectTo
+  const code = request.nextUrl.searchParams.get('code')
+  const isRootPath = request.nextUrl.pathname === '/'
+
+  if (code && isRootPath) {
+    // Check if this looks like a recovery/auth code (UUID format)
+    const isValidCode = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code)
+
+    if (isValidCode) {
+      console.log('[Middleware] Detected auth code at root, redirecting to /redefinir-senha')
+      const url = request.nextUrl.clone()
+      url.pathname = '/redefinir-senha'
+      // Keep the code parameter
+      return NextResponse.redirect(url)
+    }
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
