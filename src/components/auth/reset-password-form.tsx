@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, Loader2, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
-import type { Session } from '@supabase/supabase-js'
 
 interface PasswordStrength {
   score: number
@@ -48,7 +47,7 @@ function getPasswordRequirements(password: string): PasswordRequirement[] {
   ]
 }
 
-type FormStatus = 'idle' | 'validating' | 'ready' | 'submitting' | 'success' | 'error'
+type FormStatus = 'validating' | 'ready' | 'submitting' | 'success' | 'error'
 
 export function ResetPasswordForm() {
   const [password, setPassword] = useState('')
@@ -58,74 +57,59 @@ export function ResetPasswordForm() {
   const [status, setStatus] = useState<FormStatus>('validating')
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(3)
-  const [session, setSession] = useState<Session | null>(null)
 
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password])
   const requirements = useMemo(() => getPasswordRequirements(password), [password])
   const passwordsMatch = password.trim() === confirmPassword.trim() && confirmPassword.length > 0
 
-  // Listen for auth state changes and handle the recovery flow
+  // Check for active session on mount
+  // The session should already be established by /api/auth/recovery
   useEffect(() => {
-    const code = searchParams.get('code')
+    let isMounted = true
 
-    // If no code, check if there's already a session (user might have refreshed)
-    if (!code) {
-      const checkSession = async () => {
-        const { data: { session: existingSession } } = await supabase.auth.getSession()
-        if (existingSession) {
-          setSession(existingSession)
-          setStatus('ready')
-        } else {
-          setStatus('error')
-          setError('Link de recuperação inválido. Por favor, solicite um novo link.')
-        }
-      }
-      checkSession()
-      return
-    }
+    const checkSession = async () => {
+      console.log('[ResetPassword] Checking for active session...')
 
-    // Exchange the code for a session
-    const exchangeCode = async () => {
-      try {
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      // Give the auth state a moment to propagate
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-        if (exchangeError) {
-          console.error('Token exchange error:', exchangeError)
+      const { data: { session } } = await supabase.auth.getSession()
 
-          if (exchangeError.message.includes('expired') || exchangeError.message.includes('invalid')) {
-            setError('O link de recuperação expirou ou é inválido. Por favor, solicite um novo link.')
-          } else if (exchangeError.message.includes('already been used')) {
-            setError('Este link já foi utilizado. Por favor, solicite um novo link.')
-          } else {
-            setError('Não foi possível validar o link. Por favor, solicite um novo link.')
-          }
-          setStatus('error')
-          return
-        }
+      if (!isMounted) return
 
-        if (data.session) {
-          setSession(data.session)
-          setStatus('ready')
-
-          // Remove the code from URL to prevent reuse attempts
-          window.history.replaceState({}, '', '/redefinir-senha')
-        } else {
-          setError('Não foi possível estabelecer a sessão. Por favor, solicite um novo link.')
-          setStatus('error')
-        }
-      } catch (err) {
-        console.error('Unexpected error during code exchange:', err)
-        setError('Erro ao validar o link. Por favor, tente novamente.')
+      if (session) {
+        console.log('[ResetPassword] Session found, ready for password update')
+        setStatus('ready')
+      } else {
+        console.log('[ResetPassword] No session found')
+        setError('Sessão não encontrada. Por favor, solicite um novo link de recuperação.')
         setStatus('error')
       }
     }
 
-    exchangeCode()
-  }, [searchParams, supabase.auth])
+    // Also listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[ResetPassword] Auth state changed:', event, !!session)
+
+      if (!isMounted) return
+
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        if (session) {
+          setStatus('ready')
+        }
+      }
+    })
+
+    checkSession()
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [supabase.auth])
 
   // Countdown after success
   useEffect(() => {
@@ -173,7 +157,7 @@ export function ResetPasswordForm() {
       })
 
       if (updateError) {
-        console.error('Error updating password:', updateError)
+        console.error('[ResetPassword] Error updating password:', updateError)
 
         if (updateError.message.includes('same')) {
           setError('A nova senha deve ser diferente da senha anterior')
@@ -190,23 +174,23 @@ export function ResetPasswordForm() {
 
       setStatus('success')
     } catch (err) {
-      console.error('Unexpected error:', err)
+      console.error('[ResetPassword] Unexpected error:', err)
       setError('Erro ao redefinir senha. Tente novamente.')
       setStatus('ready')
     }
   }, [password, confirmPassword, supabase.auth])
 
-  // Loading state while validating token
+  // Loading state while validating
   if (status === 'validating') {
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <p className="text-sm text-gray-600">Validando link de recuperação...</p>
+        <p className="text-sm text-gray-600">Verificando sessão...</p>
       </div>
     )
   }
 
-  // Error state (invalid/expired token)
+  // Error state
   if (status === 'error') {
     return (
       <div className="space-y-6">

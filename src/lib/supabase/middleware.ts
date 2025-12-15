@@ -8,14 +8,14 @@ export async function updateSession(request: NextRequest) {
   const isRootPath = request.nextUrl.pathname === '/'
 
   if (code && isRootPath) {
-    // Check if this looks like a recovery/auth code (UUID format)
-    const isValidCode = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code)
+    // Check if this looks like a recovery/auth code (UUID or other format)
+    const isValidCode = code.length > 10 // Basic validation
 
     if (isValidCode) {
-      console.log('[Middleware] Detected auth code at root, redirecting to /redefinir-senha')
+      console.log('[Middleware] Detected auth code at root, redirecting to /api/auth/recovery')
       const url = request.nextUrl.clone()
-      url.pathname = '/redefinir-senha'
-      // Keep the code parameter
+      url.pathname = '/api/auth/recovery'
+      // Keep the code parameter - the API will process it server-side
       return NextResponse.redirect(url)
     }
   }
