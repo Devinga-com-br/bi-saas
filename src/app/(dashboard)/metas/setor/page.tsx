@@ -62,6 +62,8 @@ interface MetaSetor {
     meta_percentual?: number       // Opcional - nem sempre retornado
     valor_meta: number
     valor_realizado: number
+    custo_realizado: number        // NOVO - Custo total realizado
+    lucro_realizado: number        // NOVO - Lucro bruto realizado
     diferenca: number
     diferenca_percentual: number
     percentual_atingido?: number   // Retornado pela RPC
@@ -681,23 +683,28 @@ export default function MetaSetorPage() {
   // Calcular totais do período para os cards
   const calcularTotaisPeriodo = () => {
     if (!currentSetorData || currentSetorData.length === 0) {
-      return { totalRealizado: 0, totalMeta: 0, diferenca: 0, percentualAtingido: 0 }
+      return { totalRealizado: 0, totalMeta: 0, totalCusto: 0, totalLucro: 0, margemBruta: 0, diferenca: 0, percentualAtingido: 0 }
     }
 
     let totalRealizado = 0
     let totalMeta = 0
+    let totalCusto = 0
+    let totalLucro = 0
 
     currentSetorData.forEach((dia) => {
       dia.filiais?.forEach((filial) => {
         totalRealizado += filial.valor_realizado || 0
         totalMeta += filial.valor_meta || 0
+        totalCusto += filial.custo_realizado || 0
+        totalLucro += filial.lucro_realizado || 0
       })
     })
 
     const diferenca = totalRealizado - totalMeta
     const percentualAtingido = totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0
+    const margemBruta = totalRealizado > 0 ? (totalLucro / totalRealizado) * 100 : 0
 
-    return { totalRealizado, totalMeta, diferenca, percentualAtingido }
+    return { totalRealizado, totalMeta, totalCusto, totalLucro, margemBruta, diferenca, percentualAtingido }
   }
 
   // Calcular totais D-1 (até dia anterior)
@@ -1164,7 +1171,7 @@ export default function MetaSetorPage() {
           </Card>
         </div>
       ) : currentSetorData.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
           {/* Card: Vendas do Período */}
           <Card>
             <CardHeader className="relative">
@@ -1288,6 +1295,48 @@ export default function MetaSetorPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Card: Lucro e Margem */}
+          <Card>
+            <CardHeader className="relative">
+              <div className="absolute top-6 right-6">
+                <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                  {getFilialLabel()}
+                </div>
+              </div>
+              <CardTitle>Lucro e Margem</CardTitle>
+              <CardDescription>
+                {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Lucro Bruto */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Lucro Bruto</p>
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(totaisPeriodo.totalLucro)}
+                  </p>
+                </div>
+
+                {/* Margem Bruta */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Margem Bruta</p>
+                  <p className="text-2xl font-bold">
+                    {totaisPeriodo.margemBruta.toFixed(2)}%
+                  </p>
+                </div>
+
+                {/* Custo Total */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Custo Total</p>
+                  <p className="text-lg font-medium text-muted-foreground">
+                    {formatCurrency(totaisPeriodo.totalCusto)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       ) : null}
 
@@ -1306,7 +1355,7 @@ export default function MetaSetorPage() {
           <CardContent>
             <div className="space-y-2">
               {/* Table Header Skeleton */}
-              <div className="grid grid-cols-9 gap-4 pb-4 border-b">
+              <div className="grid grid-cols-11 gap-4 pb-4 border-b">
                 <Skeleton className="h-4 w-4" />
                 <Skeleton className="h-4 w-16" />
                 <Skeleton className="h-4 w-24" />
@@ -1316,11 +1365,13 @@ export default function MetaSetorPage() {
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
               </div>
 
               {/* Table Rows Skeleton */}
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="grid grid-cols-9 gap-4 py-3 border-b">
+                <div key={index} className="grid grid-cols-11 gap-4 py-3 border-b">
                   <Skeleton className="h-4 w-4" />
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-24" />
@@ -1328,6 +1379,8 @@ export default function MetaSetorPage() {
                   <Skeleton className="h-4 w-12" />
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-12" />
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-12" />
                 </div>
@@ -1365,6 +1418,8 @@ export default function MetaSetorPage() {
                   <TableHead className="text-right">Realizado</TableHead>
                   <TableHead className="text-right">Diferença</TableHead>
                   <TableHead className="text-right">Dif. %</TableHead>
+                  <TableHead className="text-right">Lucro B.</TableHead>
+                  <TableHead className="text-right">Margem B.%</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1375,6 +1430,8 @@ export default function MetaSetorPage() {
                       valor_referencia: acc.valor_referencia + (f.valor_referencia || 0),
                       valor_meta: acc.valor_meta + (f.valor_meta || 0),
                       valor_realizado: acc.valor_realizado + (f.valor_realizado || 0),
+                      custo_realizado: acc.custo_realizado + (f.custo_realizado || 0),
+                      lucro_realizado: acc.lucro_realizado + (f.lucro_realizado || 0),
                       diferenca: acc.diferenca + (f.diferenca || 0),
                       meta_percentual: acc.meta_percentual + (f.meta_percentual ?? f.percentual_atingido ?? 0),
                       count: acc.count + 1,
@@ -1383,6 +1440,8 @@ export default function MetaSetorPage() {
                       valor_referencia: 0,
                       valor_meta: 0,
                       valor_realizado: 0,
+                      custo_realizado: 0,
+                      lucro_realizado: 0,
                       diferenca: 0,
                       meta_percentual: 0,
                       count: 0,
@@ -1459,6 +1518,23 @@ export default function MetaSetorPage() {
                             >
                               {formatPercentage(difPercentual)}
                             </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {showDiff ? (
+                            formatCurrency(totals.lucro_realizado)
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {showDiff ? (
+                            (() => {
+                              const margem = totals.valor_realizado > 0 ? (totals.lucro_realizado / totals.valor_realizado) * 100 : 0
+                              return `${margem.toFixed(2)}%`
+                            })()
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
@@ -1584,6 +1660,23 @@ export default function MetaSetorPage() {
                                   >
                                     {formatPercentage(metaDiferencaPerc)}
                                   </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {showFilialDiff ? (
+                                  formatCurrency(filial.lucro_realizado || 0)
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {showFilialDiff ? (
+                                  (() => {
+                                    const margem = filial.valor_realizado > 0 ? ((filial.lucro_realizado || 0) / filial.valor_realizado) * 100 : 0
+                                    return `${margem.toFixed(2)}%`
+                                  })()
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
