@@ -949,7 +949,7 @@ export default function MetaMensalPage() {
               {/* Lucro Bruto */}
               <div>
                 <p className="text-sm text-muted-foreground">Lucro Bruto</p>
-                <p className={`text-2xl font-bold ${(report?.total_lucro || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-2xl font-bold">
                   {formatCurrency(report?.total_lucro || 0)}
                 </p>
               </div>
@@ -957,11 +957,9 @@ export default function MetaMensalPage() {
               {/* Margem Bruta */}
               <div>
                 <p className="text-sm text-muted-foreground">Margem Bruta</p>
-                <div className="flex items-center gap-2">
-                  <p className={`text-2xl font-bold ${(report?.margem_bruta || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {(report?.margem_bruta || 0).toFixed(2)}%
-                  </p>
-                </div>
+                <p className="text-2xl font-bold">
+                  {(report?.margem_bruta || 0).toFixed(2)}%
+                </p>
               </div>
 
               {/* Custo Total */}
