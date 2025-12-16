@@ -32,6 +32,8 @@ interface Meta {
   valor_referencia: number
   valor_meta: number
   valor_realizado: number
+  custo_realizado: number
+  lucro_realizado: number
   diferenca: number
   diferenca_percentual: number
 }
@@ -40,7 +42,10 @@ interface MetasReport {
   metas: Meta[]
   total_realizado: number
   total_meta: number
+  total_custo: number
+  total_lucro: number
   percentual_atingido: number
+  margem_bruta: number
 }
 
 interface GroupedByDate {
@@ -51,9 +56,12 @@ interface GroupedByDate {
     total_valor_referencia: number
     total_meta: number
     total_realizado: number
+    total_custo: number
+    total_lucro: number
     total_diferenca: number
     media_meta_percentual: number
     diferenca_percentual: number
+    margem_bruta: number
   }
 }
 
@@ -233,7 +241,10 @@ export default function MetaMensalPage() {
         metas: [],
         total_realizado: 0,
         total_meta: 0,
-        percentual_atingido: 0
+        total_custo: 0,
+        total_lucro: 0,
+        percentual_atingido: 0,
+        margem_bruta: 0
       })
     } finally {
       setLoading(false)
@@ -372,12 +383,12 @@ export default function MetaMensalPage() {
       primeiraMeta: metas[0],
       ultimaMeta: metas[metas.length - 1]
     })
-    
+
     const grouped: GroupedByDate = {}
-    
+
     metas.forEach((meta, index) => {
       const dateKey = meta.data
-      
+
       if (!grouped[dateKey]) {
         console.log(`[METAS] ➕ Criando novo grupo para data: ${dateKey} (meta #${index})`)
         grouped[dateKey] = {
@@ -387,52 +398,64 @@ export default function MetaMensalPage() {
           total_valor_referencia: 0,
           total_meta: 0,
           total_realizado: 0,
+          total_custo: 0,
+          total_lucro: 0,
           total_diferenca: 0,
           media_meta_percentual: 0,
-          diferenca_percentual: 0
+          diferenca_percentual: 0,
+          margem_bruta: 0
         }
       }
-      
+
       console.log(`[METAS] ➡️ Adicionando meta ao grupo ${dateKey}:`, {
         filial_id: meta.filial_id,
         valor_realizado: meta.valor_realizado,
         valor_meta: meta.valor_meta,
         diferenca: meta.diferenca
       })
-      
+
       grouped[dateKey].metas.push(meta)
       grouped[dateKey].total_valor_referencia += meta.valor_referencia || 0
       grouped[dateKey].total_meta += meta.valor_meta || 0
       grouped[dateKey].total_realizado += meta.valor_realizado || 0
+      grouped[dateKey].total_custo += meta.custo_realizado || 0
+      grouped[dateKey].total_lucro += meta.lucro_realizado || 0
       grouped[dateKey].total_diferenca += meta.diferenca || 0
     })
-    
-    // Calcular média e percentuais
+
+    // Calcular média, percentuais e margem
     Object.keys(grouped).forEach(dateKey => {
       const group = grouped[dateKey]
       const numFiliais = group.metas.length
-      
+
       if (numFiliais > 0) {
         group.media_meta_percentual = group.metas.reduce((sum, m) => sum + (m.meta_percentual || 0), 0) / numFiliais
-        
+
         if (group.total_meta > 0) {
           group.diferenca_percentual = ((group.total_realizado - group.total_meta) / group.total_meta) * 100
         }
+
+        // Calcular margem bruta do dia
+        if (group.total_realizado > 0) {
+          group.margem_bruta = (group.total_lucro / group.total_realizado) * 100
+        }
       }
-      
+
       console.log(`[METAS] 📊 Grupo ${dateKey} finalizado:`, {
         numFiliais,
         total_realizado: group.total_realizado,
         total_meta: group.total_meta,
+        total_lucro: group.total_lucro,
+        margem_bruta: group.margem_bruta,
         diferenca_percentual: group.diferenca_percentual
       })
     })
-    
+
     console.log('[METAS] ✅ Agrupamento concluído:', {
       totalGrupos: Object.keys(grouped).length,
       grupos: Object.keys(grouped).sort()
     })
-    
+
     return grouped
   }
 
@@ -737,7 +760,7 @@ export default function MetaMensalPage() {
           </Card>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
           <Card>
             <CardHeader className="relative">
               <div className="absolute top-6 right-6">
@@ -907,6 +930,50 @@ export default function MetaMensalPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Card Lucro e Margem */}
+        <Card>
+          <CardHeader className="relative">
+            <div className="absolute top-6 right-6">
+              <div className="inline-flex items-center rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                {getFilialLabel()}
+              </div>
+            </div>
+            <CardTitle>Lucro e Margem</CardTitle>
+            <CardDescription>
+              {format(new Date(ano, mes - 1, 1), 'MMMM yyyy', { locale: ptBR })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Lucro Bruto */}
+              <div>
+                <p className="text-sm text-muted-foreground">Lucro Bruto</p>
+                <p className={`text-2xl font-bold ${(report?.total_lucro || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(report?.total_lucro || 0)}
+                </p>
+              </div>
+
+              {/* Margem Bruta */}
+              <div>
+                <p className="text-sm text-muted-foreground">Margem Bruta</p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-2xl font-bold ${(report?.margem_bruta || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {(report?.margem_bruta || 0).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Custo Total */}
+              <div>
+                <p className="text-sm text-muted-foreground">Custo Total</p>
+                <p className="text-lg font-medium text-muted-foreground">
+                  {formatCurrency(report?.total_custo || 0)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         </div>
       )}
 
@@ -925,15 +992,15 @@ export default function MetaMensalPage() {
           {loading ? (
             <div className="space-y-2">
               {/* Header skeleton */}
-              <div className="grid grid-cols-9 gap-4 pb-4 border-b">
-                {Array.from({ length: 9 }).map((_, i) => (
+              <div className="grid grid-cols-11 gap-4 pb-4 border-b">
+                {Array.from({ length: 11 }).map((_, i) => (
                   <Skeleton key={i} className="h-4 w-full" />
                 ))}
               </div>
               {/* Rows skeleton */}
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="grid grid-cols-9 gap-4 py-3 border-b">
-                  {Array.from({ length: 9 }).map((_, i) => (
+                <div key={index} className="grid grid-cols-11 gap-4 py-3 border-b">
+                  {Array.from({ length: 11 }).map((_, i) => (
                     <Skeleton key={i} className="h-4 w-full" />
                   ))}
                 </div>
@@ -963,6 +1030,8 @@ export default function MetaMensalPage() {
                     <TableHead className="text-right">Realizado</TableHead>
                     <TableHead className="text-right">Diferença</TableHead>
                     <TableHead className="text-right">Dif. %</TableHead>
+                    <TableHead className="text-right">Lucro B.</TableHead>
+                    <TableHead className="text-right">Margem B.%</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1103,8 +1172,22 @@ export default function MetaMensalPage() {
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {showDifference ? (
+                              formatCurrency(group.total_lucro)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {showDifference ? (
+                              `${group.margem_bruta.toFixed(2)}%`
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                         </TableRow>
-                        
+
                         {/* Linhas detalhadas por filial */}
                         {isExpanded && group.metas.map((meta) => {
                           const metaDiferencaValor = meta.diferenca || 0
@@ -1202,6 +1285,23 @@ export default function MetaMensalPage() {
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {showMetaDifference ? (
+                                  formatCurrency(meta.lucro_realizado || 0)
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {showMetaDifference ? (
+                                  (() => {
+                                    const margem = meta.valor_realizado > 0 ? ((meta.lucro_realizado || 0) / meta.valor_realizado) * 100 : 0
+                                    return `${margem.toFixed(2)}%`
+                                  })()
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
                             </TableRow>
                           )
                         })}
@@ -1226,6 +1326,8 @@ export default function MetaMensalPage() {
                     <TableHead className="text-right">Realizado</TableHead>
                     <TableHead className="text-right">Diferença</TableHead>
                     <TableHead className="text-right">Dif. %</TableHead>
+                    <TableHead className="text-right">Lucro B.</TableHead>
+                    <TableHead className="text-right">Margem B.%</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1373,6 +1475,23 @@ export default function MetaMensalPage() {
                               <span className={diferencaPerc === 0 ? '' : diferencaPerc > 0 ? 'text-green-500' : 'text-red-500'}>
                                 {formatPercentage(diferencaPerc)}
                               </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {showDiff ? (
+                              formatCurrency(meta.lucro_realizado || 0)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {showDiff ? (
+                              (() => {
+                                const margem = meta.valor_realizado > 0 ? ((meta.lucro_realizado || 0) / meta.valor_realizado) * 100 : 0
+                                return `${margem.toFixed(2)}%`
+                              })()
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
