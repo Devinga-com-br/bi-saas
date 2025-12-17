@@ -26,13 +26,14 @@ interface RupturaItem {
 // Schema de validação
 const querySchema = z.object({
   schema: z.string().min(1),
-  filial_id: z.string().optional(),
+  filial_ids: z.string().optional(), // Mudou para plural (array via string)
   curvas: z.string().optional().default('A,B'),
   apenas_ativos: z.string().optional().default('true'),
   apenas_ruptura: z.string().optional().default('true'),
-  departamento_id: z.string().optional(),
+  departamento_ids: z.string().optional(), // Mudou para plural (array via string)
+  setor_ids: z.string().optional(), // NOVO: filtro por setores
   busca: z.string().optional(),
-  tipo_busca: z.enum(['produto', 'segmento']).optional().default('produto'),
+  tipo_busca: z.enum(['produto', 'departamento', 'setor']).optional().default('departamento'),
   page: z.string().optional().default('1'),
   page_size: z.string().optional().default('50'),
 })
@@ -59,11 +60,12 @@ export async function GET(req: Request) {
 
     const {
       schema: requestedSchema,
-      filial_id,
+      filial_ids,
       curvas,
       apenas_ativos,
       apenas_ruptura,
-      departamento_id,
+      departamento_ids,
+      setor_ids,
       busca,
       tipo_busca,
       page,
@@ -73,55 +75,59 @@ export async function GET(req: Request) {
     // Converter parâmetros
     const curvasArray = curvas.split(',').map(c => c.trim())
     const pageNum = parseInt(page, 10)
-    const pageSizeNum = parseInt(page_size, 10)
+    const pageSizeNum = Math.min(parseInt(page_size, 10), 10000) // Limite máximo
+
+    // Converter filial_ids para array de números
+    const filialIdsArray = filial_ids
+      ? filial_ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+      : null
+
+    // Converter departamento_ids para array de números
+    const departamentoIdsArray = departamento_ids
+      ? departamento_ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+      : null
+
+    // Converter setor_ids para array de números
+    const setorIdsArray = setor_ids
+      ? setor_ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+      : null
 
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
 
-    // Converter filial_id para número ou null, respeitando autorizações
-    let filialIdNum: number | null = null
+    // Aplicar restrições de filiais autorizadas
+    let finalFilialIds: number[] | null = null
     if (authorizedBranches === null) {
       // User has no restrictions - use requested value
-      if (filial_id && filial_id !== 'all') {
-        const parsed = parseInt(filial_id, 10)
-        if (!isNaN(parsed)) {
-          filialIdNum = parsed
-        }
-      }
+      finalFilialIds = filialIdsArray && filialIdsArray.length > 0 ? filialIdsArray : null
     } else {
       // User has restrictions - filter by authorized branches
-      if (!filial_id || filial_id === 'all') {
-        // Request for all - use first authorized branch (RPC expects single value)
-        // Frontend should handle multiple authorized branches
-        if (authorizedBranches.length > 0) {
-          const parsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(parsed)) {
-            filialIdNum = parsed
-          }
+      const authorizedIds = authorizedBranches.map(b => parseInt(b, 10)).filter(id => !isNaN(id))
+      if (filialIdsArray && filialIdsArray.length > 0) {
+        // Filtrar apenas as filiais autorizadas
+        finalFilialIds = filialIdsArray.filter(id => authorizedIds.includes(id))
+        if (finalFilialIds.length === 0) {
+          // Nenhuma filial autorizada selecionada, usar todas autorizadas
+          finalFilialIds = authorizedIds.length > 0 ? authorizedIds : null
         }
       } else {
-        // Specific filial requested - check if authorized
-        const parsed = parseInt(filial_id, 10)
-        if (!isNaN(parsed) && authorizedBranches.includes(filial_id)) {
-          filialIdNum = parsed
-        } else if (authorizedBranches.length > 0) {
-          // Requested filial not authorized - use first authorized
-          const firstParsed = parseInt(authorizedBranches[0], 10)
-          if (!isNaN(firstParsed)) {
-            filialIdNum = firstParsed
-          }
-        }
+        // Nenhuma filial específica, usar todas autorizadas
+        finalFilialIds = authorizedIds.length > 0 ? authorizedIds : null
       }
     }
 
+    // Preparar busca apenas quando tipo_busca === 'produto'
+    const buscaText = tipo_busca === 'produto' && busca?.trim() ? busca.trim() : null
+
     const rpcParams = {
       p_schema: requestedSchema,
-      p_filial_id: filialIdNum,
+      p_filial_ids: finalFilialIds,
       p_curvas: curvasArray,
       p_apenas_ativos: apenas_ativos === 'true',
       p_apenas_ruptura: apenas_ruptura === 'true',
-      p_departamento_id: departamento_id ? parseInt(departamento_id, 10) : null,
-      p_busca: busca || null,
+      p_departamento_ids: departamentoIdsArray,
+      p_setor_ids: setorIdsArray,
+      p_busca: buscaText,
       p_page: pageNum,
       p_page_size: pageSizeNum,
     }
@@ -140,17 +146,12 @@ export async function GET(req: Request) {
       )
     }
 
-    // Filtrar dados baseado no tipo de busca
-    let filteredData: RupturaItem[] = (data || []) as RupturaItem[]
+    // Filtrar dados baseado no tipo de busca (pós-processamento se necessário)
+    const filteredData: RupturaItem[] = (data || []) as RupturaItem[]
 
-    if (busca && tipo_busca === 'segmento' && filteredData.length > 0) {
-      // Quando buscar por segmento, filtrar por departamento_nome
-      const buscaLower = busca.toLowerCase()
-      filteredData = filteredData.filter((item: RupturaItem) =>
-        item.departamento_nome?.toLowerCase().includes(buscaLower)
-      )
-    }
-    // Nota: quando tipo_busca === 'produto', o RPC já filtra por p_busca no produto_descricao
+    // Nota: filtros por departamento e setor são aplicados na RPC via p_departamento_ids e p_setor_ids
+    // Nota: filtro por produto é aplicado na RPC via p_busca
+    // Não é necessário filtro adicional no backend
 
     // Agrupar dados por departamento
     const groupedData: Record<string, {
@@ -179,12 +180,7 @@ export async function GET(req: Request) {
     let totalRecords = 0
 
     if (filteredData && filteredData.length > 0) {
-      // Quando filtrar por segmento, recalcular total_records baseado nos dados filtrados
-      if (busca && tipo_busca === 'segmento') {
-        totalRecords = filteredData.length
-      } else {
-        totalRecords = filteredData[0].total_records || 0
-      }
+      totalRecords = filteredData[0].total_records || 0
 
       filteredData.forEach((item: RupturaItem) => {
         const deptKey = `${item.departamento_id}`
