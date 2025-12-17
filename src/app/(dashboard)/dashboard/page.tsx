@@ -647,7 +647,7 @@ export default function DashboardPage() {
   // Criar mapa de faturamento por filial para acesso rápido
   const faturamentoPorFilialMap = useMemo(() => {
     const map = new Map<number, FaturamentoPorFilial>()
-    if (faturamentoPorFilialData) {
+    if (Array.isArray(faturamentoPorFilialData)) {
       faturamentoPorFilialData.forEach(f => map.set(f.filial_id, f))
     }
     return map

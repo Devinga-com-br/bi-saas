@@ -60,20 +60,22 @@ export const MultiSelect = React.forwardRef<
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')
 
+  const safeValue = Array.isArray(value) ? value : []
+
   const handleSelect = (option: Option) => {
-    onValueChange([...value, option])
+    onValueChange([...safeValue, option])
   }
 
   const handleDeselect = (option: Option) => {
-    onValueChange(value.filter((v) => v.value !== option.value))
+    onValueChange(safeValue.filter((v) => v.value !== option.value))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const input = e.currentTarget.querySelector('input')
     if (input) {
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (input.value === '' && value.length > 0) {
-          const lastValue = value[value.length - 1]
+        if (input.value === '' && safeValue.length > 0) {
+          const lastValue = safeValue[safeValue.length - 1]
           handleDeselect(lastValue)
         }
       }
@@ -82,9 +84,9 @@ export const MultiSelect = React.forwardRef<
       }
     }
   }
-
-  const selectedValues = new Set(value.map((v) => v.value))
-  const filteredOptions = options.filter((option) => !selectedValues.has(option.value))
+  const safeOptions = Array.isArray(options) ? options : []
+  const selectedValues = new Set(safeValue.map((v) => v.value))
+  const filteredOptions = safeOptions.filter((option) => !selectedValues.has(option.value))
 
   return (
     <CommandPrimitive ref={ref} onKeyDown={handleKeyDown} className="overflow-visible bg-transparent">
@@ -97,7 +99,7 @@ export const MultiSelect = React.forwardRef<
       >
         <div className="flex items-center gap-2">
           <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto flex-1">
-            {value.map((option) => (
+            {safeValue.map((option) => (
               <Badge
                 key={option.value}
                 className={cn(multiSelectVariants({ variant }))}
@@ -159,7 +161,7 @@ export const MultiSelect = React.forwardRef<
                   e.stopPropagation()
                 }}
                 onClick={() => {
-                  onValueChange([...options])
+                  onValueChange([...safeOptions])
                 }}
                 className="text-xs text-primary hover:text-primary/80 font-medium hover:underline"
               >
