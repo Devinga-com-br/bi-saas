@@ -12,6 +12,7 @@ export type SystemModule =
   | 'dre_comparativo'
   | 'metas_mensal'
   | 'metas_setor'
+  | 'relatorios_previsao_ruptura'
   | 'relatorios_ruptura_abcd'
   | 'relatorios_venda_curva'
   | 'relatorios_ruptura_60d'
@@ -70,10 +71,18 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     route: '/metas/setor'
   },
   {
+    id: 'relatorios_previsao_ruptura',
+    label: 'Relatórios > Previsão de Ruptura',
+    description: 'Previsão de produtos em risco de ruptura por dias de estoque',
+    order: 6,
+    category: 'relatorios',
+    route: '/relatorios/previsao-ruptura'
+  },
+  {
     id: 'relatorios_ruptura_abcd',
     label: 'Relatórios > Ruptura Curva ABCD',
     description: 'Produtos em ruptura por curva ABC',
-    order: 6,
+    order: 7,
     category: 'relatorios',
     route: '/relatorios/ruptura-abcd'
   },
@@ -81,7 +90,7 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     id: 'relatorios_venda_curva',
     label: 'Relatórios > Venda por Curva',
     description: 'Análise de vendas por curva ABC',
-    order: 7,
+    order: 8,
     category: 'relatorios',
     route: '/relatorios/venda-curva'
   },
@@ -89,7 +98,7 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     id: 'relatorios_ruptura_60d',
     label: 'Relatórios > Ruptura Venda 60d',
     description: 'Produtos sem venda nos últimos 60 dias',
-    order: 8,
+    order: 9,
     category: 'relatorios',
     route: '/relatorios/ruptura-venda-60d'
   },
@@ -97,7 +106,7 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     id: 'relatorios_perdas',
     label: 'Perdas > Relatório de Perdas',
     description: 'Análise de perdas por departamento e produto',
-    order: 9,
+    order: 10,
     category: 'relatorios',
     route: '/relatorios/perdas'
   }

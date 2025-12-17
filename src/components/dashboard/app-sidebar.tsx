@@ -105,6 +105,12 @@ const metasNavigation: NavigationItem[] = [
 
 const rupturaNavigation: NavigationItem[] = [
   {
+    name: 'Previsão de Ruptura',
+    href: '/relatorios/previsao-ruptura',
+    icon: TrendingDown,
+    moduleId: 'relatorios_previsao_ruptura',
+  },
+  {
     name: 'Ruptura ABCD',
     href: '/relatorios/ruptura-abcd',
     icon: AlertTriangle,
