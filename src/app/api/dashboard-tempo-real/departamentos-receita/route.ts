@@ -138,17 +138,44 @@ export async function GET(req: Request) {
 
     const productDeptMap = new Map<number, number | null>()
     if (produtoIds.size > 0) {
-      const { data: produtosData } = await directSupabase
-        .schema(requestedSchema as 'public')
-        .from('produtos')
-        .select('id, departamento_id')
-        .in('id', Array.from(produtoIds))
+      // Processar em lotes para evitar limite de URL do Supabase
+      const BATCH_SIZE = 500
+      const produtoIdsArray = Array.from(produtoIds)
+      let totalProdutosRetornados = 0
+      let totalProdutosSemDepto = 0
 
-      if (produtosData) {
-        produtosData.forEach((p) => {
-          productDeptMap.set(p.id, p.departamento_id)
-        })
+      for (let i = 0; i < produtoIdsArray.length; i += BATCH_SIZE) {
+        const batch = produtoIdsArray.slice(i, i + BATCH_SIZE)
+
+        const { data: produtosData, error: produtosError } = await directSupabase
+          .schema(requestedSchema as 'public')
+          .from('produtos')
+          .select('id, departamento_id')
+          .in('id', batch)
+
+        if (produtosError) {
+          console.error('[API/DASHBOARD-TEMPO-REAL/DEPARTAMENTOS] Produtos batch error:', produtosError.message)
+          continue
+        }
+
+        if (produtosData) {
+          totalProdutosRetornados += produtosData.length
+          produtosData.forEach((p) => {
+            productDeptMap.set(p.id, p.departamento_id)
+            if (p.departamento_id === null || p.departamento_id === undefined) {
+              totalProdutosSemDepto++
+            }
+          })
+        }
       }
+
+      console.log('[API/DASHBOARD-TEMPO-REAL/DEPARTAMENTOS] Produtos query:', {
+        schema: requestedSchema,
+        produtoIds: produtoIds.size,
+        produtosRetornados: totalProdutosRetornados,
+        produtosSemDepto: totalProdutosSemDepto,
+        batches: Math.ceil(produtoIdsArray.length / BATCH_SIZE)
+      })
     }
 
     // Aggregate by departamento_id
