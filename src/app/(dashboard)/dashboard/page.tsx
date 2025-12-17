@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CardMetric } from '@/components/dashboard/card-metric'
 import { ChartVendas } from '@/components/dashboard/chart-vendas'
@@ -124,6 +125,12 @@ interface FaturamentoPorFilial {
   lucro_bruto_faturamento: number
 }
 
+// Interface para dados de entradas e perdas
+interface EntradasPerdasData {
+  total_entradas: number
+  total_perdas: number
+}
+
 // Tipos para ordenação
 type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro'
 type SortDirection = 'asc' | 'desc'
@@ -203,22 +210,51 @@ export default function DashboardPage() {
   // Verifica se deve mostrar comparação YTD (Year-to-Date)
   const shouldShowYTD = (): boolean => {
     if (!dataInicio || !dataFim) return false
-    
+
     const start = new Date(dataInicio)
     const end = new Date(dataFim)
     const today = new Date()
-    
+
     // Verifica se é um ano completo (01/Jan a 31/Dez)
-    const isFullYear = 
+    const isFullYear =
       start.getMonth() === 0 && start.getDate() === 1 &&
       end.getMonth() === 11 && end.getDate() === 31 &&
       start.getFullYear() === end.getFullYear()
-    
+
     // Verifica se é o ano atual
     const isCurrentYear = start.getFullYear() === today.getFullYear()
-    
+
     // Mostra YTD apenas se for ano completo E ano atual
     return isFullYear && isCurrentYear
+  }
+
+  // Verifica se o filtro é por ano (atual ou passado) - para Entradas/Perdas
+  const shouldShowYearComparison = (): boolean => {
+    if (!dataInicio || !dataFim) return false
+
+    const start = new Date(dataInicio)
+    const end = new Date(dataFim)
+
+    // Verifica se começa em 01/Jan
+    const startsJan1 = start.getMonth() === 0 && start.getDate() === 1
+
+    // Verifica se termina em 31/Dez (ano completo passado) ou é ano atual
+    const isFullYearPast =
+      end.getMonth() === 11 && end.getDate() === 31 &&
+      start.getFullYear() === end.getFullYear()
+
+    // Ou é o ano atual (pode não ter terminado ainda)
+    const today = new Date()
+    const isCurrentYear = start.getFullYear() === today.getFullYear()
+
+    return startsJan1 && (isFullYearPast || isCurrentYear)
+  }
+
+  // Calcula label para comparação de ano anterior
+  const getYearComparisonLabel = (): string => {
+    if (!dataInicio) return ''
+    const start = new Date(dataInicio)
+    return `${start.getFullYear() - 1}`
   }
 
   // Calcula label YTD
@@ -370,6 +406,110 @@ export default function DashboardPage() {
     ? `/api/faturamento?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&por_filial=true`
     : null
   const { data: faturamentoPorFilialData } = useSWR<FaturamentoPorFilial[]>(faturamentoPorFilialUrl, fetcher, { refreshInterval: 0 });
+
+  // Buscar dados de Entradas e Perdas
+  const entradasPerdasUrl = apiParams.schema
+    ? `/api/dashboard/entradas-perdas?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: entradasPerdasData, isLoading: isLoadingEntradasPerdas } = useSWR<EntradasPerdasData>(entradasPerdasUrl, fetcher, { refreshInterval: 0 });
+
+  // Calcular datas MTD para Entradas/Perdas do mês anterior
+  const entradasPerdasMtdDates = useMemo(() => {
+    if (!apiParams.data_inicio || !apiParams.data_fim) return null
+
+    const dataInicio = new Date(apiParams.data_inicio + 'T00:00:00')
+    const dataFim = new Date(apiParams.data_fim + 'T00:00:00')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Verificar se é mês passado completo
+    const isFirstDayOfMonth = dataInicio.getDate() === 1
+    const lastDayOfFilterMonth = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + 1, 0).getDate()
+    const isLastDayOfMonth = dataFim.getDate() === lastDayOfFilterMonth
+    const isPastMonth = dataFim < today
+    const isFullPastMonth = isFirstDayOfMonth && isLastDayOfMonth && isPastMonth
+
+    // Primeiro dia do mês anterior
+    const mtdInicio = new Date(dataInicio.getFullYear(), dataInicio.getMonth() - 1, 1)
+
+    // Último dia do mês anterior
+    const lastDayPrevMonth = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 0).getDate()
+
+    let mtdFim: Date
+    if (isFullPastMonth) {
+      // Mês passado completo: buscar mês anterior completo
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), lastDayPrevMonth)
+    } else {
+      // MTD proporcional: usar mesmo número de dias, ajustando para meses com menos dias
+      const referenceDay = dataFim >= today ? today.getDate() : dataFim.getDate()
+      const mtdEndDay = Math.min(referenceDay, lastDayPrevMonth)
+      mtdFim = new Date(mtdInicio.getFullYear(), mtdInicio.getMonth(), mtdEndDay)
+    }
+
+    return {
+      data_inicio: format(mtdInicio, 'yyyy-MM-dd'),
+      data_fim: format(mtdFim, 'yyyy-MM-dd')
+    }
+  }, [apiParams.data_inicio, apiParams.data_fim])
+
+  // Buscar dados de Entradas e Perdas do mês anterior (MTD) - apenas quando filterType === 'month'
+  const shouldFetchEntradasPerdasMtd = apiParams.schema && shouldShowMTD() && entradasPerdasMtdDates
+  const entradasPerdasMtdUrl = shouldFetchEntradasPerdasMtd
+    ? `/api/dashboard/entradas-perdas?schema=${apiParams.schema}&data_inicio=${entradasPerdasMtdDates.data_inicio}&data_fim=${entradasPerdasMtdDates.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: entradasPerdasMtdData } = useSWR<EntradasPerdasData>(entradasPerdasMtdUrl, fetcher, { refreshInterval: 0 });
+
+  // Calcular datas do ano anterior para Entradas/Perdas (YTD)
+  const entradasPerdasYtdDates = useMemo(() => {
+    if (!apiParams.data_inicio || !apiParams.data_fim) return null
+
+    const dataInicio = new Date(apiParams.data_inicio + 'T00:00:00')
+    const dataFim = new Date(apiParams.data_fim + 'T00:00:00')
+
+    // Verificar se começa em 01/Jan
+    const startsJan1 = dataInicio.getMonth() === 0 && dataInicio.getDate() === 1
+
+    if (!startsJan1) return null
+
+    // Verificar se é ano completo passado (01/Jan a 31/Dez)
+    const isFullYearPast =
+      dataFim.getMonth() === 11 && dataFim.getDate() === 31 &&
+      dataInicio.getFullYear() === dataFim.getFullYear()
+
+    const anoAnterior = dataInicio.getFullYear() - 1
+
+    // Início: 01/Jan do ano anterior
+    const ytdInicio = new Date(anoAnterior, 0, 1)
+
+    let ytdFim: Date
+    if (isFullYearPast) {
+      // Ano completo passado: buscar ano anterior completo
+      ytdFim = new Date(anoAnterior, 11, 31)
+    } else {
+      // Ano atual (YTD proporcional): usar mesmo dia/mês do ano anterior
+      // Ajustar para 28/Fev se for 29/Fev em ano bissexto
+      const endMonth = dataFim.getMonth()
+      const endDay = dataFim.getDate()
+
+      // Verificar se o dia existe no ano anterior (ex: 29/Fev)
+      const lastDayOfMonthPrevYear = new Date(anoAnterior, endMonth + 1, 0).getDate()
+      const adjustedDay = Math.min(endDay, lastDayOfMonthPrevYear)
+
+      ytdFim = new Date(anoAnterior, endMonth, adjustedDay)
+    }
+
+    return {
+      data_inicio: format(ytdInicio, 'yyyy-MM-dd'),
+      data_fim: format(ytdFim, 'yyyy-MM-dd')
+    }
+  }, [apiParams.data_inicio, apiParams.data_fim])
+
+  // Buscar dados de Entradas e Perdas do ano anterior (YTD) - apenas quando filtro é por ano
+  const shouldFetchEntradasPerdasYtd = apiParams.schema && shouldShowYearComparison() && entradasPerdasYtdDates
+  const entradasPerdasYtdUrl = shouldFetchEntradasPerdasYtd
+    ? `/api/dashboard/entradas-perdas?schema=${apiParams.schema}&data_inicio=${entradasPerdasYtdDates.data_inicio}&data_fim=${entradasPerdasYtdDates.data_fim}&filiais=${apiParams.filiais}`
+    : null
+  const { data: entradasPerdasYtdData } = useSWR<EntradasPerdasData>(entradasPerdasYtdUrl, fetcher, { refreshInterval: 0 });
 
   // Calcular datas do período anterior (PA) para buscar faturamento
   const paDates = useMemo(() => {
@@ -1062,6 +1202,175 @@ export default function DashboardPage() {
             />
           </>
         ) : null}
+      </div>
+
+      {/* Cards: Entradas, Perdas, Trocas */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Card Entradas */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Entradas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isDataLoading || isLoadingEntradasPerdas ? (
+              <Skeleton className="h-8 w-40" />
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(entradasPerdasData?.total_entradas || 0)}
+                  </p>
+                  <span className="text-sm text-muted-foreground">
+                    ({consolidatedTotals.receitaTotal > 0
+                      ? ((entradasPerdasData?.total_entradas || 0) / consolidatedTotals.receitaTotal * 100).toFixed(2)
+                      : '0.00'}% s/ Receita)
+                  </span>
+                </div>
+                {/* Comparativo mês anterior - apenas quando filtro é por mês */}
+                {shouldShowMTD() && entradasPerdasMtdData && (
+                  <div className="flex items-baseline gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">{getMTDPreviousMonthLabel()}:</span>
+                    <span>{formatCurrency(entradasPerdasMtdData.total_entradas || 0)}</span>
+                    <span className="text-xs">
+                      ({consolidatedMTD.mtdPrevMonthReceita > 0
+                        ? ((entradasPerdasMtdData.total_entradas || 0) / consolidatedMTD.mtdPrevMonthReceita * 100).toFixed(2)
+                        : '0.00'}% s/ Receita)
+                    </span>
+                  </div>
+                )}
+                {/* Comparativo ano anterior - apenas quando filtro é por ano */}
+                {shouldShowYearComparison() && entradasPerdasYtdData && (
+                  <div className="flex items-baseline gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">{getYearComparisonLabel()}:</span>
+                    <span>{formatCurrency(entradasPerdasYtdData.total_entradas || 0)}</span>
+                    <span className="text-xs">
+                      ({ytdData?.ytd_vendas_ano_anterior && ytdData.ytd_vendas_ano_anterior > 0
+                        ? ((entradasPerdasYtdData.total_entradas || 0) / ytdData.ytd_vendas_ano_anterior * 100).toFixed(2)
+                        : '0.00'}% s/ Receita)
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card Perdas */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Perdas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isDataLoading || isLoadingEntradasPerdas ? (
+              <Skeleton className="h-8 w-40" />
+            ) : (
+              <div className="space-y-1">
+                {/* Valor principal com indicador de variação */}
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <p className="text-2xl font-bold text-destructive">
+                    {formatCurrency(entradasPerdasData?.total_perdas || 0)}
+                  </p>
+                  <span className="text-sm text-muted-foreground">
+                    ({consolidatedTotals.receitaTotal > 0
+                      ? ((entradasPerdasData?.total_perdas || 0) / consolidatedTotals.receitaTotal * 100).toFixed(2)
+                      : '0.00'}% s/ Receita)
+                  </span>
+                  {/* Indicador de variação - Mês */}
+                  {shouldShowMTD() && entradasPerdasMtdData && (() => {
+                    const atual = entradasPerdasData?.total_perdas || 0
+                    const anterior = entradasPerdasMtdData.total_perdas || 0
+                    const variacao = anterior > 0 ? ((atual - anterior) / anterior) * 100 : 0
+
+                    if (anterior === 0 && atual === 0) return null
+
+                    // Perda aumentou = ruim (vermelho, seta pra cima)
+                    // Perda diminuiu = bom (verde, seta pra baixo)
+                    const isIncrease = atual > anterior
+                    return (
+                      <span className={`flex items-center gap-1 text-xs font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}>
+                        {isIncrease ? (
+                          <ArrowUp className="h-3 w-3" />
+                        ) : (
+                          <ArrowDown className="h-3 w-3" />
+                        )}
+                        {variacao >= 0 ? '+' : ''}{variacao.toFixed(1)}%
+                      </span>
+                    )
+                  })()}
+                  {/* Indicador de variação - Ano */}
+                  {shouldShowYearComparison() && entradasPerdasYtdData && (() => {
+                    const atual = entradasPerdasData?.total_perdas || 0
+                    const anterior = entradasPerdasYtdData.total_perdas || 0
+                    const variacao = anterior > 0 ? ((atual - anterior) / anterior) * 100 : 0
+
+                    if (anterior === 0 && atual === 0) return null
+
+                    // Perda aumentou = ruim (vermelho, seta pra cima)
+                    // Perda diminuiu = bom (verde, seta pra baixo)
+                    const isIncrease = atual > anterior
+                    return (
+                      <span className={`flex items-center gap-1 text-xs font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}>
+                        {isIncrease ? (
+                          <ArrowUp className="h-3 w-3" />
+                        ) : (
+                          <ArrowDown className="h-3 w-3" />
+                        )}
+                        {variacao >= 0 ? '+' : ''}{variacao.toFixed(1)}%
+                      </span>
+                    )
+                  })()}
+                </div>
+                {/* Comparativo mês anterior - apenas quando filtro é por mês */}
+                {shouldShowMTD() && entradasPerdasMtdData && (
+                  <div className="flex items-baseline gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">{getMTDPreviousMonthLabel()}:</span>
+                    <span>{formatCurrency(entradasPerdasMtdData.total_perdas || 0)}</span>
+                    <span className="text-xs">
+                      ({consolidatedMTD.mtdPrevMonthReceita > 0
+                        ? ((entradasPerdasMtdData.total_perdas || 0) / consolidatedMTD.mtdPrevMonthReceita * 100).toFixed(2)
+                        : '0.00'}% s/ Receita)
+                    </span>
+                  </div>
+                )}
+                {/* Comparativo ano anterior - apenas quando filtro é por ano */}
+                {shouldShowYearComparison() && entradasPerdasYtdData && (
+                  <div className="flex items-baseline gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">{getYearComparisonLabel()}:</span>
+                    <span>{formatCurrency(entradasPerdasYtdData.total_perdas || 0)}</span>
+                    <span className="text-xs">
+                      ({ytdData?.ytd_vendas_ano_anterior && ytdData.ytd_vendas_ano_anterior > 0
+                        ? ((entradasPerdasYtdData.total_perdas || 0) / ytdData.ytd_vendas_ano_anterior * 100).toFixed(2)
+                        : '0.00'}% s/ Receita)
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card Trocas - Em Breve */}
+        <Card className="relative">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Trocas
+              </CardTitle>
+              <Badge variant="secondary" className="text-xs">
+                Em Breve
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-muted-foreground/50">
+              --
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
