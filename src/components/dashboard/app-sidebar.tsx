@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   AlertTriangle,
   Newspaper,
+  Activity,
 } from 'lucide-react'
 
 // import { cn } from '@/lib/utils'
@@ -56,6 +57,12 @@ const visaoGeralNavigation: NavigationItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     moduleId: 'dashboard',
+  },
+  {
+    name: 'Dashboard Tempo Real',
+    href: '/dashboard-tempo-real',
+    icon: Activity,
+    moduleId: 'dashboard_tempo_real',
   },
 ]
 

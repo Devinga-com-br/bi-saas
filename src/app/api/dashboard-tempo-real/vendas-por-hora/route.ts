@@ -1,0 +1,243 @@
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import type { UserProfile } from '@/types'
+import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+
+// FORCAR ROTA DINAMICA - NAO CACHEAR
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+const querySchema = z.object({
+  schema: z.string().min(1),
+  filiais: z.string().optional(),
+})
+
+// Paleta de cores para filiais
+const FILIAL_COLORS = [
+  'hsl(142, 76%, 45%)',  // Verde neon
+  'hsl(200, 70%, 50%)',  // Azul
+  'hsl(38, 92%, 50%)',   // Laranja
+  'hsl(280, 60%, 55%)',  // Roxo
+  'hsl(350, 70%, 55%)',  // Rosa
+  'hsl(170, 60%, 45%)',  // Teal
+  'hsl(60, 70%, 50%)',   // Amarelo
+  'hsl(320, 60%, 50%)',  // Magenta
+]
+
+async function validateSchemaAccess(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string },
+  requestedSchema: string
+): Promise<boolean> {
+  const { data: profile } = (await supabase
+    .from('user_profiles')
+    .select('role, can_switch_tenants, tenant_id')
+    .eq('id', user.id)
+    .single()) as { data: Pick<UserProfile, 'role' | 'can_switch_tenants' | 'tenant_id'> | null }
+
+  if (!profile) return false
+
+  if (profile.role === 'superadmin' && profile.can_switch_tenants) {
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('supabase_schema', requestedSchema)
+      .eq('is_active', true)
+      .single()
+    return !!tenant && !error
+  }
+
+  if (profile.tenant_id) {
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('supabase_schema')
+      .eq('id', profile.tenant_id)
+      .single()
+    if (error || !tenant) return false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (tenant as any).supabase_schema === requestedSchema
+  }
+
+  return false
+}
+
+export async function GET(req: Request) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const queryParams = Object.fromEntries(searchParams.entries())
+
+    const validation = querySchema.safeParse(queryParams)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: validation.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { schema: requestedSchema, filiais } = validation.data
+
+    const hasAccess = await validateSchemaAccess(supabase, user, requestedSchema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Get user's authorized branches
+    const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
+
+    // Determine which filiais to use
+    let finalFiliais: number[] | null = null
+
+    if (authorizedBranches === null) {
+      if (filiais && filiais !== 'all') {
+        finalFiliais = filiais.split(',').map((f) => parseInt(f.trim(), 10)).filter((n) => !isNaN(n))
+      }
+    } else if (!filiais || filiais === 'all') {
+      finalFiliais = authorizedBranches.map((f) => parseInt(f, 10)).filter((n) => !isNaN(n))
+    } else {
+      const requestedFiliais = filiais.split(',')
+      const allowedFiliais = requestedFiliais.filter((f) => authorizedBranches.includes(f))
+      finalFiliais =
+        allowedFiliais.length > 0
+          ? allowedFiliais.map((f) => parseInt(f, 10)).filter((n) => !isNaN(n))
+          : authorizedBranches.map((f) => parseInt(f, 10)).filter((n) => !isNaN(n))
+    }
+
+    // Direct Supabase client for schema queries
+    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+    const directSupabase = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // Query vendas por hora
+    let vendasQuery = directSupabase
+      .schema(requestedSchema as 'public')
+      .from('vendas_hoje')
+      .select('filial_id, horario, valor_total')
+      .eq('cancelada', false)
+      .not('horario', 'is', null)
+
+    if (finalFiliais && finalFiliais.length > 0) {
+      vendasQuery = vendasQuery.in('filial_id', finalFiliais)
+    }
+
+    const { data: vendasData, error: vendasError } = await vendasQuery
+
+    if (vendasError) {
+      console.error('[API/DASHBOARD-TEMPO-REAL/VENDAS-POR-HORA] Query Error:', vendasError.message)
+      return NextResponse.json(
+        { error: 'Error fetching sales data', details: vendasError.message },
+        { status: 500 }
+      )
+    }
+
+    // Get branch names from public.branches
+    const { data: branchesData } = await supabase
+      .from('branches')
+      .select('branch_code, descricao') as { data: { branch_code: string; descricao: string | null }[] | null }
+
+    const branchNameMap = new Map<string, string>()
+    if (branchesData) {
+      branchesData.forEach((b) => {
+        branchNameMap.set(b.branch_code, b.descricao || `Filial ${b.branch_code}`)
+      })
+    }
+
+    // Group data by hour and filial
+    const hourlyData: Record<string, Record<string, number>> = {}
+    const filiaisSet = new Set<number>()
+
+    // Initialize hours from 06:00 to 23:00
+    for (let h = 6; h <= 23; h++) {
+      const hourKey = `${h.toString().padStart(2, '0')}:00`
+      hourlyData[hourKey] = {}
+    }
+
+    if (vendasData) {
+      vendasData.forEach((venda) => {
+        const horario = venda.horario
+        if (!horario) return
+
+        // Extract hour from horario (format: "HH:MM:SS" or timestamp)
+        let hour: number
+        if (typeof horario === 'string') {
+          const parts = horario.split(':')
+          hour = parseInt(parts[0], 10)
+        } else {
+          const date = new Date(horario)
+          hour = date.getHours()
+        }
+
+        if (hour < 6 || hour > 23) return
+
+        const hourKey = `${hour.toString().padStart(2, '0')}:00`
+        const filialId = venda.filial_id
+        const valor = parseFloat(venda.valor_total) || 0
+
+        filiaisSet.add(filialId)
+
+        if (!hourlyData[hourKey][filialId]) {
+          hourlyData[hourKey][filialId] = 0
+        }
+        hourlyData[hourKey][filialId] += valor
+      })
+    }
+
+    // Build filiais array with colors
+    const filiaisArray = Array.from(filiaisSet).sort((a, b) => a - b)
+    const filiaisInfo = filiaisArray.map((id, index) => ({
+      id,
+      nome: branchNameMap.get(id.toString()) || `Filial ${id}`,
+      cor: FILIAL_COLORS[index % FILIAL_COLORS.length],
+    }))
+
+    // Convert hourly data to array format with cumulative values
+    const dataArray: Array<{ hora: string; [key: string]: string | number }> = []
+    const cumulativeByFilial: Record<number, number> = {}
+
+    // Initialize cumulative values
+    filiaisArray.forEach((id) => {
+      cumulativeByFilial[id] = 0
+    })
+
+    // Build data array with cumulative values
+    for (let h = 6; h <= 23; h++) {
+      const hourKey = `${h.toString().padStart(2, '0')}:00`
+      const row: { hora: string; [key: string]: string | number } = { hora: hourKey }
+
+      filiaisArray.forEach((filialId) => {
+        const valorHora = hourlyData[hourKey][filialId] || 0
+        cumulativeByFilial[filialId] += valorHora
+        row[filialId.toString()] = cumulativeByFilial[filialId]
+      })
+
+      dataArray.push(row)
+    }
+
+    const result = {
+      data: dataArray,
+      filiais: filiaisInfo,
+    }
+
+    console.log('[API/DASHBOARD-TEMPO-REAL/VENDAS-POR-HORA] Result filiais:', filiaisInfo.length)
+
+    return NextResponse.json(result)
+  } catch (e) {
+    const error = e as Error
+    console.error('Unexpected error in dashboard-tempo-real/vendas-por-hora API:', error)
+    return NextResponse.json(
+      { error: 'An unexpected error occurred', details: error.message },
+      { status: 500 }
+    )
+  }
+}
