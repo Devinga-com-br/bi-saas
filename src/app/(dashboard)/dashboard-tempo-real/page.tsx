@@ -307,7 +307,7 @@ export default function DashboardTempoRealPage() {
 
   // Calculate venda por loja for bar chart
   const vendasPorLoja = useMemo(() => {
-    if (!vendasPorHora?.data || !vendasPorHora?.filiais) return []
+    if (!vendasPorHora?.data || !Array.isArray(vendasPorHora?.filiais)) return []
 
     const lastHourData = vendasPorHora.data[vendasPorHora.data.length - 1]
     if (!lastHourData) return []
@@ -325,7 +325,7 @@ export default function DashboardTempoRealPage() {
 
   // Chart config for area chart
   const areaChartConfig = useMemo(() => {
-    if (!vendasPorHora?.filiais) return {}
+    if (!Array.isArray(vendasPorHora?.filiais)) return {}
     const config: Record<string, { label: string; color: string }> = {}
     vendasPorHora.filiais.forEach(filial => {
       config[filial.id.toString()] = {
@@ -347,13 +347,18 @@ export default function DashboardTempoRealPage() {
   // Format last update time (timezone São Paulo)
   const lastUpdateFormatted = useMemo(() => {
     if (!resumo?.ultima_atualizacao) return '--:--:--'
-    const date = new Date(resumo.ultima_atualizacao)
-    return date.toLocaleTimeString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
+    try {
+      const date = new Date(resumo.ultima_atualizacao)
+      if (isNaN(date.getTime())) return '--:--:--'
+      return date.toLocaleTimeString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    } catch {
+      return '--:--:--'
+    }
   }, [resumo])
 
   if (!currentTenant) {
@@ -537,7 +542,7 @@ export default function DashboardTempoRealPage() {
           <CardContent>
             {isLoadingVendasHora ? (
               <Skeleton className="h-80 w-full" />
-            ) : vendasPorHora?.data && vendasPorHora.data.length > 0 && vendasPorHora.filiais.length > 0 ? (
+            ) : vendasPorHora?.data && Array.isArray(vendasPorHora.data) && vendasPorHora.data.length > 0 && Array.isArray(vendasPorHora.filiais) && vendasPorHora.filiais.length > 0 ? (
               <ChartContainer config={areaChartConfig} className="h-80 w-full">
                 <AreaChart data={vendasPorHora.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
