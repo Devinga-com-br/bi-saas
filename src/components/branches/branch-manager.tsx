@@ -22,15 +22,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-// Temporary toast helper
-const toast = (options: { title: string; description: string; variant?: 'destructive' }) => {
-  const message = `${options.title}\n${options.description}`
-  if (options.variant === 'destructive') {
-    alert(`❌ ${message}`)
-  } else {
-    alert(`✓ ${message}`)
-  }
-}
+import { toast } from 'sonner'
 import type { Branch } from '@/types'
 
 interface BranchManagerProps {
@@ -70,18 +62,14 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
         console.log('[BranchManager] Loaded branches:', data.branches?.length || 0)
       } else {
         console.error('[BranchManager] Error loading branches:', data.error)
-        toast({
-          title: 'Erro ao carregar filiais',
+        toast.error('Erro ao carregar filiais', {
           description: data.error || 'Erro desconhecido',
-          variant: 'destructive',
         })
       }
     } catch (error) {
       console.error('[BranchManager] Error loading branches:', error)
-      toast({
-        title: 'Erro ao carregar filiais',
+      toast.error('Erro ao carregar filiais', {
         description: 'Erro de conexão',
-        variant: 'destructive',
       })
     } finally {
       setLoading(false)
@@ -123,10 +111,8 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
     e.preventDefault()
 
     if (!branchCode.trim()) {
-      toast({
-        title: 'Código da filial obrigatório',
+      toast.error('Código da filial obrigatório', {
         description: 'Por favor, informe o código da filial',
-        variant: 'destructive',
       })
       return
     }
@@ -157,9 +143,8 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
       const data = await response.json()
 
       if (response.ok) {
-        toast({
-          title: editingBranch ? 'Filial atualizada' : 'Filial cadastrada',
-          description: editingBranch 
+        toast.success(editingBranch ? 'Filial atualizada' : 'Filial cadastrada', {
+          description: editingBranch
             ? 'A filial foi atualizada com sucesso'
             : 'A filial foi cadastrada com sucesso',
         })
@@ -167,18 +152,14 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
         setDialogOpen(false)
         loadBranches()
       } else {
-        toast({
-          title: editingBranch ? 'Erro ao atualizar filial' : 'Erro ao cadastrar filial',
+        toast.error(editingBranch ? 'Erro ao atualizar filial' : 'Erro ao cadastrar filial', {
           description: data.error || 'Erro desconhecido',
-          variant: 'destructive',
         })
       }
     } catch (error) {
       console.error('Error submitting branch:', error)
-      toast({
-        title: editingBranch ? 'Erro ao atualizar filial' : 'Erro ao cadastrar filial',
+      toast.error(editingBranch ? 'Erro ao atualizar filial' : 'Erro ao cadastrar filial', {
         description: 'Erro de conexão',
-        variant: 'destructive',
       })
     } finally {
       setSubmitting(false)
@@ -198,24 +179,19 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
       const data = await response.json()
 
       if (response.ok) {
-        toast({
-          title: 'Filial excluída',
+        toast.success('Filial excluída', {
           description: 'A filial foi excluída com sucesso',
         })
         loadBranches()
       } else {
-        toast({
-          title: 'Erro ao excluir filial',
+        toast.error('Erro ao excluir filial', {
           description: data.error || 'Erro desconhecido',
-          variant: 'destructive',
         })
       }
     } catch (error) {
       console.error('Error deleting branch:', error)
-      toast({
-        title: 'Erro ao excluir filial',
+      toast.error('Erro ao excluir filial', {
         description: 'Erro de conexão',
-        variant: 'destructive',
       })
     }
   }
