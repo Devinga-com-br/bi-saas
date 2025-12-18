@@ -105,8 +105,8 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
   },
   {
     id: 'relatorios_ruptura_60d',
-    label: 'Relatórios > Ruptura Venda 60d',
-    description: 'Produtos sem venda nos últimos 60 dias',
+    label: 'Relatórios > Dias sem Giro',
+    description: 'Produtos com histórico de vendas que pararam de girar',
     order: 10,
     category: 'relatorios',
     route: '/relatorios/ruptura-venda-60d'

@@ -124,7 +124,7 @@ const rupturaNavigation: NavigationItem[] = [
     moduleId: 'relatorios_ruptura_abcd',
   },
   {
-    name: 'Ruptura Venda 60d',
+    name: 'Dias sem Giro',
     href: '/relatorios/ruptura-venda-60d',
     icon: Package,
     moduleId: 'relatorios_ruptura_60d',

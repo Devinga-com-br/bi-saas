@@ -5,6 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Pagination,
   PaginationContent,
@@ -16,7 +24,7 @@ import {
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { ChevronDown, ChevronRight, Package, AlertTriangle, FileDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, Package, AlertTriangle, FileDown, FileSpreadsheet } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -89,12 +97,35 @@ export default function RupturaVenda60dPage() {
 
   // Estados dos filtros
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
+  const [diasMinimos, setDiasMinimos] = useState<string>('20')
+  const [curvasSelecionadas, setCurvasSelecionadas] = useState<{ value: string; label: string }[]>([
+    { value: 'A', label: 'Curva A' },
+    { value: 'B', label: 'Curva B' },
+    { value: 'C', label: 'Curva C' },
+  ])
   const [page, setPage] = useState(1)
+
+  // Opções de filtros
+  const diasMinimosOptions = [
+    { value: '10', label: '≥ 10 dias' },
+    { value: '20', label: '≥ 20 dias' },
+    { value: '30', label: '≥ 30 dias' },
+    { value: '40', label: '≥ 40 dias' },
+    { value: '50', label: '≥ 50 dias' },
+  ]
+
+  const curvasOptions = [
+    { value: 'A', label: 'Curva A' },
+    { value: 'B', label: 'Curva B' },
+    { value: 'C', label: 'Curva C' },
+    { value: 'D', label: 'Curva D' },
+  ]
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   // Estados de colapso
   const [segmentosAbertos, setSegmentosAbertos] = useState<Record<string, boolean>>({})
@@ -127,9 +158,15 @@ export default function RupturaVenda60dPage() {
           ? filiaisSelecionadas.map(f => parseInt(f.value))
           : null
 
+        const curvas = curvasSelecionadas.length > 0
+          ? curvasSelecionadas.map(c => c.value)
+          : null
+
         console.log('[Ruptura 60d] Buscando dados:', {
           schema: currentTenant.supabase_schema,
           filiais,
+          diasMinimos: parseInt(diasMinimos),
+          curvas,
           page
         })
 
@@ -138,7 +175,8 @@ export default function RupturaVenda60dPage() {
         const { data: result, error: rpcError } = await (supabase.rpc as any)('get_ruptura_venda_60d_report', {
           schema_name: currentTenant.supabase_schema,
           p_filiais: filiais,
-          p_limite_minimo_dias: 30,
+          p_limite_minimo_dias: parseInt(diasMinimos),
+          p_curvas: curvas,
           p_page: page,
           p_page_size: 50
         })
@@ -182,110 +220,195 @@ export default function RupturaVenda60dPage() {
     }
 
     fetchData()
-  }, [currentTenant?.supabase_schema, filiaisSelecionadas, page])
+  }, [currentTenant?.supabase_schema, filiaisSelecionadas, diasMinimos, curvasSelecionadas, page])
 
-  // Funções de exportação
-  const exportarPDF = async () => {
+  // Função para formatar números
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+
+  // Exportar PDF
+  const handleExportPDF = async () => {
+    if (!currentTenant?.supabase_schema) return
+
+    setExporting(true)
     try {
-      const { jsPDF } = await import('jspdf')
-      await import('jspdf-autotable')
-
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      })
-
-      // Título
-      doc.setFontSize(16)
-      doc.text('Relatório de Ruptura de Vendas (60 dias)', 15, 15)
-
-      // Data
-      doc.setFontSize(10)
-      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 15, 22)
-
-      let yPos = 30
+      // Importação dinâmica para reduzir bundle inicial
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
 
       // Buscar todos os dados para exportação
       const supabase = createClient()
       const filiais = filiaisSelecionadas.length > 0
         ? filiaisSelecionadas.map(f => parseInt(f.value))
         : null
+      const curvas = curvasSelecionadas.length > 0
+        ? curvasSelecionadas.map(c => c.value)
+        : null
 
-      const { data: allData } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.rpc as any)('get_ruptura_venda_60d_report', {
-        schema_name: currentTenant?.supabase_schema,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: allData } = await (supabase.rpc as any)('get_ruptura_venda_60d_report', {
+        schema_name: currentTenant.supabase_schema,
         p_filiais: filiais,
-        p_limite_minimo_dias: 30,
+        p_limite_minimo_dias: parseInt(diasMinimos),
+        p_curvas: curvas,
         p_page: 1,
         p_page_size: 10000
       })
 
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      // Título centralizado
+      doc.setFontSize(16)
+      doc.text('Ruptura Vendas - Dias sem Giro', doc.internal.pageSize.width / 2, 15, {
+        align: 'center',
+      })
+
+      // Informações do filtro
+      doc.setFontSize(10)
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 25)
+      doc.text(`Dias mínimos: >= ${diasMinimos}`, 14, 30)
+      doc.text(`Curvas: ${curvasSelecionadas.map((c) => c.value).join(', ') || 'Todas'}`, 14, 35)
+      doc.text(`Total de Produtos: ${allData?.[0]?.total_records || 0}`, 14, 40)
+
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+
       if (allData && allData.length > 0 && allData[0].segmentos) {
         const segmentos = allData[0].segmentos
 
-        segmentos.forEach((segmento: Segmento) => {
-          if (yPos > 180) {
+        // Largura útil da página (A4 landscape = 297mm, margem 10mm cada lado)
+        const pageWidth = doc.internal.pageSize.width
+        const marginLeft = 10
+        const marginRight = 10
+        const contentWidth = pageWidth - marginLeft - marginRight
+
+        let startY = 48
+
+        segmentos.forEach((segmento: Segmento, segmentoIndex: number) => {
+          // Verificar se precisa de nova página
+          if (startY > doc.internal.pageSize.height - 50) {
             doc.addPage()
-            yPos = 15
+            startY = 20
           }
 
-          // Título do segmento
-          doc.setFontSize(12)
+          // Título do Segmento
+          doc.setFontSize(11)
           doc.setFont('helvetica', 'bold')
-          doc.text(segmento.segmento_nome, 15, yPos)
-          yPos += 7
+          doc.setTextColor(59, 130, 246) // Cor primary (azul)
+          doc.text(segmento.segmento_nome, marginLeft, startY)
+          doc.setTextColor(0, 0, 0)
+          startY += 6
 
           segmento.grupos.forEach((grupo: Grupo) => {
-            // Título do grupo
-            doc.setFontSize(11)
-            doc.text(`  ${grupo.grupo_nome}`, 15, yPos)
-            yPos += 5
+            // Verificar se precisa de nova página
+            if (startY > doc.internal.pageSize.height - 40) {
+              doc.addPage()
+              startY = 20
+            }
+
+            // Título do Grupo
+            doc.setFontSize(9)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(80, 80, 80)
+            doc.text(`  ${grupo.grupo_nome}`, marginLeft, startY)
+            doc.setTextColor(0, 0, 0)
+            startY += 5
 
             grupo.subgrupos.forEach((subgrupo: Subgrupo) => {
-              // Título do subgrupo
-              doc.setFontSize(10)
-              doc.text(`    ${subgrupo.subgrupo_nome}`, 15, yPos)
-              yPos += 5
+              // Verificar se precisa de nova página
+              if (startY > doc.internal.pageSize.height - 35) {
+                doc.addPage()
+                startY = 20
+              }
+
+              // Título do Subgrupo
+              doc.setFontSize(8)
+              doc.setFont('helvetica', 'normal')
+              doc.setTextColor(120, 120, 120)
+              doc.text(`    ${subgrupo.subgrupo_nome} (${subgrupo.produtos.length} produtos)`, marginLeft, startY)
+              doc.setTextColor(0, 0, 0)
+              startY += 4
 
               // Tabela de produtos
               const tableData = subgrupo.produtos.map((p: Produto) => [
-                p.filial_nome || p.filial_id,
+                p.filial_nome || String(p.filial_id),
                 p.produto_id,
-                p.produto_descricao,
-                p.estoque_atual,
+                p.produto_descricao.substring(0, 50),
+                formatNumber(p.estoque_atual),
                 p.curva_venda,
-                p.dias_com_venda_60d,
-                p.dias_com_venda_ultimos_3d,
-                p.venda_media_diaria_60d.toFixed(2),
+                `${p.dias_com_venda_60d}d`,
+                formatNumber(p.venda_media_diaria_60d),
+                formatNumber(p.valor_estoque_parado),
                 p.nivel_ruptura
               ])
 
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              ;(doc as any).autoTable({
-                startY: yPos,
-                head: [['Filial', 'ID', 'Descrição', 'Estoque', 'Curva', 'Dias 60d', 'Dias 3d', 'Média/dia', 'Nível']],
-                body: tableData,
-                styles: { fontSize: 8 },
-                headStyles: { fillColor: [66, 66, 66] },
-                margin: { left: 20 }
+              autoTable(doc as any, {
+                head: [['Filial', 'Código', 'Descrição', 'Estoque', 'Curva', 'Freq. Giro', 'Giro Médio', 'Valor Parado', 'Nível']],
+                body: tableData as any,
+                startY: startY,
+                tableWidth: contentWidth - 8,
+                styles: { fontSize: 7, cellPadding: 1.5 },
+                headStyles: { fillColor: [80, 80, 80], textColor: 255, fontStyle: 'bold' },
+                columnStyles: {
+                  0: { cellWidth: 28 },  // Filial
+                  1: { cellWidth: 18 },  // Código
+                  2: { cellWidth: 'auto' },  // Descrição - expande
+                  3: { cellWidth: 20, halign: 'right' },  // Estoque
+                  4: { cellWidth: 14, halign: 'center' },  // Curva
+                  5: { cellWidth: 18, halign: 'center' },  // Freq. Giro
+                  6: { cellWidth: 20, halign: 'right' },  // Giro Médio
+                  7: { cellWidth: 24, halign: 'right' },  // Valor Parado
+                  8: { cellWidth: 18, halign: 'center' },  // Nível
+                },
+                margin: { left: marginLeft + 4, right: marginRight },
               })
 
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              yPos = (doc as any).lastAutoTable.finalY + 5
+              startY = doc.lastAutoTable.finalY + 5
             })
           })
-        })
-      }
 
-      doc.save('ruptura-venda-60d.pdf')
-    } catch (error) {
-      console.error('Erro ao exportar PDF:', error)
+          // Separador entre segmentos
+          if (segmentoIndex < segmentos.length - 1) {
+            startY += 3
+          }
+        })
+
+        // Adicionar número de páginas
+        const pageCount = doc.getNumberOfPages()
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i)
+          doc.setFontSize(8)
+          doc.text(
+            `Página ${i} de ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          )
+        }
+      }
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+
+      doc.save(`dias-sem-giro-${new Date().toISOString().split('T')[0]}.pdf`)
+    } catch (err) {
+      console.error('Erro ao exportar PDF:', err)
       alert('Erro ao exportar PDF')
+    } finally {
+      setExporting(false)
     }
   }
 
-  const exportarExcel = async () => {
+  // Exportar Excel
+  const handleExportExcel = async () => {
+    if (!currentTenant?.supabase_schema) return
+
+    setExporting(true)
     try {
       const XLSX = await import('xlsx')
 
@@ -294,18 +417,34 @@ export default function RupturaVenda60dPage() {
       const filiais = filiaisSelecionadas.length > 0
         ? filiaisSelecionadas.map(f => parseInt(f.value))
         : null
+      const curvas = curvasSelecionadas.length > 0
+        ? curvasSelecionadas.map(c => c.value)
+        : null
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: allData } = await (supabase.rpc as any)('get_ruptura_venda_60d_report', {
-        schema_name: currentTenant?.supabase_schema,
+        schema_name: currentTenant.supabase_schema,
         p_filiais: filiais,
-        p_limite_minimo_dias: 30,
+        p_limite_minimo_dias: parseInt(diasMinimos),
+        p_curvas: curvas,
         p_page: 1,
         p_page_size: 10000
       })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows: any[] = []
+      const rows: {
+        Segmento: string
+        Grupo: string
+        Subgrupo: string
+        Filial: string | number
+        Código: number
+        Descrição: string
+        Estoque: number
+        Curva: string
+        'Freq. Giro': number
+        'Giro Médio': number
+        'Valor Parado': number
+        Nível: string
+      }[] = []
 
       if (allData && allData.length > 0 && allData[0].segmentos) {
         const segmentos = allData[0].segmentos
@@ -315,19 +454,18 @@ export default function RupturaVenda60dPage() {
             grupo.subgrupos.forEach((subgrupo: Subgrupo) => {
               subgrupo.produtos.forEach((p: Produto) => {
                 rows.push({
-                  'Segmento': segmento.segmento_nome,
-                  'Grupo': grupo.grupo_nome,
-                  'Subgrupo': subgrupo.subgrupo_nome,
-                  'Filial': p.filial_nome || p.filial_id,
-                  'ID Produto': p.produto_id,
-                  'Descrição': p.produto_descricao,
-                  'Estoque Atual': p.estoque_atual,
-                  'Curva': p.curva_venda,
-                  'Dias com Venda 60d': p.dias_com_venda_60d,
-                  'Dias com Venda 3d': p.dias_com_venda_ultimos_3d,
-                  'Venda Média Diária': p.venda_media_diaria_60d.toFixed(2),
-                  'Valor Estoque Parado': p.valor_estoque_parado.toFixed(2),
-                  'Nível Ruptura': p.nivel_ruptura
+                  Segmento: segmento.segmento_nome,
+                  Grupo: grupo.grupo_nome,
+                  Subgrupo: subgrupo.subgrupo_nome,
+                  Filial: p.filial_nome || p.filial_id,
+                  Código: p.produto_id,
+                  Descrição: p.produto_descricao,
+                  Estoque: p.estoque_atual,
+                  Curva: p.curva_venda,
+                  'Freq. Giro': p.dias_com_venda_60d,
+                  'Giro Médio': p.venda_media_diaria_60d,
+                  'Valor Parado': p.valor_estoque_parado,
+                  Nível: p.nivel_ruptura
                 })
               })
             })
@@ -336,12 +474,34 @@ export default function RupturaVenda60dPage() {
       }
 
       const worksheet = XLSX.utils.json_to_sheet(rows)
+
+      // Ajustar largura das colunas
+      worksheet['!cols'] = [
+        { wch: 20 }, // Segmento
+        { wch: 20 }, // Grupo
+        { wch: 20 }, // Subgrupo
+        { wch: 18 }, // Filial
+        { wch: 10 }, // Código
+        { wch: 45 }, // Descrição
+        { wch: 12 }, // Estoque
+        { wch: 8 },  // Curva
+        { wch: 12 }, // Freq. Giro
+        { wch: 12 }, // Giro Médio
+        { wch: 14 }, // Valor Parado
+        { wch: 10 }, // Nível
+      ]
+
       const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Ruptura Vendas 60d')
-      XLSX.writeFile(workbook, 'ruptura-venda-60d.xlsx')
-    } catch (error) {
-      console.error('Erro ao exportar Excel:', error)
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Dias sem Giro')
+      XLSX.writeFile(
+        workbook,
+        `dias-sem-giro-${new Date().toISOString().split('T')[0]}.xlsx`
+      )
+    } catch (err) {
+      console.error('Erro ao exportar Excel:', err)
       alert('Erro ao exportar Excel')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -369,6 +529,38 @@ export default function RupturaVenda60dPage() {
     return <Badge variant={variants[nivel] || 'outline'}>{nivel}</Badge>
   }
 
+  // Calcular estatísticas por nível de ruptura
+  const calcularEstatisticas = () => {
+    const stats = {
+      CRÍTICO: 0,
+      ALTO: 0,
+      MÉDIO: 0,
+      BAIXO: 0,
+      NORMAL: 0,
+      valorTotal: 0
+    }
+
+    if (data?.segmentos) {
+      data.segmentos.forEach((seg: Segmento) => {
+        seg.grupos.forEach((grupo: Grupo) => {
+          grupo.subgrupos.forEach((subgrupo: Subgrupo) => {
+            subgrupo.produtos.forEach((produto: Produto) => {
+              const nivel = produto.nivel_ruptura as keyof typeof stats
+              if (nivel in stats && nivel !== 'valorTotal') {
+                (stats[nivel] as number)++
+              }
+              stats.valorTotal += produto.valor_estoque_parado || 0
+            })
+          })
+        })
+      })
+    }
+
+    return stats
+  }
+
+  const estatisticas = data ? calcularEstatisticas() : null
+
   if (!currentTenant) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -382,9 +574,9 @@ export default function RupturaVenda60dPage() {
       <PageBreadcrumb />
 
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ruptura de Vendas (60 dias)</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Ruptura Vendas - Dias sem Giro</h1>
         <p className="text-muted-foreground mt-2">
-          Produtos com vendas consistentes que pararam de vender recentemente
+          Produtos com histórico de vendas consistente que pararam de girar, mesmo com estoque disponível
         </p>
       </div>
 
@@ -393,28 +585,66 @@ export default function RupturaVenda60dPage() {
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
           <CardDescription>
-            Selecione as filiais para visualizar produtos em ruptura
+            Configure os critérios para identificar produtos em ruptura de vendas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <MultiSelect
-                options={filiaisOptions}
-                value={filiaisSelecionadas}
-                onValueChange={setFiliaisSelecionadas}
-                placeholder="Todas as Filiais"
-              />
+          <div className="flex flex-col gap-4">
+            {/* Linha 1: Filtros principais */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Filiais */}
+              <div className="flex flex-col gap-2">
+                <Label>Filiais</Label>
+                <div className="h-10">
+                  <MultiSelect
+                    options={filiaisOptions}
+                    value={filiaisSelecionadas}
+                    onValueChange={setFiliaisSelecionadas}
+                    placeholder="Todas as Filiais"
+                    className="w-full h-10"
+                  />
+                </div>
+              </div>
+
+              {/* Dias mínimos com venda */}
+              <div className="flex flex-col gap-2">
+                <Label>Dias mínimos com venda (60d)</Label>
+                <div className="h-10">
+                  <Select value={diasMinimos} onValueChange={setDiasMinimos}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {diasMinimosOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Curvas */}
+              <div className="flex flex-col gap-2">
+                <Label>Curvas ABCD</Label>
+                <div className="h-10">
+                  <MultiSelect
+                    options={curvasOptions}
+                    value={curvasSelecionadas}
+                    onValueChange={setCurvasSelecionadas}
+                    placeholder="Selecione as curvas"
+                    className="w-full h-10"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={exportarPDF} variant="outline" size="sm">
-                <FileDown className="h-4 w-4 mr-2" />
-                PDF
-              </Button>
-              <Button onClick={exportarExcel} variant="outline" size="sm">
-                <FileDown className="h-4 w-4 mr-2" />
-                Excel
-              </Button>
+
+            {/* Descrição dos critérios */}
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+              <strong>Critério de Ruptura:</strong> Produtos que venderam em pelo menos{' '}
+              <strong>{diasMinimos} dias</strong> dos últimos 60 dias, mas{' '}
+              <strong>não venderam nos últimos 3 dias</strong>, mesmo tendo estoque disponível.
             </div>
           </div>
         </CardContent>
@@ -423,18 +653,84 @@ export default function RupturaVenda60dPage() {
       {/* Resultados */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-orange-500" />
-                Produtos em Ruptura
-              </CardTitle>
-              {data && (
-                <CardDescription>
-                  {data.total_records} produto(s) encontrado(s)
-                </CardDescription>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  Produtos em Ruptura
+                </CardTitle>
+                {data && (
+                  <CardDescription>
+                    {data.total_records} produto(s) encontrado(s)
+                  </CardDescription>
+                )}
+              </div>
+              {/* Botões de Exportação */}
+              {data && data.total_records > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleExportExcel}
+                    disabled={exporting}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Excel
+                  </Button>
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={exporting}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    PDF
+                  </Button>
+                </div>
               )}
             </div>
+
+            {/* Estatísticas por nível */}
+            {estatisticas && data && data.total_records > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {estatisticas.CRÍTICO > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-destructive/10 rounded-md">
+                    <Badge variant="destructive">CRÍTICO</Badge>
+                    <span className="text-sm font-medium">{estatisticas.CRÍTICO}</span>
+                  </div>
+                )}
+                {estatisticas.ALTO > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 rounded-md">
+                    <Badge className="bg-orange-500 hover:bg-orange-600">ALTO</Badge>
+                    <span className="text-sm font-medium">{estatisticas.ALTO}</span>
+                  </div>
+                )}
+                {estatisticas.MÉDIO > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 rounded-md">
+                    <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">MÉDIO</Badge>
+                    <span className="text-sm font-medium">{estatisticas.MÉDIO}</span>
+                  </div>
+                )}
+                {estatisticas.BAIXO > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md">
+                    <Badge variant="secondary">BAIXO</Badge>
+                    <span className="text-sm font-medium">{estatisticas.BAIXO}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-md ml-auto">
+                  <span className="text-sm text-muted-foreground">Valor Parado:</span>
+                  <span className="text-sm font-bold">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    }).format(estatisticas.valorTotal)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -511,13 +807,13 @@ export default function RupturaVenda60dPage() {
                                         <TableHeader>
                                           <TableRow>
                                             <TableHead>Filial</TableHead>
-                                            <TableHead>ID</TableHead>
+                                            <TableHead>Código</TableHead>
                                             <TableHead>Descrição</TableHead>
                                             <TableHead className="text-right">Estoque</TableHead>
                                             <TableHead>Curva</TableHead>
-                                            <TableHead className="text-right">Dias 60d</TableHead>
-                                            <TableHead className="text-right">Dias 3d</TableHead>
-                                            <TableHead className="text-right">Média/dia</TableHead>
+                                            <TableHead className="text-right">Freq. Giro</TableHead>
+                                            <TableHead className="text-right">Giro Médio</TableHead>
+                                            <TableHead className="text-right">Valor Parado</TableHead>
                                             <TableHead>Nível</TableHead>
                                           </TableRow>
                                         </TableHeader>
@@ -531,14 +827,16 @@ export default function RupturaVenda60dPage() {
                                               <TableCell className="max-w-xs truncate">
                                                 {produto.produto_descricao}
                                               </TableCell>
-                                              <TableCell className="text-right">{produto.estoque_atual}</TableCell>
+                                              <TableCell className="text-right">{formatNumber(produto.estoque_atual)}</TableCell>
                                               <TableCell>
                                                 <Badge variant="outline">{produto.curva_venda}</Badge>
                                               </TableCell>
-                                              <TableCell className="text-right">{produto.dias_com_venda_60d}</TableCell>
-                                              <TableCell className="text-right">{produto.dias_com_venda_ultimos_3d}</TableCell>
+                                              <TableCell className="text-right">{produto.dias_com_venda_60d} dias</TableCell>
                                               <TableCell className="text-right">
-                                                {produto.venda_media_diaria_60d.toFixed(2)}
+                                                {formatNumber(produto.venda_media_diaria_60d)}
+                                              </TableCell>
+                                              <TableCell className="text-right text-destructive font-medium">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.valor_estoque_parado)}
                                               </TableCell>
                                               <TableCell>{getNivelBadge(produto.nivel_ruptura)}</TableCell>
                                             </TableRow>
