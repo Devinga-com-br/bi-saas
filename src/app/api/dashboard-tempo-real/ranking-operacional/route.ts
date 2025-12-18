@@ -161,7 +161,7 @@ export async function GET(req: Request) {
       .from('tenants')
       .select('id')
       .eq('supabase_schema', requestedSchema)
-      .single()
+      .single() as { data: { id: string } | null }
 
     // Get branch names from public.branches filtered by tenant_id
     const { data: branchesData } = await supabase
