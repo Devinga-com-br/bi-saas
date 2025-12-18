@@ -224,6 +224,24 @@
   }
 }
 
+/* Animação de pulsação "Ao Vivo" para ícone Radio */
+@keyframes pulse-live {
+  0%, 100% {
+    transform: scale(1);
+    color: #ef4444; /* red-500 */
+    filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+  }
+  50% {
+    transform: scale(1.15);
+    color: #dc2626; /* red-600 */
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
+  }
+}
+
+.animate-pulse-live {
+  animation: pulse-live 1.5s ease-in-out infinite;
+}
+
 /* Prevenir scroll horizontal global */
 html,
 body {

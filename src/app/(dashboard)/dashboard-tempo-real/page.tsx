@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import useSWR from 'swr'
-import { RefreshCw, Activity, TrendingUp, Receipt, Package, XCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { RefreshCw, Radio, TrendingUp, Receipt, Package, XCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiFilialFilter, type FilialOption } from '@/components/filters'
@@ -432,7 +432,7 @@ export default function DashboardTempoRealPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="h-6 w-6" />
+            <Radio className="h-6 w-6 animate-pulse-live" />
             Dashboard Tempo Real
           </h1>
           <p className="text-sm text-muted-foreground">

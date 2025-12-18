@@ -17,7 +17,7 @@ import {
   ShoppingCart,
   AlertTriangle,
   Newspaper,
-  Activity,
+  Radio,
 } from 'lucide-react'
 
 // import { cn } from '@/lib/utils'
@@ -61,7 +61,7 @@ const visaoGeralNavigation: NavigationItem[] = [
   {
     name: 'Dashboard Tempo Real',
     href: '/dashboard-tempo-real',
-    icon: Activity,
+    icon: Radio,
     moduleId: 'dashboard_tempo_real',
   },
 ]
@@ -217,6 +217,7 @@ export function AppSidebar() {
             {filteredVisaoGeralNav.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
               const Icon = item.icon
+              const isLiveModule = item.href === '/dashboard-tempo-real'
 
               return (
                 <SidebarMenuItem key={item.name}>
@@ -226,7 +227,7 @@ export function AppSidebar() {
                     isActive={isActive}
                   >
                     <Link href={item.href}>
-                      <Icon />
+                      <Icon className={isLiveModule ? 'animate-pulse-live' : undefined} />
                       <span>{item.name}</span>
                       {item.badge && (
                         <Badge variant="secondary" className="ml-auto text-xs">
