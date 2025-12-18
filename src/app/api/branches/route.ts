@@ -141,9 +141,10 @@ export async function DELETE(request: Request) {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const branchCode = searchParams.get('branch_code')
+    const tenantId = searchParams.get('tenant_id')
 
-    if (!branchCode) {
-      return NextResponse.json({ error: 'branch_code é obrigatório' }, { status: 400 })
+    if (!branchCode || !tenantId) {
+      return NextResponse.json({ error: 'branch_code e tenant_id são obrigatórios' }, { status: 400 })
     }
 
     // Check authentication
@@ -163,11 +164,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     }
 
-    // Get branch to check tenant
+    // Get branch to check tenant - filter by both branch_code AND tenant_id
     const { data: branch } = await supabase
       .from('branches')
       .select('tenant_id')
       .eq('branch_code', branchCode)
+      .eq('tenant_id', tenantId)
       .single()
 
     if (!branch) {
@@ -180,11 +182,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Admin só pode deletar filiais da própria empresa' }, { status: 403 })
     }
 
-    // Delete branch
+    // Delete branch - filter by both branch_code AND tenant_id
     const { error } = await supabase
       .from('branches')
       .delete()
       .eq('branch_code', branchCode)
+      .eq('tenant_id', tenantId)
 
     if (error) {
       console.error('Error deleting branch:', error)
@@ -226,11 +229,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     }
 
-    // Get branch to check tenant
+    // Parse body first to get tenant_id
+    const body = await request.json()
+    const { tenant_id, store_code, descricao, cep, rua, numero, bairro, cidade, estado } = body
+
+    if (!tenant_id) {
+      return NextResponse.json({ error: 'tenant_id é obrigatório' }, { status: 400 })
+    }
+
+    // Get branch to check tenant - filter by both branch_code AND tenant_id
     const { data: existingBranch } = await supabase
       .from('branches')
       .select('tenant_id')
       .eq('branch_code', branchCode)
+      .eq('tenant_id', tenant_id)
       .single()
 
     if (!existingBranch) {
@@ -243,10 +255,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Admin só pode editar filiais da própria empresa' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const { store_code, descricao, cep, rua, numero, bairro, cidade, estado } = body
-
-    // Update branch
+    // Update branch - filter by both branch_code AND tenant_id
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await (supabase.from('branches') as any).update({
       store_code: store_code || null,
@@ -260,6 +269,7 @@ export async function PATCH(request: Request) {
       updated_at: new Date().toISOString(),
     })
       .eq('branch_code', branchCode)
+      .eq('tenant_id', tenant_id)
       .select()
       .single()
     

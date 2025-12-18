@@ -191,7 +191,7 @@ export function BranchManager({ tenantId }: BranchManagerProps) {
     }
 
     try {
-      const response = await fetch(`/api/branches?branch_code=${branchCode}`, {
+      const response = await fetch(`/api/branches?branch_code=${branchCode}&tenant_id=${tenantId}`, {
         method: 'DELETE',
       })
 
