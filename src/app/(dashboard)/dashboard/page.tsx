@@ -107,6 +107,11 @@ interface VendaPorFilial {
   delta_lucro: number
   delta_lucro_percent: number
   delta_margem: number
+  // Campos de Entradas (compras)
+  total_entradas: number
+  pa_total_entradas: number
+  delta_entradas: number
+  delta_entradas_percent: number
 }
 
 // Interface para dados de faturamento
@@ -132,7 +137,7 @@ interface EntradasPerdasData {
 }
 
 // Tipos para ordenação
-type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro'
+type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro' | 'total_entradas'
 type SortDirection = 'asc' | 'desc'
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -847,7 +852,7 @@ export default function DashboardPage() {
 
       // Preparar dados da tabela
       const tableHead = [
-        ['Filial', 'Receita Bruta', 'Δ%', 'Ticket Médio', 'Δ%', 'Custo', 'Δ%', 'Lucro Bruto', 'Δ%', 'Margem', 'Δ%']
+        ['Filial', 'Receita Bruta', 'Δ%', 'Ticket Médio', 'Δ%', 'Custo', 'Δ%', 'Lucro Bruto', 'Δ%', 'Margem', 'Δ%', 'Entradas', 'Δ%']
       ]
 
       // Função auxiliar para formatar variação com sinal
@@ -873,7 +878,9 @@ export default function DashboardPage() {
           formatCurrency(venda.total_lucro),
           formatDelta(venda.delta_lucro_percent),
           `${venda.margem_lucro.toFixed(2)}%`,
-          formatDelta(venda.delta_margem, 'p.p.')
+          formatDelta(venda.delta_margem, 'p.p.'),
+          formatCurrency(venda.total_entradas || 0),
+          formatDelta(venda.delta_entradas_percent || 0)
         ]
       })
 
@@ -887,6 +894,8 @@ export default function DashboardPage() {
         pa_custo_total: acc.pa_custo_total + venda.pa_custo_total,
         total_lucro: acc.total_lucro + venda.total_lucro,
         pa_total_lucro: acc.pa_total_lucro + venda.pa_total_lucro,
+        total_entradas: acc.total_entradas + (venda.total_entradas || 0),
+        pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
       }), {
         valor_total: 0,
         pa_valor_total: 0,
@@ -896,6 +905,8 @@ export default function DashboardPage() {
         pa_custo_total: 0,
         total_lucro: 0,
         pa_total_lucro: 0,
+        total_entradas: 0,
+        pa_total_entradas: 0,
       })
 
       const ticket_medio_total = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
@@ -907,6 +918,7 @@ export default function DashboardPage() {
       const delta_custo_total = totais.pa_custo_total > 0 ? ((totais.custo_total - totais.pa_custo_total) / totais.pa_custo_total) * 100 : 0
       const delta_lucro_total = totais.pa_total_lucro > 0 ? ((totais.total_lucro - totais.pa_total_lucro) / totais.pa_total_lucro) * 100 : 0
       const delta_margem_total = margem_total - pa_margem_total
+      const delta_entradas_total = totais.pa_total_entradas > 0 ? ((totais.total_entradas - totais.pa_total_entradas) / totais.pa_total_entradas) * 100 : 0
 
       // Adicionar linha de total
       const totalRow = [
@@ -920,12 +932,14 @@ export default function DashboardPage() {
         formatCurrency(totais.total_lucro),
         formatDelta(delta_lucro_total),
         `${margem_total.toFixed(2)}%`,
-        formatDelta(delta_margem_total, 'p.p.')
+        formatDelta(delta_margem_total, 'p.p.'),
+        formatCurrency(totais.total_entradas),
+        formatDelta(delta_entradas_total)
       ]
       tableBody.push(totalRow)
 
       // Índice das colunas de variação (Δ%)
-      const deltaColumns = [2, 4, 6, 8, 10]
+      const deltaColumns = [2, 4, 6, 8, 10, 12]
       // Coluna de custo tem lógica invertida (aumento é ruim)
       const custoColumn = 6
 
@@ -1509,6 +1523,17 @@ export default function DashboardPage() {
                         <SortIcon column="margem_lucro" />
                       </Button>
                     </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('total_entradas')}
+                      >
+                        Total Entradas
+                        <SortIcon column="total_entradas" />
+                      </Button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1665,13 +1690,33 @@ export default function DashboardPage() {
                             {venda.pa_margem_lucro.toFixed(2)}%
                           </div>
                         </TableCell>
+
+                        {/* Total Entradas (compras) */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(venda.total_entradas || 0)}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${(venda.delta_entradas_percent || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(venda.delta_entradas_percent || 0) >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {(venda.delta_entradas_percent || 0) >= 0 ? '+' : ''}{(venda.delta_entradas_percent || 0).toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(venda.pa_total_entradas || 0)}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     )
                   })}
 
                   {/* Linha de Totalização */}
                   {sortedVendasPorFilial && sortedVendasPorFilial.length > 0 && (() => {
-                    // Totais PDV
+                    // Totais PDV + Entradas
                     const totaisPdv = sortedVendasPorFilial.reduce((acc, venda) => ({
                       valor_total: acc.valor_total + venda.valor_total,
                       pa_valor_total: acc.pa_valor_total + venda.pa_valor_total,
@@ -1681,6 +1726,8 @@ export default function DashboardPage() {
                       pa_custo_total: acc.pa_custo_total + venda.pa_custo_total,
                       total_lucro: acc.total_lucro + venda.total_lucro,
                       pa_total_lucro: acc.pa_total_lucro + venda.pa_total_lucro,
+                      total_entradas: acc.total_entradas + (venda.total_entradas || 0),
+                      pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
                     }), {
                       valor_total: 0,
                       pa_valor_total: 0,
@@ -1690,6 +1737,8 @@ export default function DashboardPage() {
                       pa_custo_total: 0,
                       total_lucro: 0,
                       pa_total_lucro: 0,
+                      total_entradas: 0,
+                      pa_total_entradas: 0,
                     })
 
                     // Totais Faturamento
@@ -1837,6 +1886,33 @@ export default function DashboardPage() {
                             {pa_margem_lucro.toFixed(2)}%
                           </div>
                         </TableCell>
+
+                        {/* Total Entradas (compras) */}
+                        {(() => {
+                          const delta_entradas_percent = totaisPdv.pa_total_entradas > 0
+                            ? ((totaisPdv.total_entradas - totaisPdv.pa_total_entradas) / totaisPdv.pa_total_entradas) * 100
+                            : 0
+                          return (
+                            <TableCell className="text-right">
+                              <div>
+                                {formatCurrency(totaisPdv.total_entradas)}
+                              </div>
+                              <div className={`flex items-center justify-end gap-1 text-xs ${delta_entradas_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {delta_entradas_percent >= 0 ? (
+                                  <ArrowUp className="h-3 w-3" />
+                                ) : (
+                                  <ArrowDown className="h-3 w-3" />
+                                )}
+                                <span>
+                                  {delta_entradas_percent >= 0 ? '+' : ''}{delta_entradas_percent.toFixed(2)}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(totaisPdv.pa_total_entradas)}
+                              </div>
+                            </TableCell>
+                          )
+                        })()}
                       </TableRow>
                     )
                   })()}
