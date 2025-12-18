@@ -361,6 +361,43 @@ export default function DashboardTempoRealPage() {
     }
   }, [resumo])
 
+  // Estado global de carregamento
+  const loadingState = useMemo(() => {
+    const sections = [
+      { name: 'Resumo', loading: isLoadingResumo, loaded: !!resumo },
+      { name: 'Vendas por Hora', loading: isLoadingVendasHora, loaded: !!vendasPorHora },
+      { name: 'Produtos', loading: isLoadingProdutos, loaded: !!produtosData },
+      { name: 'Departamentos', loading: isLoadingDepartamentos, loaded: !!departamentosData },
+      { name: 'Ranking', loading: isLoadingRanking, loaded: !!rankingData },
+    ]
+
+    const totalSections = sections.length
+    const loadedSections = sections.filter(s => s.loaded).length
+    const isAnyLoading = sections.some(s => s.loading)
+    const currentLoading = sections.find(s => s.loading)
+    const progress = (loadedSections / totalSections) * 100
+    const isComplete = loadedSections === totalSections
+
+    return {
+      sections,
+      progress,
+      isAnyLoading,
+      isComplete,
+      currentLoading: currentLoading?.name || null,
+      loadedCount: loadedSections,
+      totalCount: totalSections,
+    }
+  }, [
+    isLoadingResumo, resumo,
+    isLoadingVendasHora, vendasPorHora,
+    isLoadingProdutos, produtosData,
+    isLoadingDepartamentos, departamentosData,
+    isLoadingRanking, rankingData,
+  ])
+
+  // Verificar se é o carregamento inicial (nenhum dado carregado ainda)
+  const isInitialLoading = loadingState.isAnyLoading && loadingState.loadedCount === 0
+
   if (!currentTenant) {
     return (
       <div className="flex items-center justify-center h-[400px]">
@@ -412,6 +449,29 @@ export default function DashboardTempoRealPage() {
           </div>
         </div>
       </div>
+
+      {/* Banner de Carregamento */}
+      {loadingState.isAnyLoading && !loadingState.isComplete && (
+        <div className="bg-muted/50 border rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+              <span className="text-sm font-medium">
+                Carregando dados...
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {loadingState.loadedCount}/{loadingState.totalCount} seções
+            </span>
+          </div>
+          <Progress value={loadingState.progress} className="h-2" />
+          {loadingState.currentLoading && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Carregando: {loadingState.currentLoading}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Cards - 1ª Linha */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
@@ -537,35 +597,55 @@ export default function DashboardTempoRealPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Venda por Hora/Loja</CardTitle>
-            <CardDescription>Receita acumulada por hora e filial</CardDescription>
+            <CardDescription>Receita acumulada por hora e filial ({vendasPorHora?.filiais?.length || 0} filiais)</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingVendasHora ? (
               <Skeleton className="h-80 w-full" />
             ) : vendasPorHora?.data && Array.isArray(vendasPorHora.data) && vendasPorHora.data.length > 0 && Array.isArray(vendasPorHora.filiais) && vendasPorHora.filiais.length > 0 ? (
-              <ChartContainer config={areaChartConfig} className="h-80 w-full">
-                <AreaChart data={vendasPorHora.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hora" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(value) => formatValueShort(value)} tick={{ fontSize: 12 }} />
-                  <ChartTooltip
-                    content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  {vendasPorHora.filiais.map((filial) => (
-                    <Area
-                      key={filial.id}
-                      type="monotone"
-                      dataKey={filial.id.toString()}
-                      name={filial.nome}
-                      fill={filial.cor}
-                      fillOpacity={0.3}
-                      stroke={filial.cor}
-                      strokeWidth={2}
+              <div className="space-y-3">
+                <ChartContainer config={areaChartConfig} className="h-64 w-full">
+                  <AreaChart data={vendasPorHora.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hora" tick={{ fontSize: 12 }} />
+                    <YAxis tickFormatter={(value) => formatValueShort(value)} tick={{ fontSize: 12 }} />
+                    <ChartTooltip
+                      content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
                     />
+                    {vendasPorHora.filiais.map((filial) => (
+                      <Area
+                        key={filial.id}
+                        type="monotone"
+                        dataKey={filial.id.toString()}
+                        name={filial.nome}
+                        fill={filial.cor}
+                        fillOpacity={0.3}
+                        stroke={filial.cor}
+                        strokeWidth={2}
+                      />
+                    ))}
+                  </AreaChart>
+                </ChartContainer>
+                {/* Legenda customizada com scroll para muitas filiais */}
+                <div
+                  className="flex flex-wrap gap-2 justify-center border-t pt-3 overflow-y-auto"
+                  style={{ maxHeight: vendasPorHora.filiais.length > 10 ? '80px' : 'auto' }}
+                >
+                  {vendasPorHora.filiais.map((filial) => (
+                    <div key={filial.id} className="flex items-center gap-1.5 text-xs">
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: filial.cor }}
+                      />
+                      <span className="text-muted-foreground truncate max-w-[100px]" title={filial.nome}>
+                        {filial.nome}
+                      </span>
+                    </div>
                   ))}
-                </AreaChart>
-              </ChartContainer>
+                </div>
+              </div>
+            ) : isLoadingVendasHora ? (
+              <Skeleton className="h-80 w-full" />
             ) : (
               <div className="flex items-center justify-center h-80 text-muted-foreground">
                 Nenhum dado de vendas disponível
@@ -578,61 +658,72 @@ export default function DashboardTempoRealPage() {
         <Card>
           <CardHeader>
             <CardTitle>Venda Acumulada por Loja</CardTitle>
-            <CardDescription>Ranking de vendas do dia</CardDescription>
+            <CardDescription>Ranking de vendas do dia ({vendasPorLoja.length} filiais)</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingVendasHora ? (
               <Skeleton className="h-80 w-full" />
             ) : vendasPorLoja.length > 0 ? (
               <div className="space-y-4">
-                <ChartContainer config={barChartConfig} className="h-52 w-full">
-                  <BarChart
-                    data={vendasPorLoja}
-                    layout="vertical"
-                    margin={{ top: 5, right: 80, left: 0, bottom: 5 }}
+                {/* Container com scroll para o gráfico de barras */}
+                <div className="overflow-y-auto" style={{ maxHeight: vendasPorLoja.length > 8 ? '220px' : 'auto' }}>
+                  <ChartContainer
+                    config={barChartConfig}
+                    className="w-full"
+                    style={{ height: Math.max(200, vendasPorLoja.length * 28) }}
                   >
-                    <CartesianGrid horizontal={false} />
-                    <YAxis
-                      dataKey="filial_nome"
-                      type="category"
-                      width={80}
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(v) => v.length > 12 ? `${v.slice(0, 12)}...` : v}
-                    />
-                    <XAxis type="number" hide />
-                    <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />} />
-                    <Bar dataKey="receita" radius={4}>
-                      {vendasPorLoja.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.cor} />
-                      ))}
-                      <LabelList
-                        dataKey="receita"
-                        position="right"
-                        offset={8}
-                        className="fill-foreground"
-                        fontSize={11}
-                        formatter={(value: number) => formatValueShort(value)}
+                    <BarChart
+                      data={vendasPorLoja}
+                      layout="vertical"
+                      margin={{ top: 5, right: 80, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid horizontal={false} />
+                      <YAxis
+                        dataKey="filial_nome"
+                        type="category"
+                        width={80}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => v.length > 12 ? `${v.slice(0, 12)}...` : v}
                       />
-                    </Bar>
-                  </BarChart>
-                </ChartContainer>
+                      <XAxis type="number" hide />
+                      <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />} />
+                      <Bar dataKey="receita" radius={4}>
+                        {vendasPorLoja.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.cor} />
+                        ))}
+                        <LabelList
+                          dataKey="receita"
+                          position="right"
+                          offset={8}
+                          className="fill-foreground"
+                          fontSize={11}
+                          formatter={(value: number) => formatValueShort(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                </div>
 
-                {/* Progress bars para meta por loja */}
-                <div className="space-y-2 border-t pt-4">
+                {/* Progress bars para meta por loja - com scroll */}
+                <div className="border-t pt-4">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Atingimento de Meta</p>
-                  {vendasPorLoja.slice(0, 5).map((loja) => (
-                    <div key={loja.filial_id} className="flex items-center gap-2">
-                      <span className="w-20 text-xs truncate" title={loja.filial_nome}>
-                        {loja.filial_nome}
-                      </span>
-                      <Progress value={Math.min(loja.atingimento_meta, 100)} className="flex-1 h-2" />
-                      <span className="w-12 text-xs text-right">
-                        {loja.atingimento_meta.toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
+                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: vendasPorLoja.length > 6 ? '150px' : 'auto' }}>
+                    {vendasPorLoja.map((loja) => (
+                      <div key={loja.filial_id} className="flex items-center gap-2">
+                        <span className="w-20 text-xs truncate" title={loja.filial_nome}>
+                          {loja.filial_nome}
+                        </span>
+                        <Progress value={Math.min(loja.atingimento_meta, 100)} className="flex-1 h-2" />
+                        <span className="w-12 text-xs text-right">
+                          {loja.atingimento_meta.toFixed(0)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
+            ) : isLoadingVendasHora ? (
+              <Skeleton className="h-80 w-full" />
             ) : (
               <div className="flex items-center justify-center h-80 text-muted-foreground">
                 Nenhum dado disponível
@@ -693,6 +784,12 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
+              ) : isLoadingProdutos ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum produto vendido hoje
@@ -702,11 +799,11 @@ export default function DashboardTempoRealPage() {
           </CardContent>
         </Card>
 
-        {/* Tabela Departamentos por Receita */}
+        {/* Tabela Receita por Departamento */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle>Departamentos por Receita</CardTitle>
+              <CardTitle>Receita por Departamento</CardTitle>
               <CardDescription>Participação por departamento</CardDescription>
             </div>
             <Select value={limitDepartamentos} onValueChange={setLimitDepartamentos}>
@@ -751,6 +848,12 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
+              ) : isLoadingDepartamentos ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum departamento com vendas hoje
@@ -848,6 +951,12 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
+              ) : isLoadingRanking ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum dado de venda disponível
@@ -942,6 +1051,12 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
+              ) : isLoadingRanking ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum cancelamento registrado
