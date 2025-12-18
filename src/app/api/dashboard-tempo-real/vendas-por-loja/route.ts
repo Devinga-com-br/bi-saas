@@ -11,8 +11,19 @@ export const revalidate = 0
 const querySchema = z.object({
   schema: z.string().min(1),
   filiais: z.string().optional(),
-  limit: z.string().optional().default('10'),
 })
+
+// Paleta de cores para filiais
+const FILIAL_COLORS = [
+  'hsl(142, 76%, 45%)',  // Verde neon
+  'hsl(200, 70%, 50%)',  // Azul
+  'hsl(38, 92%, 50%)',   // Laranja
+  'hsl(280, 60%, 55%)',  // Roxo
+  'hsl(350, 70%, 55%)',  // Rosa
+  'hsl(170, 60%, 45%)',  // Teal
+  'hsl(60, 70%, 50%)',   // Amarelo
+  'hsl(320, 60%, 50%)',  // Magenta
+]
 
 async function validateSchemaAccess(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -73,8 +84,7 @@ export async function GET(req: Request) {
       )
     }
 
-    const { schema: requestedSchema, filiais, limit } = validation.data
-    const limitNum = Math.min(parseInt(limit, 10), 100)
+    const { schema: requestedSchema, filiais } = validation.data
 
     const hasAccess = await validateSchemaAccess(supabase, user, requestedSchema)
     if (!hasAccess) {
@@ -109,11 +119,11 @@ export async function GET(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    // Query vendas_hoje_itens
+    // Query vendas_hoje_itens to get oferta data
     let itensQuery = directSupabase
       .schema(requestedSchema as 'public')
       .from('vendas_hoje_itens')
-      .select('produto_id, filial_id, quantidade_vendida, preco_venda, valor_desconto, valor_acrescimo, oferta_id')
+      .select('filial_id, quantidade_vendida, preco_venda, valor_desconto, valor_acrescimo, oferta_id')
       .eq('cancelado', false)
 
     if (finalFiliais && finalFiliais.length > 0) {
@@ -123,86 +133,107 @@ export async function GET(req: Request) {
     const { data: itensData, error: itensError } = await itensQuery
 
     if (itensError) {
-      console.error('[API/DASHBOARD-TEMPO-REAL/PRODUTOS] Itens Query Error:', itensError.message)
+      console.error('[API/DASHBOARD-TEMPO-REAL/VENDAS-POR-LOJA] Query Error:', itensError.message)
       return NextResponse.json(
-        { error: 'Error fetching items data', details: itensError.message },
+        { error: 'Error fetching sales data', details: itensError.message },
         { status: 500 }
       )
     }
 
-    // Aggregate by produto_id
-    const productMap = new Map<number, { quantidade: number; receita: number; filial_id: number; is_oferta: boolean }>()
+    // Get tenant_id from schema
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('supabase_schema', requestedSchema)
+      .single()
+
+    // Get branch names from public.branches filtered by tenant_id
+    const { data: branchesData } = await supabase
+      .from('branches')
+      .select('branch_code, descricao')
+      .eq('tenant_id', tenantData?.id || '') as { data: { branch_code: string; descricao: string | null }[] | null }
+
+    const branchNameMap = new Map<string, string>()
+    if (branchesData) {
+      branchesData.forEach((b) => {
+        branchNameMap.set(b.branch_code, b.descricao || `Filial ${b.branch_code}`)
+      })
+    }
+
+    // Get metas for today
+    const today = new Date().toISOString().split('T')[0]
+    const { data: metasData } = await directSupabase
+      .schema(requestedSchema as 'public')
+      .from('metas_mensais')
+      .select('filial_id, valor_meta')
+      .eq('data', today)
+
+    const metaByFilial = new Map<number, number>()
+    if (metasData) {
+      metasData.forEach((m: { filial_id: number; valor_meta: string | number }) => {
+        metaByFilial.set(m.filial_id, parseFloat(String(m.valor_meta)) || 0)
+      })
+    }
+
+    // Aggregate by filial_id separating oferta vs normal
+    const filialMap = new Map<number, { receita_oferta: number; receita_normal: number }>()
 
     if (itensData) {
       itensData.forEach((item) => {
-        const produtoId = item.produto_id
+        const filialId = item.filial_id
         const quantidade = parseFloat(item.quantidade_vendida) || 0
         const preco = parseFloat(item.preco_venda) || 0
         const desconto = parseFloat(item.valor_desconto) || 0
         const acrescimo = parseFloat(item.valor_acrescimo) || 0
         const receita = quantidade * preco - desconto + acrescimo
+
         // Check if product is on sale (oferta_id is not null/empty/whitespace)
         const ofertaId = item.oferta_id ? String(item.oferta_id).trim() : ''
         const isOferta = ofertaId.length > 0
 
-        if (productMap.has(produtoId)) {
-          const existing = productMap.get(produtoId)!
-          existing.quantidade += quantidade
-          existing.receita += receita
-          // If any item of this product is on sale, mark as oferta
-          if (isOferta) existing.is_oferta = true
+        if (!filialMap.has(filialId)) {
+          filialMap.set(filialId, { receita_oferta: 0, receita_normal: 0 })
+        }
+
+        const filialData = filialMap.get(filialId)!
+        if (isOferta) {
+          filialData.receita_oferta += receita
         } else {
-          productMap.set(produtoId, {
-            quantidade,
-            receita,
-            filial_id: item.filial_id,
-            is_oferta: isOferta,
-          })
+          filialData.receita_normal += receita
         }
       })
     }
 
-    // Get top products by receita
-    const sortedProducts = Array.from(productMap.entries())
-      .sort((a, b) => b[1].receita - a[1].receita)
-      .slice(0, limitNum)
+    // Build result array sorted by total receita
+    const filiaisArray = Array.from(filialMap.entries())
+      .map(([filialId, data], index) => {
+        const receita_total = data.receita_oferta + data.receita_normal
+        const meta = metaByFilial.get(filialId) || 0
+        return {
+          filial_id: filialId,
+          filial_nome: branchNameMap.get(filialId.toString()) || `Filial ${filialId}`,
+          receita_oferta: data.receita_oferta,
+          receita_normal: data.receita_normal,
+          receita_total,
+          cor: FILIAL_COLORS[index % FILIAL_COLORS.length],
+          meta,
+          atingimento_meta: meta > 0 ? (receita_total / meta) * 100 : 0,
+        }
+      })
+      .sort((a, b) => b.receita_total - a.receita_total)
 
-    // Get product descriptions
-    const produtoIds = sortedProducts.map(([id]) => id)
-
-    const productDescMap = new Map<number, string>()
-    if (produtoIds.length > 0) {
-      // Get product descriptions from produtos table
-      const { data: produtosData } = await directSupabase
-        .schema(requestedSchema as 'public')
-        .from('produtos')
-        .select('id, descricao')
-        .in('id', produtoIds)
-
-      if (produtosData) {
-        produtosData.forEach((p) => {
-          if (!productDescMap.has(p.id)) {
-            productDescMap.set(p.id, p.descricao || `Produto ${p.id}`)
-          }
-        })
-      }
-    }
-
-    // Build result
-    const produtos = sortedProducts.map(([produtoId, data]) => ({
-      produto_id: produtoId,
-      descricao: productDescMap.get(produtoId) || `Produto ${produtoId}`,
-      quantidade_vendida: data.quantidade,
-      receita: data.receita,
-      is_oferta: data.is_oferta,
+    // Reassign colors after sorting
+    const result = filiaisArray.map((item, index) => ({
+      ...item,
+      cor: FILIAL_COLORS[index % FILIAL_COLORS.length],
     }))
 
-    console.log('[API/DASHBOARD-TEMPO-REAL/PRODUTOS] Result count:', produtos.length)
+    console.log('[API/DASHBOARD-TEMPO-REAL/VENDAS-POR-LOJA] Result:', result.length, 'filiais')
 
-    return NextResponse.json({ produtos })
+    return NextResponse.json({ lojas: result })
   } catch (e) {
     const error = e as Error
-    console.error('Unexpected error in dashboard-tempo-real/produtos-mais-vendidos API:', error)
+    console.error('Unexpected error in dashboard-tempo-real/vendas-por-loja API:', error)
     return NextResponse.json(
       { error: 'An unexpected error occurred', details: error.message },
       { status: 500 }

@@ -30,9 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, Cell } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
 
 // Constants
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
@@ -90,6 +91,7 @@ interface ProdutoMaisVendido {
   descricao: string
   quantidade_vendida: number
   receita: number
+  is_oferta: boolean
 }
 
 interface ProdutosResponse {
@@ -120,6 +122,21 @@ interface RankingOperacional {
 
 interface RankingResponse {
   ranking: RankingOperacional[]
+}
+
+interface VendaPorLoja {
+  filial_id: number
+  filial_nome: string
+  receita_oferta: number
+  receita_normal: number
+  receita_total: number
+  cor: string
+  meta: number
+  atingimento_meta: number
+}
+
+interface VendasPorLojaResponse {
+  lojas: VendaPorLoja[]
 }
 
 type SortFieldVenda = 'filial_nome' | 'caixa' | 'skus_venda' | 'valor_vendido'
@@ -204,6 +221,15 @@ export default function DashboardTempoRealPage() {
     return `/api/dashboard-tempo-real/ranking-operacional?${params.toString()}`
   }, [apiParams])
 
+  const vendasPorLojaUrl = useMemo(() => {
+    if (!apiParams.schema) return null
+    const params = new URLSearchParams({
+      schema: apiParams.schema,
+      filiais: apiParams.filiais,
+    })
+    return `/api/dashboard-tempo-real/vendas-por-loja?${params.toString()}`
+  }, [apiParams])
+
   // SWR hooks for each endpoint
   const { data: resumo, mutate: mutateResumo, isLoading: isLoadingResumo } = useSWR<ResumoData>(
     resumoUrl,
@@ -235,6 +261,12 @@ export default function DashboardTempoRealPage() {
     { refreshInterval: REFRESH_INTERVAL }
   )
 
+  const { data: vendasPorLojaData, mutate: mutateVendasPorLoja, isLoading: isLoadingVendasPorLoja } = useSWR<VendasPorLojaResponse>(
+    vendasPorLojaUrl,
+    fetcher,
+    { refreshInterval: REFRESH_INTERVAL }
+  )
+
   // Manual refresh
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
@@ -244,9 +276,10 @@ export default function DashboardTempoRealPage() {
       mutateProdutos(),
       mutateDepartamentos(),
       mutateRanking(),
+      mutateVendasPorLoja(),
     ])
     setIsRefreshing(false)
-  }, [mutateResumo, mutateVendasHora, mutateProdutos, mutateDepartamentos, mutateRanking])
+  }, [mutateResumo, mutateVendasHora, mutateProdutos, mutateDepartamentos, mutateRanking, mutateVendasPorLoja])
 
   // Sort ranking venda
   const sortedRankingVenda = useMemo(() => {
@@ -318,24 +351,6 @@ export default function DashboardTempoRealPage() {
     }
   }, [cancelamentoSortField])
 
-  // Calculate venda por loja for bar chart
-  const vendasPorLoja = useMemo(() => {
-    if (!vendasPorHora?.data || !Array.isArray(vendasPorHora?.filiais)) return []
-
-    const lastHourData = vendasPorHora.data[vendasPorHora.data.length - 1]
-    if (!lastHourData) return []
-
-    return vendasPorHora.filiais
-      .map(filial => ({
-        filial_id: filial.id,
-        filial_nome: filial.nome,
-        receita: Number(lastHourData[filial.id.toString()] || 0),
-        cor: filial.cor,
-        atingimento_meta: resumo?.meta_dia ? (Number(lastHourData[filial.id.toString()] || 0) / (resumo.meta_dia / vendasPorHora.filiais.length)) * 100 : 0,
-      }))
-      .sort((a, b) => b.receita - a.receita)
-  }, [vendasPorHora, resumo])
-
   // Chart config for area chart
   const areaChartConfig = useMemo(() => {
     if (!Array.isArray(vendasPorHora?.filiais)) return {}
@@ -349,11 +364,15 @@ export default function DashboardTempoRealPage() {
     return config
   }, [vendasPorHora])
 
-  // Bar chart config
+  // Bar chart config for stacked bars
   const barChartConfig = {
-    receita: {
-      label: 'Receita',
-      color: 'hsl(var(--chart-1))',
+    receita_oferta: {
+      label: 'Receita Oferta',
+      color: 'hsl(38, 92%, 50%)',  // Laranja
+    },
+    receita_normal: {
+      label: 'Receita Geral',
+      color: 'hsl(142, 76%, 45%)',  // Verde
     },
   }
 
@@ -379,6 +398,7 @@ export default function DashboardTempoRealPage() {
     const sections = [
       { name: 'Resumo', isLoading: isLoadingResumo, isLoaded: !!resumo },
       { name: 'Vendas por Hora', isLoading: isLoadingVendasHora, isLoaded: !!vendasPorHora },
+      { name: 'Vendas por Loja', isLoading: isLoadingVendasPorLoja, isLoaded: !!vendasPorLojaData },
       { name: 'Produtos', isLoading: isLoadingProdutos, isLoaded: !!produtosData },
       { name: 'Departamentos', isLoading: isLoadingDepartamentos, isLoaded: !!departamentosData },
       { name: 'Ranking', isLoading: isLoadingRanking, isLoaded: !!rankingData },
@@ -396,7 +416,7 @@ export default function DashboardTempoRealPage() {
       loadedCount,
       totalCount: sections.length,
     }
-  }, [isLoadingResumo, isLoadingVendasHora, isLoadingProdutos, isLoadingDepartamentos, isLoadingRanking, resumo, vendasPorHora, produtosData, departamentosData, rankingData])
+  }, [isLoadingResumo, isLoadingVendasHora, isLoadingVendasPorLoja, isLoadingProdutos, isLoadingDepartamentos, isLoadingRanking, resumo, vendasPorHora, vendasPorLojaData, produtosData, departamentosData, rankingData])
 
   if (!currentTenant) {
     return (
@@ -673,26 +693,26 @@ export default function DashboardTempoRealPage() {
           </CardContent>
         </Card>
 
-        {/* Bar Chart - Venda Acumulada por Loja */}
+        {/* Bar Chart - Venda Acumulada por Loja (Stacked) */}
         <Card>
           <CardHeader>
             <CardTitle>Venda Acumulada por Loja</CardTitle>
-            <CardDescription>Ranking de vendas do dia ({vendasPorLoja.length} filiais)</CardDescription>
+            <CardDescription>Ranking de vendas do dia ({vendasPorLojaData?.lojas?.length || 0} filiais)</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingVendasHora ? (
+            {isLoadingVendasPorLoja ? (
               <Skeleton className="h-80 w-full" />
-            ) : vendasPorLoja.length > 0 ? (
+            ) : vendasPorLojaData?.lojas && vendasPorLojaData.lojas.length > 0 ? (
               <div className="space-y-4">
                 {/* Container com scroll para o gráfico de barras */}
-                <div className="overflow-y-auto" style={{ maxHeight: vendasPorLoja.length > 8 ? '220px' : 'auto' }}>
+                <div className="overflow-y-auto" style={{ maxHeight: vendasPorLojaData.lojas.length > 8 ? '220px' : 'auto' }}>
                   <ChartContainer
                     config={barChartConfig}
                     className="w-full"
-                    style={{ height: Math.max(200, vendasPorLoja.length * 28) }}
+                    style={{ height: Math.max(200, vendasPorLojaData.lojas.length * 28) }}
                   >
                     <BarChart
-                      data={vendasPorLoja}
+                      data={vendasPorLojaData.lojas}
                       layout="vertical"
                       margin={{ top: 5, right: 80, left: 0, bottom: 5 }}
                     >
@@ -705,13 +725,43 @@ export default function DashboardTempoRealPage() {
                         tickFormatter={(v) => v.length > 12 ? `${v.slice(0, 12)}...` : v}
                       />
                       <XAxis type="number" hide />
-                      <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />} />
-                      <Bar dataKey="receita" radius={4}>
-                        {vendasPorLoja.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.cor} />
-                        ))}
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value, name, item) => (
+                              <>
+                                <div
+                                  className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                                  style={{ backgroundColor: item.color }}
+                                />
+                                <div className="flex flex-1 justify-between items-center leading-none gap-4">
+                                  <span className="text-muted-foreground">
+                                    {name === 'receita_oferta' ? 'Oferta' : 'Geral'}
+                                  </span>
+                                  <span className="font-mono font-medium tabular-nums text-foreground">
+                                    {formatCurrency(Number(value))}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          />
+                        }
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Bar
+                        dataKey="receita_oferta"
+                        stackId="receita"
+                        fill="var(--color-receita_oferta)"
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="receita_normal"
+                        stackId="receita"
+                        fill="var(--color-receita_normal)"
+                        radius={[0, 4, 4, 0]}
+                      >
                         <LabelList
-                          dataKey="receita"
+                          dataKey="receita_total"
                           position="right"
                           offset={8}
                           className="fill-foreground"
@@ -726,8 +776,8 @@ export default function DashboardTempoRealPage() {
                 {/* Progress bars para meta por loja - com scroll */}
                 <div className="border-t pt-4">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Atingimento de Meta</p>
-                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: vendasPorLoja.length > 6 ? '150px' : 'auto' }}>
-                    {vendasPorLoja.map((loja) => (
+                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: vendasPorLojaData.lojas.length > 6 ? '150px' : 'auto' }}>
+                    {vendasPorLojaData.lojas.map((loja) => (
                       <div key={loja.filial_id} className="flex items-center gap-2">
                         <span className="w-20 text-xs truncate" title={loja.filial_nome}>
                           {loja.filial_nome}
@@ -783,6 +833,7 @@ export default function DashboardTempoRealPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produto</TableHead>
+                      <TableHead className="w-16 text-center"></TableHead>
                       <TableHead className="w-20">SKU</TableHead>
                       <TableHead className="text-right w-20">Qtd</TableHead>
                       <TableHead className="text-right w-28">Receita</TableHead>
@@ -791,8 +842,15 @@ export default function DashboardTempoRealPage() {
                   <TableBody>
                     {produtosData.produtos.map((p) => (
                       <TableRow key={p.produto_id}>
-                        <TableCell className="truncate max-w-[200px]" title={p.descricao}>
+                        <TableCell className="truncate max-w-[180px]" title={p.descricao}>
                           {p.descricao}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {p.is_oferta && (
+                            <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0.5">
+                              Oferta
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>{p.produto_id}</TableCell>
                         <TableCell className="text-right">{formatNumber(p.quantidade_vendida)}</TableCell>

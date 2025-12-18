@@ -141,10 +141,18 @@ export async function GET(req: Request) {
       )
     }
 
-    // Get branch names from public.branches
+    // Get tenant_id from schema
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('supabase_schema', requestedSchema)
+      .single()
+
+    // Get branch names from public.branches filtered by tenant_id
     const { data: branchesData } = await supabase
       .from('branches')
-      .select('branch_code, descricao') as { data: { branch_code: string; descricao: string | null }[] | null }
+      .select('branch_code, descricao')
+      .eq('tenant_id', tenantData?.id || '') as { data: { branch_code: string; descricao: string | null }[] | null }
 
     const branchNameMap = new Map<string, string>()
     if (branchesData) {
