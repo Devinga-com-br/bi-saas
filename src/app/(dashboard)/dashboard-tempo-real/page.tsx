@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, Cell } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -92,11 +92,20 @@ interface ProdutoMaisVendido {
   receita: number
 }
 
+interface ProdutosResponse {
+  produtos: ProdutoMaisVendido[]
+}
+
 interface DepartamentoReceita {
   departamento_id: number
   departamento_nome: string
   receita: number
   participacao_percentual: number
+}
+
+interface DepartamentosResponse {
+  receita_total: number
+  departamentos: DepartamentoReceita[]
 }
 
 interface RankingOperacional {
@@ -107,6 +116,10 @@ interface RankingOperacional {
   skus_cancelados: number
   valor_cancelamentos: number
   valor_vendido: number
+}
+
+interface RankingResponse {
+  ranking: RankingOperacional[]
 }
 
 type SortFieldVenda = 'filial_nome' | 'caixa' | 'skus_venda' | 'valor_vendido'
@@ -143,7 +156,7 @@ export default function DashboardTempoRealPage() {
       : 'all'
   }), [currentTenant, filiaisSelecionadas])
 
-  // Build URLs
+  // Build URLs for each API endpoint
   const resumoUrl = useMemo(() => {
     if (!apiParams.schema) return null
     const params = new URLSearchParams({
@@ -153,7 +166,7 @@ export default function DashboardTempoRealPage() {
     return `/api/dashboard-tempo-real/resumo?${params.toString()}`
   }, [apiParams])
 
-  const vendasPorHoraUrl = useMemo(() => {
+  const vendasHoraUrl = useMemo(() => {
     if (!apiParams.schema) return null
     const params = new URLSearchParams({
       schema: apiParams.schema,
@@ -182,7 +195,7 @@ export default function DashboardTempoRealPage() {
     return `/api/dashboard-tempo-real/departamentos-receita?${params.toString()}`
   }, [apiParams, limitDepartamentos])
 
-  const rankingOperacionalUrl = useMemo(() => {
+  const rankingUrl = useMemo(() => {
     if (!apiParams.schema) return null
     const params = new URLSearchParams({
       schema: apiParams.schema,
@@ -191,7 +204,7 @@ export default function DashboardTempoRealPage() {
     return `/api/dashboard-tempo-real/ranking-operacional?${params.toString()}`
   }, [apiParams])
 
-  // SWR hooks with auto-refresh
+  // SWR hooks for each endpoint
   const { data: resumo, mutate: mutateResumo, isLoading: isLoadingResumo } = useSWR<ResumoData>(
     resumoUrl,
     fetcher,
@@ -199,25 +212,25 @@ export default function DashboardTempoRealPage() {
   )
 
   const { data: vendasPorHora, mutate: mutateVendasHora, isLoading: isLoadingVendasHora } = useSWR<VendasPorHoraData>(
-    vendasPorHoraUrl,
+    vendasHoraUrl,
     fetcher,
     { refreshInterval: REFRESH_INTERVAL }
   )
 
-  const { data: produtosData, mutate: mutateProdutos, isLoading: isLoadingProdutos } = useSWR<{ produtos: ProdutoMaisVendido[] }>(
+  const { data: produtosData, mutate: mutateProdutos, isLoading: isLoadingProdutos } = useSWR<ProdutosResponse>(
     produtosUrl,
     fetcher,
     { refreshInterval: REFRESH_INTERVAL }
   )
 
-  const { data: departamentosData, mutate: mutateDepartamentos, isLoading: isLoadingDepartamentos } = useSWR<{ receita_total: number; departamentos: DepartamentoReceita[] }>(
+  const { data: departamentosData, mutate: mutateDepartamentos, isLoading: isLoadingDepartamentos } = useSWR<DepartamentosResponse>(
     departamentosUrl,
     fetcher,
     { refreshInterval: REFRESH_INTERVAL }
   )
 
-  const { data: rankingData, mutate: mutateRanking, isLoading: isLoadingRanking } = useSWR<{ ranking: RankingOperacional[] }>(
-    rankingOperacionalUrl,
+  const { data: rankingData, mutate: mutateRanking, isLoading: isLoadingRanking } = useSWR<RankingResponse>(
+    rankingUrl,
     fetcher,
     { refreshInterval: REFRESH_INTERVAL }
   )
@@ -237,7 +250,7 @@ export default function DashboardTempoRealPage() {
 
   // Sort ranking venda
   const sortedRankingVenda = useMemo(() => {
-    if (!rankingData?.ranking) return []
+    if (!rankingData?.ranking || !Array.isArray(rankingData.ranking)) return []
     const sorted = [...rankingData.ranking]
     sorted.sort((a, b) => {
       let aVal: string | number = a[vendaSortField]
@@ -262,7 +275,7 @@ export default function DashboardTempoRealPage() {
 
   // Sort ranking cancelamentos
   const sortedRankingCancelamentos = useMemo(() => {
-    if (!rankingData?.ranking) return []
+    if (!rankingData?.ranking || !Array.isArray(rankingData.ranking)) return []
     const sorted = [...rankingData.ranking]
     sorted.sort((a, b) => {
       let aVal: string | number = a[cancelamentoSortField]
@@ -364,39 +377,26 @@ export default function DashboardTempoRealPage() {
   // Estado global de carregamento
   const loadingState = useMemo(() => {
     const sections = [
-      { name: 'Resumo', loading: isLoadingResumo, loaded: !!resumo },
-      { name: 'Vendas por Hora', loading: isLoadingVendasHora, loaded: !!vendasPorHora },
-      { name: 'Produtos', loading: isLoadingProdutos, loaded: !!produtosData },
-      { name: 'Departamentos', loading: isLoadingDepartamentos, loaded: !!departamentosData },
-      { name: 'Ranking', loading: isLoadingRanking, loaded: !!rankingData },
+      { name: 'Resumo', isLoading: isLoadingResumo, isLoaded: !!resumo },
+      { name: 'Vendas por Hora', isLoading: isLoadingVendasHora, isLoaded: !!vendasPorHora },
+      { name: 'Produtos', isLoading: isLoadingProdutos, isLoaded: !!produtosData },
+      { name: 'Departamentos', isLoading: isLoadingDepartamentos, isLoaded: !!departamentosData },
+      { name: 'Ranking', isLoading: isLoadingRanking, isLoaded: !!rankingData },
     ]
 
-    const totalSections = sections.length
-    const loadedSections = sections.filter(s => s.loaded).length
-    const isAnyLoading = sections.some(s => s.loading)
-    const currentLoading = sections.find(s => s.loading)
-    const progress = (loadedSections / totalSections) * 100
-    const isComplete = loadedSections === totalSections
+    const loadedCount = sections.filter(s => s.isLoaded).length
+    const isAnyLoading = sections.some(s => s.isLoading)
+    const currentLoading = sections.find(s => s.isLoading)?.name || null
 
     return {
-      sections,
-      progress,
+      progress: (loadedCount / sections.length) * 100,
       isAnyLoading,
-      isComplete,
-      currentLoading: currentLoading?.name || null,
-      loadedCount: loadedSections,
-      totalCount: totalSections,
+      isComplete: loadedCount === sections.length,
+      currentLoading,
+      loadedCount,
+      totalCount: sections.length,
     }
-  }, [
-    isLoadingResumo, resumo,
-    isLoadingVendasHora, vendasPorHora,
-    isLoadingProdutos, produtosData,
-    isLoadingDepartamentos, departamentosData,
-    isLoadingRanking, rankingData,
-  ])
-
-  // Verificar se é o carregamento inicial (nenhum dado carregado ainda)
-  const isInitialLoading = loadingState.isAnyLoading && loadingState.loadedCount === 0
+  }, [isLoadingResumo, isLoadingVendasHora, isLoadingProdutos, isLoadingDepartamentos, isLoadingRanking, resumo, vendasPorHora, produtosData, departamentosData, rankingData])
 
   if (!currentTenant) {
     return (
@@ -610,7 +610,28 @@ export default function DashboardTempoRealPage() {
                     <XAxis dataKey="hora" tick={{ fontSize: 12 }} />
                     <YAxis tickFormatter={(value) => formatValueShort(value)} tick={{ fontSize: 12 }} />
                     <ChartTooltip
-                      content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || payload.length === 0) return null
+                        return (
+                          <div className="rounded-lg border bg-background p-2 shadow-md">
+                            <p className="font-medium text-sm mb-2">Hora: {label}</p>
+                            <div className="space-y-1">
+                              {payload.map((entry) => {
+                                const filialName = areaChartConfig[entry.dataKey as string]?.label || entry.dataKey
+                                return (
+                                  <div key={entry.dataKey} className="flex items-center gap-2 text-sm">
+                                    <div
+                                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                                      style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span>{filialName} - {formatCurrency(Number(entry.value))}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      }}
                     />
                     {vendasPorHora.filiais.map((filial) => (
                       <Area
@@ -644,8 +665,6 @@ export default function DashboardTempoRealPage() {
                   ))}
                 </div>
               </div>
-            ) : isLoadingVendasHora ? (
-              <Skeleton className="h-80 w-full" />
             ) : (
               <div className="flex items-center justify-center h-80 text-muted-foreground">
                 Nenhum dado de vendas disponível
@@ -722,8 +741,6 @@ export default function DashboardTempoRealPage() {
                   </div>
                 </div>
               </div>
-            ) : isLoadingVendasHora ? (
-              <Skeleton className="h-80 w-full" />
             ) : (
               <div className="flex items-center justify-center h-80 text-muted-foreground">
                 Nenhum dado disponível
@@ -761,7 +778,7 @@ export default function DashboardTempoRealPage() {
                     <Skeleton key={i} className="h-10 w-full" />
                   ))}
                 </div>
-              ) : produtosData?.produtos && produtosData.produtos.length > 0 ? (
+              ) : produtosData?.produtos && Array.isArray(produtosData.produtos) && produtosData.produtos.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -784,12 +801,6 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
-              ) : isLoadingProdutos ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum produto vendido hoje
@@ -825,7 +836,7 @@ export default function DashboardTempoRealPage() {
                     <Skeleton key={i} className="h-10 w-full" />
                   ))}
                 </div>
-              ) : departamentosData?.departamentos && departamentosData.departamentos.length > 0 ? (
+              ) : departamentosData?.departamentos && Array.isArray(departamentosData.departamentos) && departamentosData.departamentos.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -848,12 +859,6 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
-              ) : isLoadingDepartamentos ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum departamento com vendas hoje
@@ -951,12 +956,6 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
-              ) : isLoadingRanking ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum dado de venda disponível
@@ -1051,12 +1050,6 @@ export default function DashboardTempoRealPage() {
                     ))}
                   </TableBody>
                 </Table>
-              ) : isLoadingRanking ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Nenhum cancelamento registrado
