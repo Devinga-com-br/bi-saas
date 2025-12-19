@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { validateSchemaAccess } from '@/lib/security/validate-schema'
 
 // GET - Listar todos os descontos
 export async function GET(request: Request) {
@@ -23,6 +24,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Schema é obrigatório' }, { status: 400 })
     }
 
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Usar RPC para buscar dados do schema customizado
     const { data: descontos, error } = await (supabase as SupabaseClient).rpc('get_descontos_venda', {
       p_schema: schema
@@ -30,14 +37,14 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Erro ao buscar descontos:', error)
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao buscar descontos' }, { status: 500 })
     }
 
     return NextResponse.json(descontos || [])
   } catch (error) {
     console.error('Erro catch:', error)
     return NextResponse.json(
-      { error: 'Erro interno do servidor', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
@@ -70,6 +77,12 @@ export async function POST(request: Request) {
       )
     }
 
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Validar valor positivo
     if (valor_desconto < 0) {
       return NextResponse.json(
@@ -99,7 +112,7 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Erro ao criar desconto:', error)
-      
+
       // Tratar erro de duplicate key (filial + data já existe)
       if (error.message?.includes('duplicate') || error.message?.includes('já existe')) {
         return NextResponse.json(
@@ -108,7 +121,7 @@ export async function POST(request: Request) {
         )
       }
 
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao criar desconto' }, { status: 500 })
     }
 
     return NextResponse.json(data, { status: 201 })
@@ -148,6 +161,12 @@ export async function PUT(request: Request) {
       )
     }
 
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Validar valor positivo
     if (valor_desconto < 0) {
       return NextResponse.json(
@@ -177,7 +196,7 @@ export async function PUT(request: Request) {
 
     if (error) {
       console.error('Erro ao atualizar desconto:', error)
-      
+
       if (error.message?.includes('duplicate') || error.message?.includes('já existe')) {
         return NextResponse.json(
           { error: 'Já existe um desconto lançado para esta filial nesta data' },
@@ -185,7 +204,7 @@ export async function PUT(request: Request) {
         )
       }
 
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao atualizar desconto' }, { status: 500 })
     }
 
     return NextResponse.json(data)
@@ -218,8 +237,6 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id')
     const schema = searchParams.get('schema')
 
-    console.log('[DELETE] Recebido - id:', id, 'schema:', schema)
-
     // Validar parâmetros
     if (!id || !schema) {
       return NextResponse.json(
@@ -228,18 +245,21 @@ export async function DELETE(request: Request) {
       )
     }
 
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // Deletar desconto usando RPC
-    console.log('[DELETE] Chamando RPC delete_desconto_venda')
     const { data, error } = await (supabase as SupabaseClient).rpc('delete_desconto_venda', {
       p_schema: schema,
       p_id: id
     })
 
-    console.log('[DELETE] Resultado RPC - data:', data, 'error:', error)
-
     if (error) {
       console.error('[DELETE] Erro ao deletar desconto:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao excluir desconto' }, { status: 500 })
     }
 
     // data é boolean - true se deletou, false se não encontrou
@@ -247,7 +267,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Desconto não encontrado' }, { status: 404 })
     }
 
-    console.log('[DELETE] Sucesso!')
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[DELETE] Erro catch:', error)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { validateSchemaAccess } from '@/lib/security/validate-schema'
 
 // FORÇAR ROTA DINÂMICA - NÃO CACHEAR
 export const dynamic = 'force-dynamic'
@@ -21,13 +22,17 @@ export async function GET(request: NextRequest) {
     const ano = searchParams.get('ano')
     const requestedFilialId = searchParams.get('filial_id')
 
-    console.log('[API/METAS/REPORT] Request params:', { schema, mes, ano, filialId: requestedFilialId })
-
     if (!schema || !mes || !ano) {
       return NextResponse.json(
         { error: 'Parâmetros inválidos' },
         { status: 400 }
       )
+    }
+
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Get user's authorized branches

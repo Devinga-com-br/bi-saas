@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { validateSchemaAccess } from '@/lib/security/validate-schema'
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +25,12 @@ export async function GET(request: NextRequest) {
         { error: 'Parâmetros obrigatórios faltando' },
         { status: 400 }
       )
+    }
+
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Get user's authorized branches

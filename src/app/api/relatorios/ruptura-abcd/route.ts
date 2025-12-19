@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { validateSchemaAccess } from '@/lib/security/validate-schema'
 
 // Interface para os dados retornados do RPC
 interface RupturaItem {
@@ -71,6 +72,12 @@ export async function GET(req: Request) {
       page,
       page_size,
     } = validation.data
+
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, requestedSchema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Converter parâmetros
     const curvasArray = curvas.split(',').map(c => c.trim())

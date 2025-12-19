@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { validateSchemaAccess } from '@/lib/security/validate-schema'
 
 // GET - Lista todos os setores
 // Parâmetros:
@@ -8,6 +9,13 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+
+    // Verificar autenticação
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
     const schema = searchParams.get('schema')
     const includeLevel1 = searchParams.get('include_level1') === 'true'
@@ -17,6 +25,12 @@ export async function GET(request: NextRequest) {
         { error: 'Schema é obrigatório' },
         { status: 400 }
       )
+    }
+
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Se precisa dos departamento_ids de nível 1, usa a RPC
@@ -29,7 +43,7 @@ export async function GET(request: NextRequest) {
 
       if (error) {
         console.error('[API/SETORES] RPC Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: 'Erro ao buscar setores' }, { status: 500 })
       }
 
       return NextResponse.json(data || [])
@@ -44,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[API/SETORES] Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao buscar setores' }, { status: 500 })
     }
 
     return NextResponse.json(data)
@@ -61,6 +75,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+
+    // Verificar autenticação
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { schema, nome, departamento_nivel, departamento_ids } = body
 
@@ -69,6 +90,12 @@ export async function POST(request: NextRequest) {
         { error: 'Todos os campos são obrigatórios' },
         { status: 400 }
       )
+    }
+
+    // Validar acesso ao schema
+    const hasAccess = await validateSchemaAccess(supabase, user, schema)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { data, error } = await supabase
@@ -84,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[API/SETORES] Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao criar setor' }, { status: 500 })
     }
 
     return NextResponse.json(data)
