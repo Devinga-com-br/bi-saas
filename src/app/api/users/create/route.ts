@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { safeErrorResponse } from '@/lib/api/error-handler'
 
 export async function POST(request: Request) {
   try {
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
 
     if (authError) {
       console.error('Auth error:', authError)
-      return NextResponse.json({ error: authError.message }, { status: 400 })
+      return safeErrorResponse(authError, 'user-create')
     }
 
     if (!authData.user) {
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
 
       if (updateError) {
         console.error('Profile update error:', updateError)
-        return NextResponse.json({ error: updateError.message }, { status: 400 })
+        return safeErrorResponse(updateError, 'user-create')
       }
     } else {
       // Create new profile
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
         console.error('Profile error:', profileError)
         // Try to delete the auth user if profile creation fails
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-        return NextResponse.json({ error: profileError.message }, { status: 400 })
+        return safeErrorResponse(profileError, 'user-create')
       }
     }
 

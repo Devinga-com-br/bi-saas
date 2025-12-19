@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
 
 export async function POST(request: Request) {
   try {
@@ -36,14 +37,7 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('[API/METAS/SETOR/UPDATE] RPC Error:', error)
-      return NextResponse.json(
-        {
-          error: error.message || 'Erro ao atualizar meta',
-          details: error.details || null,
-          hint: 'Verifique se a função update_meta_setor está criada no banco'
-        },
-        { status: 500 }
-      )
+      return safeErrorResponse(error, 'metas-setor-update')
     }
 
     // Verificar se a função SQL retornou sucesso

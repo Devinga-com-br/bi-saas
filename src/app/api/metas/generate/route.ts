@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { isValidSchema } from '@/lib/security/validate-schema'
+import { z } from 'zod'
 
 // FORÇAR ROTA DINÂMICA - NÃO CACHEAR
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+const generateMetaSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  mes: z.number().int().min(1).max(12),
+  ano: z.number().int().min(2020).max(2100),
+  metaPercentual: z.number().min(0).max(1000),
+  dataReferenciaInicial: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  filialId: z.union([z.string(), z.number()]).optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,14 +27,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { schema, filialId: requestedFilialId, mes, ano, metaPercentual, dataReferenciaInicial } = body
 
-    if (!schema || !mes || !ano || metaPercentual === undefined || !dataReferenciaInicial) {
+    // Validar dados com Zod
+    const validation = generateMetaSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Parâmetros inválidos' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { schema, filialId: requestedFilialId, mes, ano, metaPercentual, dataReferenciaInicial } = validation.data
 
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
@@ -62,8 +76,9 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // Specific filial requested - check if authorized
-        const parsed = parseInt(requestedFilialId, 10)
-        if (!isNaN(parsed) && authorizedBranches.includes(requestedFilialId)) {
+        const requestedIdStr = String(requestedFilialId)
+        const parsed = parseInt(requestedIdStr, 10)
+        if (!isNaN(parsed) && authorizedBranches.includes(requestedIdStr)) {
           finalFilialId = parsed
         } else if (authorizedBranches.length > 0) {
           // Not authorized - use first authorized

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { safeRpcError } from '@/lib/api/error-handler'
 
 export async function GET(request: NextRequest) {
   try {
@@ -114,10 +115,7 @@ export async function GET(request: NextRequest) {
 
     if (rpcError) {
       console.error('[API] Erro RPC:', rpcError)
-      return NextResponse.json(
-        { error: `Erro ao buscar dados: ${rpcError.message}` },
-        { status: 500 }
-      )
+      return safeRpcError(rpcError, 'dre-hierarquia')
     }
 
     console.log('[API] Dados RPC recebidos:', resultData?.length || 0, 'registros')
@@ -243,9 +241,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('[API] Erro geral:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return safeRpcError(error, 'dre-hierarquia')
   }
 }

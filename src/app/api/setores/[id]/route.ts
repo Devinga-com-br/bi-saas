@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { validateSchemaAccess } from '@/lib/security/validate-schema'
+import { validateSchemaAccess, isValidSchema } from '@/lib/security/validate-schema'
+import { z } from 'zod'
+
+const putSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  nome: z.string().min(1, 'Nome obrigatório').max(255, 'Nome muito longo'),
+  nivel_departamento: z.number().int().min(1).max(6),
+  departamento_ids: z.array(z.number().int().positive()),
+})
 
 // PUT - Atualiza um setor
 export async function PUT(
@@ -17,15 +25,18 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { schema, nome, nivel_departamento, departamento_ids } = body
     const { id } = await params
 
-    if (!schema || !nome || !nivel_departamento || !departamento_ids) {
+    // Validar dados com Zod
+    const validation = putSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Todos os campos são obrigatórios' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { schema, nome, nivel_departamento, departamento_ids } = validation.data
 
     // Validar acesso ao schema
     const hasAccess = await validateSchemaAccess(supabase, user, schema)
@@ -34,7 +45,7 @@ export async function PUT(
     }
 
     const { data, error } = await supabase
-      .schema(schema)
+      .schema(schema as 'public')
       .from('setores')
       .update({
         nome,

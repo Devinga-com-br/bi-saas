@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { validateSchemaAccess } from '@/lib/security/validate-schema'
+import { validateSchemaAccess, isValidSchema } from '@/lib/security/validate-schema'
+import { z } from 'zod'
 
 // GET - Lista todos os setores
 // Parâmetros:
@@ -71,6 +72,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const postSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  nome: z.string().min(1, 'Nome obrigatório').max(255, 'Nome muito longo'),
+  departamento_nivel: z.number().int().min(1).max(6),
+  departamento_ids: z.array(z.number().int().positive()),
+})
+
 // POST - Cria um novo setor
 export async function POST(request: NextRequest) {
   try {
@@ -83,14 +91,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { schema, nome, departamento_nivel, departamento_ids } = body
 
-    if (!schema || !nome || !departamento_nivel || !departamento_ids) {
+    // Validar dados com Zod
+    const validation = postSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Todos os campos são obrigatórios' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { schema, nome, departamento_nivel, departamento_ids } = validation.data
 
     // Validar acesso ao schema
     const hasAccess = await validateSchemaAccess(supabase, user, schema)

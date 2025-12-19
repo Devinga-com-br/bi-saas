@@ -1,6 +1,23 @@
 // import { type BranchInsert } from '@/types'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
+import { z } from 'zod'
+
+const branchSchema = z.object({
+  tenant_id: z.string().uuid('ID do tenant deve ser um UUID válido'),
+  branch_code: z.string().min(1, 'Código da filial é obrigatório').max(20, 'Código da filial muito longo'),
+  store_code: z.string().max(20).optional(),
+  descricao: z.string().max(255).optional(),
+  cep: z.string().regex(/^\d{8}$|^\d{5}-\d{3}$/, 'CEP inválido').optional(),
+  rua: z.string().max(255).optional(),
+  numero: z.string().max(20).optional(),
+  bairro: z.string().max(100).optional(),
+  cidade: z.string().max(100).optional(),
+  estado: z.string().length(2, 'Estado deve ter 2 caracteres').optional(),
+})
+
+const branchUpdateSchema = branchSchema.partial().required({ tenant_id: true })
 
 // GET - Listar filiais de uma empresa
 export async function GET(request: Request) {
@@ -42,7 +59,7 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Error fetching branches:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'branches')
     }
 
     return NextResponse.json({ branches })
@@ -76,12 +93,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { tenant_id, branch_code, store_code, descricao, cep, rua, numero, bairro, cidade, estado } = body
 
-    // Validate required fields
-    if (!tenant_id || !branch_code) {
-      return NextResponse.json({ error: 'tenant_id e branch_code são obrigatórios' }, { status: 400 })
+    // Validar dados com Zod
+    const validation = branchSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Dados inválidos', details: validation.error.flatten() },
+        { status: 400 }
+      )
     }
+
+    const { tenant_id, branch_code, store_code, descricao, cep, rua, numero, bairro, cidade, estado } = validation.data
 
     // Validate permissions
     if (currentProfile.role === 'admin' && tenant_id !== currentProfile.tenant_id) {
@@ -125,7 +147,7 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Error creating branch:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'branches')
     }
 
     return NextResponse.json({ success: true, branch })
@@ -191,7 +213,7 @@ export async function DELETE(request: Request) {
 
     if (error) {
       console.error('Error deleting branch:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'branches')
     }
 
     return NextResponse.json({ success: true })
@@ -231,11 +253,17 @@ export async function PATCH(request: Request) {
 
     // Parse body first to get tenant_id
     const body = await request.json()
-    const { tenant_id, store_code, descricao, cep, rua, numero, bairro, cidade, estado } = body
 
-    if (!tenant_id) {
-      return NextResponse.json({ error: 'tenant_id é obrigatório' }, { status: 400 })
+    // Validar dados com Zod
+    const validation = branchUpdateSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Dados inválidos', details: validation.error.flatten() },
+        { status: 400 }
+      )
     }
+
+    const { tenant_id, store_code, descricao, cep, rua, numero, bairro, cidade, estado } = validation.data
 
     // Get branch to check tenant - filter by both branch_code AND tenant_id
     const { data: existingBranch } = await supabase
@@ -280,7 +308,7 @@ export async function PATCH(request: Request) {
 
     if (error) {
       console.error('Error updating branch:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'branches')
     }
 
     return NextResponse.json({ success: true, branch })

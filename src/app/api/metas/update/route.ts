@@ -1,26 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
+import { isValidSchema } from '@/lib/security/validate-schema'
+import { z } from 'zod'
+
+const updateMetaIndividualSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  metaId: z.string().uuid('ID da meta deve ser um UUID válido'),
+  valorMeta: z.number().min(0, 'Valor da meta não pode ser negativo'),
+  metaPercentual: z.number().min(0).max(1000, 'Meta percentual deve estar entre 0 e 1000'),
+})
+
+const updateMetaLoteSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  mes: z.number().int().min(1).max(12),
+  ano: z.number().int().min(2020).max(2100),
+  filial_id: z.number().int().positive().optional().nullable(),
+})
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { schema, mes, ano, filial_id, metaId, valorMeta, metaPercentual } = body
 
     // Se tem metaId, é atualização individual de meta
-    if (metaId !== undefined) {
-      if (!schema || valorMeta === undefined || metaPercentual === undefined) {
+    if (body.metaId !== undefined) {
+      const validation = updateMetaIndividualSchema.safeParse(body)
+      if (!validation.success) {
         return NextResponse.json(
-          { error: 'Parâmetros inválidos para atualização de meta' },
+          { error: 'Dados inválidos', details: validation.error.flatten() },
           { status: 400 }
         )
       }
+
+      const { schema, metaId, valorMeta, metaPercentual } = validation.data
 
       console.log('[API/METAS/UPDATE] Updating individual meta:', { 
         schema, 
@@ -40,14 +59,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[API/METAS/UPDATE] RPC Error:', error)
-        return NextResponse.json(
-          { 
-            error: error.message || 'Erro ao atualizar meta',
-            details: error.details || null,
-            hint: 'Verifique se a função update_meta_mensal está criada no banco'
-          },
-          { status: 500 }
-        )
+        return safeErrorResponse(error, 'metas-update')
       }
 
       console.log('[API/METAS/UPDATE] Meta updated successfully:', data)
@@ -60,12 +72,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Senão, é atualização em lote dos valores realizados
-    if (!schema || !mes || !ano) {
+    const validation = updateMetaLoteSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Parâmetros inválidos' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { schema, mes, ano, filial_id } = validation.data
 
     const params: Record<string, number | string> = {
       p_schema: schema,
@@ -94,11 +109,8 @@ export async function POST(request: NextRequest) {
           registros_atualizados: 0
         })
       }
-      
-      return NextResponse.json(
-        { error: error.message || 'Erro ao atualizar valores' },
-        { status: 500 }
-      )
+
+      return safeErrorResponse(error, 'metas-update')
     }
 
     console.log('[API/METAS/UPDATE] Success:', data)

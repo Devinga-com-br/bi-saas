@@ -1,7 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { validateSchemaAccess } from '@/lib/security/validate-schema'
+import { validateSchemaAccess, isValidSchema } from '@/lib/security/validate-schema'
+import { z } from 'zod'
+
+const descontoSchema = z.object({
+  schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
+  filial_id: z.number().int().positive('ID da filial inválido'),
+  data_desconto: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use YYYY-MM-DD)'),
+  valor_desconto: z.number().min(0, 'Valor não pode ser negativo'),
+  desconto_custo: z.number().min(0, 'Desconto custo não pode ser negativo'),
+  observacao: z.string().max(500).optional(),
+})
+
+const descontoUpdateSchema = descontoSchema.extend({
+  id: z.string().min(1, 'ID é obrigatório'),
+})
 
 // GET - Listar todos os descontos
 export async function GET(request: Request) {
@@ -67,15 +81,17 @@ export async function POST(request: Request) {
 
     // Obter dados do request
     const body = await request.json()
-    const { filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = body
 
-    // Validar campos obrigatórios
-    if (!filial_id || !data_desconto || valor_desconto === undefined || desconto_custo === undefined || !schema) {
+    // Validar dados com Zod
+    const validation = descontoSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: filial_id, data_desconto, valor_desconto, desconto_custo, schema' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = validation.data
 
     // Validar acesso ao schema
     const hasAccess = await validateSchemaAccess(supabase, user, schema)
@@ -83,29 +99,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Validar valor positivo
-    if (valor_desconto < 0) {
-      return NextResponse.json(
-        { error: 'Valor do desconto deve ser maior ou igual a zero' },
-        { status: 400 }
-      )
-    }
-
-    // Validar desconto_custo positivo
-    if (desconto_custo < 0) {
-      return NextResponse.json(
-        { error: 'Desconto custo deve ser maior ou igual a zero' },
-        { status: 400 }
-      )
-    }
-
     // Inserir desconto usando RPC
     const { data, error } = await (supabase as SupabaseClient).rpc('insert_desconto_venda', {
       p_schema: schema,
-      p_filial_id: parseInt(filial_id),
+      p_filial_id: filial_id,
       p_data_desconto: data_desconto,
-      p_valor_desconto: parseFloat(valor_desconto),
-      p_desconto_custo: parseFloat(desconto_custo),
+      p_valor_desconto: valor_desconto,
+      p_desconto_custo: desconto_custo,
       p_observacao: observacao || null,
       p_created_by: user.id
     })
@@ -151,15 +151,17 @@ export async function PUT(request: Request) {
 
     // Obter dados do request
     const body = await request.json()
-    const { id, filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = body
 
-    // Validar campos obrigatórios
-    if (!id || !filial_id || !data_desconto || valor_desconto === undefined || desconto_custo === undefined || !schema) {
+    // Validar dados com Zod
+    const validation = descontoUpdateSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: id, filial_id, data_desconto, valor_desconto, desconto_custo, schema' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+
+    const { id, filial_id, data_desconto, valor_desconto, desconto_custo, observacao, schema } = validation.data
 
     // Validar acesso ao schema
     const hasAccess = await validateSchemaAccess(supabase, user, schema)
@@ -167,30 +169,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Validar valor positivo
-    if (valor_desconto < 0) {
-      return NextResponse.json(
-        { error: 'Valor do desconto deve ser maior ou igual a zero' },
-        { status: 400 }
-      )
-    }
-
-    // Validar desconto_custo positivo
-    if (desconto_custo < 0) {
-      return NextResponse.json(
-        { error: 'Desconto custo deve ser maior ou igual a zero' },
-        { status: 400 }
-      )
-    }
-
     // Atualizar desconto usando RPC
     const { data, error } = await (supabase as SupabaseClient).rpc('update_desconto_venda', {
       p_schema: schema,
       p_id: id,
-      p_filial_id: parseInt(filial_id),
+      p_filial_id: filial_id,
       p_data_desconto: data_desconto,
-      p_valor_desconto: parseFloat(valor_desconto),
-      p_desconto_custo: parseFloat(desconto_custo),
+      p_valor_desconto: valor_desconto,
+      p_desconto_custo: desconto_custo,
       p_observacao: observacao || null
     })
 

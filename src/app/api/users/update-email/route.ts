@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
+import { z } from 'zod'
+
+const updateEmailSchema = z.object({
+  userId: z.string().uuid('ID do usuário deve ser um UUID válido'),
+  newEmail: z.string().email('Email inválido'),
+})
 
 export async function POST(request: Request) {
   try {
@@ -33,20 +40,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { userId, newEmail } = body
 
-    if (!userId || !newEmail) {
+    // Validar dados com Zod
+    const validation = updateEmailSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'ID do usuário e novo email são obrigatórios' },
+        { error: 'Dados inválidos', details: validation.error.flatten() },
         { status: 400 }
       )
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(newEmail)) {
-      return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
-    }
+    const { userId, newEmail } = validation.data
 
     // Get user to update
     const { data: userToUpdate } = (await supabase
@@ -95,10 +99,7 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error('Error updating user email:', updateError)
-      return NextResponse.json(
-        { error: 'Erro ao atualizar email: ' + updateError.message },
-        { status: 500 }
-      )
+      return safeErrorResponse(updateError, 'update-email')
     }
 
     // Invalidar todas as sessões do usuário para forçar novo login

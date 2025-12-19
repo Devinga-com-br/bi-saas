@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,10 +28,7 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[API/METAS/SETOR/UPDATE] RPC Error:', error)
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      )
+      return safeErrorResponse(error, 'metas-setor-update-valores')
     }
 
     console.log('[API/METAS/SETOR/UPDATE] Success:', data)
@@ -42,9 +40,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[API/METAS/SETOR/UPDATE] Error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro desconhecido' },
-      { status: 500 }
-    )
+    return safeErrorResponse(error, 'metas-setor-update-valores')
   }
 }

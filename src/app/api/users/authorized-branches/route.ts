@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeErrorResponse } from '@/lib/api/error-handler'
 
 // GET - Get authorized branches for a user
 export async function GET(request: Request) {
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: true })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'authorized-branches')
     }
 
     return NextResponse.json({ data })
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'authorized-branches')
     }
 
     return NextResponse.json({ data })
@@ -149,7 +150,7 @@ export async function DELETE(request: Request) {
       .eq('branch_id', branchId)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return safeErrorResponse(error, 'authorized-branches')
     }
 
     return NextResponse.json({ success: true })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserAuthorizedBranchCodes } from '@/lib/authorized-branches'
+import { safeRpcError } from '@/lib/api/error-handler'
 
 interface ContextParam {
   id: string
@@ -135,10 +136,7 @@ export async function GET(request: NextRequest) {
 
       if (rpcError) {
         console.error('[API DRE Comparativo] RPC Error for context:', ctx.id, rpcError)
-        return NextResponse.json(
-          { error: `Erro ao buscar dados para ${ctx.label}: ${rpcError.message}` },
-          { status: 500 }
-        )
+        return safeRpcError(rpcError, 'dre-comparativo')
       }
 
       // RPC returns array with single row
@@ -205,10 +203,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('[API DRE Comparativo] General error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return safeRpcError(error, 'dre-comparativo')
   }
 }
 
