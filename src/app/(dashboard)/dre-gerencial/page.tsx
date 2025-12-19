@@ -10,7 +10,7 @@ import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { type FilialOption } from '@/components/filters'
 import { DataTable } from '@/components/despesas/data-table'
 import { createColumns, type DespesaRow } from '@/components/despesas/columns'
-import { DespesasFilters } from '@/components/despesas/filters'
+import { DREFilter, type FilterConfig, type FilterType } from '@/components/despesas/dre-filter'
 import { EmptyState } from '@/components/despesas/empty-state'
 import { LoadingState } from '@/components/despesas/loading-state'
 import { IndicatorsCards } from '@/components/despesas/indicators-cards'
@@ -140,6 +140,12 @@ export default function DespesasPage() {
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<FilialOption[]>([])
   const [mes, setMes] = useState<number>(mesAnterior)
   const [ano, setAno] = useState<number>(anoMesAnterior)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [filterType, setFilterType] = useState<FilterType>('month')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [customDataInicio, setCustomDataInicio] = useState<Date | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [customDataFim, setCustomDataFim] = useState<Date | null>(null)
 
   // Estados dos dados
   const [data, setData] = useState<ReportData | null>(null)
@@ -275,6 +281,140 @@ export default function DespesasPage() {
     } catch (err) {
       console.error('[ReceitaBruta] Erro ao buscar receita bruta:', err)
       return null
+    }
+  }
+
+  // Função para buscar receita bruta com datas customizadas
+  const fetchReceitaBrutaCustom = async (
+    filiais: FilialOption[],
+    dataInicio: string,
+    dataFim: string
+  ): Promise<ReceitaBrutaPorFilial | null> => {
+    if (!currentTenant?.supabase_schema || filiais.length === 0) {
+      return null
+    }
+
+    try {
+      // Buscar receita bruta para cada filial individualmente
+      const promises = filiais.map(async (filial) => {
+        const filialId = parseInt(filial.value)
+        const params = new URLSearchParams({
+          schema: currentTenant.supabase_schema || '',
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          filiais: filial.value
+        })
+
+        const response = await fetch(`/api/dashboard?${params}`)
+        if (!response.ok) {
+          console.error(`[ReceitaBruta] Erro ao buscar filial ${filialId}`)
+          return { filialId, receita: 0, lucro_bruto: 0 }
+        }
+
+        const dashboardData: DashboardData = await response.json()
+        return {
+          filialId,
+          receita: dashboardData.total_vendas || 0,
+          lucro_bruto: dashboardData.total_lucro || 0
+        }
+      })
+
+      const results = await Promise.all(promises)
+
+      // Montar objeto com valores por filial
+      const valores_filiais: Record<number, number> = {}
+      const lucro_bruto_filiais: Record<number, number> = {}
+      let total = 0
+      let total_lucro_bruto = 0
+
+      results.forEach(({ filialId, receita, lucro_bruto }) => {
+        valores_filiais[filialId] = receita
+        lucro_bruto_filiais[filialId] = lucro_bruto
+        total += receita
+        total_lucro_bruto += lucro_bruto
+      })
+
+      return { valores_filiais, lucro_bruto_filiais, total, total_lucro_bruto }
+    } catch (err) {
+      console.error('[ReceitaBruta] Erro ao buscar receita bruta:', err)
+      return null
+    }
+  }
+
+  // Função para buscar faturamento com datas customizadas
+  const fetchFaturamentoCustom = async (
+    filiais: FilialOption[],
+    dataInicio: string,
+    dataFim: string
+  ): Promise<FaturamentoData | null> => {
+    if (!currentTenant?.supabase_schema || filiais.length === 0) {
+      return null
+    }
+
+    try {
+      const filialIds = filiais.map(f => f.value).join(',')
+
+      // Buscar totais agregados
+      const paramsTotal = new URLSearchParams({
+        schema: currentTenant.supabase_schema || '',
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds
+      })
+
+      // Buscar dados por filial
+      const paramsPorFilial = new URLSearchParams({
+        schema: currentTenant.supabase_schema || '',
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        filiais: filialIds,
+        por_filial: 'true'
+      })
+
+      const [responseTotal, responsePorFilial] = await Promise.all([
+        fetch(`/api/faturamento?${paramsTotal}`),
+        fetch(`/api/faturamento?${paramsPorFilial}`)
+      ])
+
+      if (!responseTotal.ok || !responsePorFilial.ok) {
+        console.error('[Faturamento] Erro ao buscar dados de faturamento')
+        return {
+          total: { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 },
+          por_filial: {}
+        }
+      }
+
+      const totalData = await responseTotal.json()
+      const porFilialData = await responsePorFilial.json()
+
+      // Montar objeto por filial
+      const por_filial: Record<number, { receita_faturamento: number; cmv_faturamento: number; lucro_bruto_faturamento: number }> = {}
+
+      if (Array.isArray(porFilialData)) {
+        porFilialData.forEach((item: { filial_id: number; receita_faturamento: number; cmv_faturamento: number; lucro_bruto_faturamento: number }) => {
+          por_filial[item.filial_id] = {
+            receita_faturamento: item.receita_faturamento || 0,
+            cmv_faturamento: item.cmv_faturamento || 0,
+            lucro_bruto_faturamento: item.lucro_bruto_faturamento || 0
+          }
+        })
+      }
+
+      return {
+        total: {
+          receita_faturamento: totalData.receita_faturamento || 0,
+          cmv_faturamento: totalData.cmv_faturamento || 0,
+          lucro_bruto_faturamento: totalData.lucro_bruto_faturamento || 0,
+          qtd_notas: totalData.qtd_notas || 0
+        },
+        por_filial
+      }
+    } catch (err) {
+      console.error('[Faturamento] Erro ao buscar faturamento:', err)
+      return {
+        total: { receita_faturamento: 0, cmv_faturamento: 0, lucro_bruto_faturamento: 0, qtd_notas: 0 },
+        por_filial: {}
+      }
     }
   }
 
@@ -1045,15 +1185,36 @@ export default function DespesasPage() {
   // ==================== FIM DAS FUNÇÕES DE EXPORTAÇÃO PDF ====================
 
   // Função para aplicar filtros (chamada pelo botão Filtrar)
-  const handleFilter = async (filiais: FilialOption[], mesParam: number, anoParam: number) => {
+  const handleFilter = async (config: FilterConfig) => {
+    const { filiais, filterType: newFilterType, mes: mesParam, ano: anoParam, dataInicio, dataFim } = config
+
+    // Atualizar estado do tipo de filtro
+    setFilterType(newFilterType)
+
+    // Se for período customizado, salvar as datas
+    if (newFilterType === 'custom') {
+      setCustomDataInicio(dataInicio)
+      setCustomDataFim(dataFim)
+    }
+
     if (currentTenant?.supabase_schema && filiais.length > 0) {
       setLoading(true)
       setLoadingIndicadores(true)
       setError('')
 
       try {
-        // Período atual
-        const { dataInicio, dataFim } = getDatasMesAno(mesParam, anoParam)
+        // Período atual - usar datas do config se for customizado
+        let dataInicioStr: string
+        let dataFimStr: string
+
+        if (newFilterType === 'custom') {
+          dataInicioStr = format(dataInicio, 'yyyy-MM-dd')
+          dataFimStr = format(dataFim, 'yyyy-MM-dd')
+        } else {
+          const datas = getDatasMesAno(mesParam, anoParam)
+          dataInicioStr = datas.dataInicio
+          dataFimStr = datas.dataFim
+        }
 
         // PAM - Período Anterior Mesmo
         let mesPam: number
@@ -1088,11 +1249,15 @@ export default function DespesasPage() {
 
         // Buscar em paralelo (despesas + receita bruta + faturamento)
         const [dataAtual, despesasPam, despesasPaa, receitaBruta, faturamento] = await Promise.all([
-          fetchDespesasPeriodo(filiais, dataInicio, dataFim),
+          fetchDespesasPeriodo(filiais, dataInicioStr, dataFimStr),
           fetchDespesasPeriodo(filiais, dataInicioPam, dataFimPam),
           fetchDespesasPeriodo(filiais, dataInicioPaa, dataFimPaa),
-          fetchReceitaBrutaPorFilial(filiais, mesParam, anoParam),
-          fetchFaturamento(filiais, mesParam, anoParam)
+          newFilterType === 'custom'
+            ? fetchReceitaBrutaCustom(filiais, dataInicioStr, dataFimStr)
+            : fetchReceitaBrutaPorFilial(filiais, mesParam, anoParam),
+          newFilterType === 'custom'
+            ? fetchFaturamentoCustom(filiais, dataInicioStr, dataFimStr)
+            : fetchFaturamento(filiais, mesParam, anoParam)
         ])
 
         setData(dataAtual)
@@ -1369,7 +1534,16 @@ export default function DespesasPage() {
   // Carregar dados inicialmente
   useEffect(() => {
     if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && !isLoadingBranches && !data) {
-      handleFilter(filiaisSelecionadas, mes, ano)
+      // Criar config inicial
+      const initialConfig: FilterConfig = {
+        filiais: filiaisSelecionadas,
+        filterType: 'month',
+        mes,
+        ano,
+        dataInicio: startOfMonth(new Date(ano, mes)),
+        dataFim: endOfMonth(new Date(ano, mes))
+      }
+      handleFilter(initialConfig)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.supabase_schema, filiaisSelecionadas.length, isLoadingBranches, data])
@@ -1856,7 +2030,7 @@ export default function DespesasPage() {
       <Separator />
 
       {/* Filtros */}
-      <DespesasFilters
+      <DREFilter
         filiaisSelecionadas={filiaisSelecionadas}
         setFiliaisSelecionadas={setFiliaisSelecionadas}
         mes={mes}

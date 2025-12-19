@@ -59,6 +59,10 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false)
   const [showEndDatePicker, setShowEndDatePicker] = useState(false)
 
+  // Estados para controlar o mês exibido no calendário (mantém o mês selecionado ao reabrir)
+  const [startMonth, setStartMonth] = useState<Date | undefined>(undefined)
+  const [endMonth, setEndMonth] = useState<Date | undefined>(undefined)
+
   // Inicialização - aplica filtro do mês atual
   useEffect(() => {
     const monthIndex = parseInt(selectedMonth)
@@ -133,21 +137,32 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
       const lastDay = endOfMonth(now)
       setStartDateInput(format(firstDay, 'dd/MM/yyyy'))
       setEndDateInput(format(lastDay, 'dd/MM/yyyy'))
+      setStartMonth(firstDay) // Inicializa o mês do calendário
+      setEndMonth(lastDay)    // Inicializa o mês do calendário
       onPeriodChange(firstDay, lastDay, 'custom')
     }
   }
 
   const handleStartDateChange = (value: string) => {
     setStartDateInput(value)
+    const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+    if (isValid(parsedDate)) {
+      setStartMonth(parsedDate)
+    }
   }
 
   const handleEndDateChange = (value: string) => {
     setEndDateInput(value)
+    const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+    if (isValid(parsedDate)) {
+      setEndMonth(parsedDate)
+    }
   }
 
   const handleStartDateSelect = (date: Date | undefined) => {
     if (date) {
       setStartDateInput(format(date, 'dd/MM/yyyy'))
+      setStartMonth(date) // Mantém o mês selecionado
       setShowStartDatePicker(false)
     }
   }
@@ -155,6 +170,7 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
   const handleEndDateSelect = (date: Date | undefined) => {
     if (date) {
       setEndDateInput(format(date, 'dd/MM/yyyy'))
+      setEndMonth(date) // Mantém o mês selecionado
       setShowEndDatePicker(false)
     }
   }
@@ -239,11 +255,14 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
                     <CalendarIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : undefined}
                     onSelect={handleStartDateSelect}
+                    month={startMonth}
+                    onMonthChange={setStartMonth}
+                    captionLayout="dropdown"
                     locale={ptBR}
                     initialFocus
                   />
@@ -277,11 +296,14 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
                     <CalendarIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={endDateInput ? parse(endDateInput, 'dd/MM/yyyy', new Date()) : undefined}
                     onSelect={handleEndDateSelect}
+                    month={endMonth}
+                    onMonthChange={setEndMonth}
+                    captionLayout="dropdown"
                     locale={ptBR}
                     disabled={(date) => {
                       const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : undefined
