@@ -359,6 +359,8 @@ export function DREFilter({
                         month={startMonth}
                         onMonthChange={setStartMonth}
                         captionLayout="dropdown"
+                        startMonth={new Date(2020, 0)}
+                        endMonth={new Date(2030, 11)}
                         locale={ptBR}
                         initialFocus
                       />
@@ -400,6 +402,8 @@ export function DREFilter({
                         month={endMonth}
                         onMonthChange={setEndMonth}
                         captionLayout="dropdown"
+                        startMonth={new Date(2020, 0)}
+                        endMonth={new Date(2030, 11)}
                         locale={ptBR}
                         disabled={(date) => {
                           const startDate = startDateInput ? parse(startDateInput, 'dd/MM/yyyy', new Date()) : undefined

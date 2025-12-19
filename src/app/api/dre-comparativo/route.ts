@@ -9,6 +9,8 @@ interface ContextParam {
   filiais: string[]
   mes: number
   ano: number
+  data_inicio?: string  // Format: yyyy-MM-dd
+  data_fim?: string     // Format: yyyy-MM-dd
 }
 
 interface DREData {
@@ -117,6 +119,8 @@ export async function GET(request: NextRequest) {
         filiais: c.filiais,
         mes: c.mes,
         ano: c.ano,
+        data_inicio: c.data_inicio,
+        data_fim: c.data_fim,
       })),
     })
 
@@ -126,13 +130,33 @@ export async function GET(request: NextRequest) {
     for (const ctx of contexts) {
       const filiaisIds = ctx.filiais.map(f => parseInt(f, 10))
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_dre_comparativo_data', {
-        p_schema: schema,
-        p_filiais_ids: filiaisIds,
-        p_mes: ctx.mes,
-        p_ano: ctx.ano,
-      })
+      // Use v2 function with dates if data_inicio and data_fim are provided
+      // Otherwise fall back to original function with mes/ano
+      let rpcData, rpcError
+
+      if (ctx.data_inicio && ctx.data_fim) {
+        // Use new v2 function with date range
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await (supabase.rpc as any)('get_dre_comparativo_data_v2', {
+          p_schema: schema,
+          p_filiais_ids: filiaisIds,
+          p_data_inicio: ctx.data_inicio,
+          p_data_fim: ctx.data_fim,
+        })
+        rpcData = result.data
+        rpcError = result.error
+      } else {
+        // Fall back to original function with mes/ano
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await (supabase.rpc as any)('get_dre_comparativo_data', {
+          p_schema: schema,
+          p_filiais_ids: filiaisIds,
+          p_mes: ctx.mes,
+          p_ano: ctx.ano,
+        })
+        rpcData = result.data
+        rpcError = result.error
+      }
 
       if (rpcError) {
         console.error('[API DRE Comparativo] RPC Error for context:', ctx.id, rpcError)

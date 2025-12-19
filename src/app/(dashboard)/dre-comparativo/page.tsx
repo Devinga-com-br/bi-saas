@@ -6,13 +6,20 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, X, FileBarChart, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, X, FileBarChart, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
 import { Fragment } from 'react'
+import { format, parse, isValid, startOfMonth, endOfMonth } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+
+type PeriodType = 'month' | 'year' | 'custom'
 import {
   Table,
   TableBody,
@@ -27,8 +34,14 @@ interface ComparisonContext {
   id: string
   label: string
   filiais: { value: string; label: string }[]
-  mes: string
-  ano: string
+  periodoTipo: PeriodType
+  mes: number
+  ano: number
+  dataInicio: Date
+  dataFim: Date
+  // Estados do datepicker
+  startDateInput: string
+  endDateInput: string
 }
 
 // Interface para dados do DRE
@@ -47,21 +60,42 @@ interface DREComparativeData {
   contextos: { id: string; label: string }[]
 }
 
-// Meses disponíveis
+// Meses disponíveis (índice 0-11)
 const MESES = [
-  { value: '1', label: 'Janeiro' },
-  { value: '2', label: 'Fevereiro' },
-  { value: '3', label: 'Março' },
-  { value: '4', label: 'Abril' },
-  { value: '5', label: 'Maio' },
-  { value: '6', label: 'Junho' },
-  { value: '7', label: 'Julho' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Setembro' },
-  { value: '10', label: 'Outubro' },
-  { value: '11', label: 'Novembro' },
-  { value: '12', label: 'Dezembro' },
+  { value: '0', label: 'Janeiro' },
+  { value: '1', label: 'Fevereiro' },
+  { value: '2', label: 'Março' },
+  { value: '3', label: 'Abril' },
+  { value: '4', label: 'Maio' },
+  { value: '5', label: 'Junho' },
+  { value: '6', label: 'Julho' },
+  { value: '7', label: 'Agosto' },
+  { value: '8', label: 'Setembro' },
+  { value: '9', label: 'Outubro' },
+  { value: '10', label: 'Novembro' },
+  { value: '11', label: 'Dezembro' },
 ]
+
+// Helper para criar datas do período
+const createPeriodDates = (tipo: PeriodType, mes: number, ano: number, startInput?: string, endInput?: string) => {
+  if (tipo === 'custom' && startInput && endInput) {
+    const start = parse(startInput, 'dd/MM/yyyy', new Date())
+    const end = parse(endInput, 'dd/MM/yyyy', new Date())
+    if (isValid(start) && isValid(end)) {
+      return { dataInicio: start, dataFim: end }
+    }
+  }
+  if (tipo === 'year') {
+    return {
+      dataInicio: new Date(ano, 0, 1),
+      dataFim: new Date(ano, 11, 31)
+    }
+  }
+  return {
+    dataInicio: startOfMonth(new Date(ano, mes)),
+    dataFim: endOfMonth(new Date(ano, mes))
+  }
+}
 
 // Gerar ID único
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -110,25 +144,38 @@ export default function DREComparativoPage() {
   // Inicializar com 2 contextos padrão
   useEffect(() => {
     if (todasAsFiliais.length > 0 && contexts.length === 0) {
-      const mesAnterior = currentDate.getMonth() === 0 ? '12' : currentDate.getMonth().toString()
+      const mesAnterior = currentDate.getMonth() === 0 ? 11 : currentDate.getMonth() - 1
       const anoMesAnterior = currentDate.getMonth() === 0
-        ? (currentDate.getFullYear() - 1).toString()
-        : currentYear
+        ? currentDate.getFullYear() - 1
+        : currentDate.getFullYear()
+
+      const datas1 = createPeriodDates('month', mesAnterior, anoMesAnterior)
+      const datas2 = createPeriodDates('month', mesAnterior, anoMesAnterior - 1)
 
       setContexts([
         {
           id: generateId(),
           label: 'Comparação 1',
           filiais: [...todasAsFiliais],
+          periodoTipo: 'month',
           mes: mesAnterior,
           ano: anoMesAnterior,
+          dataInicio: datas1.dataInicio,
+          dataFim: datas1.dataFim,
+          startDateInput: '',
+          endDateInput: '',
         },
         {
           id: generateId(),
           label: 'Comparação 2',
           filiais: [...todasAsFiliais],
+          periodoTipo: 'month',
           mes: mesAnterior,
-          ano: (parseInt(anoMesAnterior) - 1).toString(),
+          ano: anoMesAnterior - 1,
+          dataInicio: datas2.dataInicio,
+          dataFim: datas2.dataFim,
+          startDateInput: '',
+          endDateInput: '',
         },
       ])
     }
@@ -139,12 +186,21 @@ export default function DREComparativoPage() {
   const addContext = () => {
     if (contexts.length >= 4) return
 
+    const mesNum = parseInt(currentMonth) - 1 // Converter para índice 0-11
+    const anoNum = parseInt(currentYear)
+    const datas = createPeriodDates('month', mesNum, anoNum)
+
     const newContext: ComparisonContext = {
       id: generateId(),
       label: `Comparação ${contexts.length + 1}`,
       filiais: [...todasAsFiliais],
-      mes: currentMonth,
-      ano: currentYear,
+      periodoTipo: 'month',
+      mes: mesNum,
+      ano: anoNum,
+      dataInicio: datas.dataInicio,
+      dataFim: datas.dataFim,
+      startDateInput: '',
+      endDateInput: '',
     }
     setContexts([...contexts, newContext])
   }
@@ -183,8 +239,10 @@ export default function DREComparativoPage() {
           id: c.id,
           label: c.label,
           filiais: c.filiais.map(f => f.value),
-          mes: parseInt(c.mes),
-          ano: parseInt(c.ano),
+          mes: c.periodoTipo === 'year' ? -1 : c.mes + 1, // API espera 1-12, -1 para ano
+          ano: c.ano,
+          data_inicio: format(c.dataInicio, 'yyyy-MM-dd'),
+          data_fim: format(c.dataFim, 'yyyy-MM-dd'),
         }))),
       })
 
@@ -263,13 +321,22 @@ export default function DREComparativoPage() {
 
   // Gerar label do contexto para exibição
   const getContextDisplayLabel = (ctx: ComparisonContext) => {
-    const mesLabel = MESES.find(m => m.value === ctx.mes)?.label || ctx.mes
+    let periodoLabel: string
+    if (ctx.periodoTipo === 'year') {
+      periodoLabel = `${ctx.ano}`
+    } else if (ctx.periodoTipo === 'custom') {
+      periodoLabel = `${format(ctx.dataInicio, 'dd/MM/yy')} - ${format(ctx.dataFim, 'dd/MM/yy')}`
+    } else {
+      const mesLabel = MESES.find(m => m.value === ctx.mes.toString())?.label || ctx.mes
+      periodoLabel = `${mesLabel}/${ctx.ano}`
+    }
+
     const filiaisLabel = ctx.filiais.length === todasAsFiliais.length
       ? 'Todas'
       : ctx.filiais.length === 1
         ? ctx.filiais[0].label
         : `${ctx.filiais.length} filiais`
-    return `${mesLabel}/${ctx.ano} - ${filiaisLabel}`
+    return `${periodoLabel} - ${filiaisLabel}`
   }
 
   return (
@@ -334,44 +401,244 @@ export default function DREComparativoPage() {
                     />
                   </div>
 
-                  {/* Mês e Ano */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Mês</Label>
+                  {/* Período - Todos os campos em linha no desktop */}
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:gap-2">
+                    {/* Tipo de Período */}
+                    <div className="space-y-1 w-full lg:w-[130px] flex-shrink-0">
+                      <Label className="text-xs">Período</Label>
                       <Select
-                        value={ctx.mes}
-                        onValueChange={(value) => updateContext(ctx.id, { mes: value })}
+                        value={ctx.periodoTipo}
+                        onValueChange={(value: PeriodType) => {
+                          if (value === 'custom') {
+                            const now = new Date()
+                            const firstDay = startOfMonth(now)
+                            const lastDay = endOfMonth(now)
+                            updateContext(ctx.id, {
+                              periodoTipo: value,
+                              startDateInput: format(firstDay, 'dd/MM/yyyy'),
+                              endDateInput: format(lastDay, 'dd/MM/yyyy'),
+                              dataInicio: firstDay,
+                              dataFim: lastDay,
+                            })
+                          } else {
+                            const datas = createPeriodDates(value, ctx.mes, ctx.ano)
+                            updateContext(ctx.id, {
+                              periodoTipo: value,
+                              dataInicio: datas.dataInicio,
+                              dataFim: datas.dataFim,
+                            })
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {MESES.map((m) => (
-                            <SelectItem key={m.value} value={m.value}>
-                              {m.label}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="month">Mês</SelectItem>
+                          <SelectItem value="year">Ano</SelectItem>
+                          <SelectItem value="custom">Customizado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Ano</Label>
-                      <Select
-                        value={ctx.ano}
-                        onValueChange={(value) => updateContext(ctx.id, { ano: value })}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {anos.map((a) => (
-                            <SelectItem key={a.value} value={a.value}>
-                              {a.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                    {/* Campos dinâmicos baseado no tipo de período */}
+                    {ctx.periodoTipo === 'month' && (
+                      <>
+                        <div className="space-y-1 w-full lg:w-[120px] flex-shrink-0">
+                          <Label className="text-xs">Mês</Label>
+                          <Select
+                            value={ctx.mes.toString()}
+                            onValueChange={(value) => {
+                              const mesNum = parseInt(value)
+                              const datas = createPeriodDates('month', mesNum, ctx.ano)
+                              updateContext(ctx.id, {
+                                mes: mesNum,
+                                dataInicio: datas.dataInicio,
+                                dataFim: datas.dataFim,
+                              })
+                            }}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MESES.map((m) => (
+                                <SelectItem key={m.value} value={m.value}>
+                                  {m.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1 w-full lg:w-[90px] flex-shrink-0">
+                          <Label className="text-xs">Ano</Label>
+                          <Select
+                            value={ctx.ano.toString()}
+                            onValueChange={(value) => {
+                              const anoNum = parseInt(value)
+                              const datas = createPeriodDates('month', ctx.mes, anoNum)
+                              updateContext(ctx.id, {
+                                ano: anoNum,
+                                dataInicio: datas.dataInicio,
+                                dataFim: datas.dataFim,
+                              })
+                            }}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {anos.map((a) => (
+                                <SelectItem key={a.value} value={a.value}>
+                                  {a.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+
+                    {ctx.periodoTipo === 'year' && (
+                      <div className="space-y-1 w-full lg:w-[90px] flex-shrink-0">
+                        <Label className="text-xs">Ano</Label>
+                        <Select
+                          value={ctx.ano.toString()}
+                          onValueChange={(value) => {
+                            const anoNum = parseInt(value)
+                            const datas = createPeriodDates('year', ctx.mes, anoNum)
+                            updateContext(ctx.id, {
+                              ano: anoNum,
+                              dataInicio: datas.dataInicio,
+                              dataFim: datas.dataFim,
+                            })
+                          }}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {anos.map((a) => (
+                              <SelectItem key={a.value} value={a.value}>
+                                {a.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {ctx.periodoTipo === 'custom' && (
+                      <>
+                        <div className="space-y-1 w-full lg:w-[120px] flex-shrink-0">
+                          <Label className="text-xs">Início</Label>
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="dd/mm/aaaa"
+                              value={ctx.startDateInput}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+                                updateContext(ctx.id, {
+                                  startDateInput: value,
+                                  ...(isValid(parsedDate) && { dataInicio: parsedDate }),
+                                })
+                              }}
+                              className="h-9 text-xs text-center pr-8"
+                              maxLength={10}
+                            />
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                >
+                                  <CalendarIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={ctx.startDateInput ? parse(ctx.startDateInput, 'dd/MM/yyyy', new Date()) : undefined}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      updateContext(ctx.id, {
+                                        startDateInput: format(date, 'dd/MM/yyyy'),
+                                        dataInicio: date,
+                                      })
+                                    }
+                                  }}
+                                  defaultMonth={ctx.startDateInput ? parse(ctx.startDateInput, 'dd/MM/yyyy', new Date()) : new Date()}
+                                  captionLayout="dropdown"
+                                  startMonth={new Date(2020, 0)}
+                                  endMonth={new Date(2030, 11)}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                        <span className="hidden lg:block text-muted-foreground self-end pb-2">→</span>
+                        <div className="space-y-1 w-full lg:w-[120px] flex-shrink-0">
+                          <Label className="text-xs">Fim</Label>
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="dd/mm/aaaa"
+                              value={ctx.endDateInput}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                const parsedDate = parse(value, 'dd/MM/yyyy', new Date())
+                                updateContext(ctx.id, {
+                                  endDateInput: value,
+                                  ...(isValid(parsedDate) && { dataFim: parsedDate }),
+                                })
+                              }}
+                              className="h-9 text-xs text-center pr-8"
+                              maxLength={10}
+                            />
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                >
+                                  <CalendarIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={ctx.endDateInput ? parse(ctx.endDateInput, 'dd/MM/yyyy', new Date()) : undefined}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      updateContext(ctx.id, {
+                                        endDateInput: format(date, 'dd/MM/yyyy'),
+                                        dataFim: date,
+                                      })
+                                    }
+                                  }}
+                                  defaultMonth={ctx.endDateInput ? parse(ctx.endDateInput, 'dd/MM/yyyy', new Date()) : new Date()}
+                                  captionLayout="dropdown"
+                                  startMonth={new Date(2020, 0)}
+                                  endMonth={new Date(2030, 11)}
+                                  locale={ptBR}
+                                  disabled={(date) => {
+                                    const startDate = ctx.startDateInput ? parse(ctx.startDateInput, 'dd/MM/yyyy', new Date()) : undefined
+                                    return startDate && isValid(startDate) ? date < startDate : false
+                                  }}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
