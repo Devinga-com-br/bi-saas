@@ -410,7 +410,7 @@ export default function RupturaVenda60dPage() {
 
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      const ExcelJS = await import('exceljs')
 
       // Buscar todos os dados
       const supabase = createClient()
@@ -473,30 +473,34 @@ export default function RupturaVenda60dPage() {
         })
       }
 
-      const worksheet = XLSX.utils.json_to_sheet(rows)
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet('Dias sem Giro')
 
-      // Ajustar largura das colunas
-      worksheet['!cols'] = [
-        { wch: 20 }, // Segmento
-        { wch: 20 }, // Grupo
-        { wch: 20 }, // Subgrupo
-        { wch: 18 }, // Filial
-        { wch: 10 }, // Código
-        { wch: 45 }, // Descrição
-        { wch: 12 }, // Estoque
-        { wch: 8 },  // Curva
-        { wch: 12 }, // Freq. Giro
-        { wch: 12 }, // Giro Médio
-        { wch: 14 }, // Valor Parado
-        { wch: 10 }, // Nível
-      ]
+      // Add headers from first row keys
+      if (rows.length > 0) {
+        worksheet.columns = Object.keys(rows[0]).map(key => ({
+          header: key,
+          key: key,
+          width: key === 'Descrição' ? 45 :
+                 key === 'Segmento' || key === 'Grupo' || key === 'Subgrupo' ? 20 :
+                 key === 'Filial' ? 18 :
+                 key === 'Valor Parado' ? 14 :
+                 key === 'Estoque' || key === 'Freq. Giro' || key === 'Giro Médio' ? 12 :
+                 key === 'Código' || key === 'Nível' ? 10 :
+                 key === 'Curva' ? 8 : 15
+        }))
+        worksheet.addRows(rows)
+      }
 
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Dias sem Giro')
-      XLSX.writeFile(
-        workbook,
-        `dias-sem-giro-${new Date().toISOString().split('T')[0]}.xlsx`
-      )
+      // Download file
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dias-sem-giro-${new Date().toISOString().split('T')[0]}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Erro ao exportar Excel:', err)
       alert('Erro ao exportar Excel')

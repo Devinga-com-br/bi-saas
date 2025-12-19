@@ -702,7 +702,7 @@ export default function PrevisaoRupturaPage() {
 
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      const ExcelJS = await import('exceljs')
 
       // Buscar todos os dados
       const params = new URLSearchParams({
@@ -744,7 +744,7 @@ export default function PrevisaoRupturaPage() {
       const response = await fetch(`/api/relatorios/previsao-ruptura?${params}`)
       const allData: ReportData = await response.json()
 
-      const workbook = XLSX.utils.book_new()
+      const workbook = new ExcelJS.Workbook()
 
       // Se filtro por setor, organizar hierarquicamente com coluna Setor
       if (tipoBusca === 'setor') {
@@ -790,23 +790,23 @@ export default function PrevisaoRupturaPage() {
             })
         })
 
-        const worksheet = XLSX.utils.json_to_sheet(rows)
+        const worksheet = workbook.addWorksheet('Previsão por Setor')
 
-        // Ajustar largura das colunas
-        worksheet['!cols'] = [
-          { wch: 25 }, // Setor
-          { wch: 25 }, // Departamento
-          { wch: 10 }, // Código
-          { wch: 45 }, // Descrição
-          { wch: 15 }, // Filial
-          { wch: 8 },  // Curva
-          { wch: 12 }, // Estoque Atual
-          { wch: 14 }, // Venda Média/Dia
-          { wch: 14 }, // Dias de Estoque
-          { wch: 14 }, // Previsão Ruptura
-        ]
-
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Previsão por Setor')
+        // Add headers from first row keys
+        if (rows.length > 0) {
+          worksheet.columns = Object.keys(rows[0]).map(key => ({
+            header: key,
+            key: key,
+            width: key === 'Descrição' ? 45 :
+                   key === 'Setor' || key === 'Departamento' ? 25 :
+                   key === 'Filial' ? 15 :
+                   key === 'Venda Média/Dia' || key === 'Dias de Estoque' || key === 'Previsão Ruptura' ? 14 :
+                   key === 'Estoque Atual' ? 12 :
+                   key === 'Código' ? 10 :
+                   key === 'Curva' ? 8 : 15
+          }))
+          worksheet.addRows(rows)
+        }
       } else {
         // Layout padrão - por departamento
         const allProdutos = allData.departamentos.flatMap((dept) =>
@@ -828,28 +828,34 @@ export default function PrevisaoRupturaPage() {
           'Previsão Ruptura': p.previsao_ruptura,
         }))
 
-        const worksheet = XLSX.utils.json_to_sheet(rows)
+        const worksheet = workbook.addWorksheet('Previsão Ruptura')
 
-        // Ajustar largura das colunas
-        worksheet['!cols'] = [
-          { wch: 25 }, // Departamento
-          { wch: 10 }, // Código
-          { wch: 45 }, // Descrição
-          { wch: 15 }, // Filial
-          { wch: 8 },  // Curva
-          { wch: 12 }, // Estoque Atual
-          { wch: 14 }, // Venda Média/Dia
-          { wch: 14 }, // Dias de Estoque
-          { wch: 14 }, // Previsão Ruptura
-        ]
-
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Previsão Ruptura')
+        // Add headers from first row keys
+        if (rows.length > 0) {
+          worksheet.columns = Object.keys(rows[0]).map(key => ({
+            header: key,
+            key: key,
+            width: key === 'Descrição' ? 45 :
+                   key === 'Departamento' ? 25 :
+                   key === 'Filial' ? 15 :
+                   key === 'Venda Média/Dia' || key === 'Dias de Estoque' || key === 'Previsão Ruptura' ? 14 :
+                   key === 'Estoque Atual' ? 12 :
+                   key === 'Código' ? 10 :
+                   key === 'Curva' ? 8 : 15
+          }))
+          worksheet.addRows(rows)
+        }
       }
 
-      XLSX.writeFile(
-        workbook,
-        `previsao-ruptura-${new Date().toISOString().split('T')[0]}.xlsx`
-      )
+      // Download file
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `previsao-ruptura-${new Date().toISOString().split('T')[0]}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Erro ao exportar Excel:', err)
       alert('Erro ao exportar Excel')

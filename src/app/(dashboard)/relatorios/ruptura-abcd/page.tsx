@@ -651,7 +651,7 @@ export default function RupturaABCDPage() {
 
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      const ExcelJS = await import('exceljs')
 
       // Buscar todos os dados
       const params = new URLSearchParams({
@@ -692,7 +692,7 @@ export default function RupturaABCDPage() {
       const response = await fetch(`/api/relatorios/ruptura-abcd?${params}`)
       const allData: ReportData = await response.json()
 
-      const workbook = XLSX.utils.book_new()
+      const workbook = new ExcelJS.Workbook()
 
       // Se filtro por setor, organizar hierarquicamente com coluna Setor
       if (tipoBusca === 'setor') {
@@ -738,23 +738,23 @@ export default function RupturaABCDPage() {
             })
         })
 
-        const worksheet = XLSX.utils.json_to_sheet(rows)
+        const worksheet = workbook.addWorksheet('Ruptura por Setor')
 
-        // Ajustar largura das colunas
-        worksheet['!cols'] = [
-          { wch: 25 }, // Setor
-          { wch: 25 }, // Departamento
-          { wch: 10 }, // Código
-          { wch: 45 }, // Descrição
-          { wch: 15 }, // Filial
-          { wch: 10 }, // C. Lucro
-          { wch: 10 }, // C. Venda
-          { wch: 12 }, // Estoque Atual
-          { wch: 18 }, // Filial Transfer
-          { wch: 14 }, // Estoque Transfer
-        ]
-
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Ruptura por Setor')
+        // Add headers from first row keys
+        if (rows.length > 0) {
+          worksheet.columns = Object.keys(rows[0]).map(key => ({
+            header: key,
+            key: key,
+            width: key === 'Descrição' ? 45 :
+                   key === 'Setor' || key === 'Departamento' ? 25 :
+                   key === 'Filial Transfer' ? 18 :
+                   key === 'Filial' ? 15 :
+                   key === 'Estoque Transfer' ? 14 :
+                   key === 'Estoque Atual' ? 12 :
+                   key === 'C. Lucro' || key === 'C. Venda' || key === 'Código' ? 10 : 15
+          }))
+          worksheet.addRows(rows)
+        }
       } else {
         // Layout padrão - por departamento
         const allProdutos = allData.departamentos.flatMap((dept) =>
@@ -776,28 +776,34 @@ export default function RupturaABCDPage() {
           'Estoque Transfer': p.estoque_transfer || '-',
         }))
 
-        const worksheet = XLSX.utils.json_to_sheet(rows)
+        const worksheet = workbook.addWorksheet('Ruptura ABCD')
 
-        // Ajustar largura das colunas
-        worksheet['!cols'] = [
-          { wch: 25 }, // Departamento
-          { wch: 10 }, // Código
-          { wch: 45 }, // Descrição
-          { wch: 15 }, // Filial
-          { wch: 10 }, // C. Lucro
-          { wch: 10 }, // C. Venda
-          { wch: 12 }, // Estoque Atual
-          { wch: 18 }, // Filial Transfer
-          { wch: 14 }, // Estoque Transfer
-        ]
-
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Ruptura ABCD')
+        // Add headers from first row keys
+        if (rows.length > 0) {
+          worksheet.columns = Object.keys(rows[0]).map(key => ({
+            header: key,
+            key: key,
+            width: key === 'Descrição' ? 45 :
+                   key === 'Departamento' ? 25 :
+                   key === 'Filial Transfer' ? 18 :
+                   key === 'Filial' ? 15 :
+                   key === 'Estoque Transfer' ? 14 :
+                   key === 'Estoque Atual' ? 12 :
+                   key === 'C. Lucro' || key === 'C. Venda' || key === 'Código' ? 10 : 15
+          }))
+          worksheet.addRows(rows)
+        }
       }
 
-      XLSX.writeFile(
-        workbook,
-        `ruptura-abcd-${new Date().toISOString().split('T')[0]}.xlsx`
-      )
+      // Download file
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ruptura-abcd-${new Date().toISOString().split('T')[0]}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Erro ao exportar Excel:', err)
       alert('Erro ao exportar Excel')
