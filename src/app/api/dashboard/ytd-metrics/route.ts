@@ -106,18 +106,15 @@ export async function GET(req: Request) {
     console.log('[API/DASHBOARD/YTD] RPC Params:', JSON.stringify(rpcParams, null, 2));
 
     // Usar client direto
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await directSupabase.rpc('get_dashboard_ytd_metrics', rpcParams as any).single();
 
     if (error) {
       console.error('[API/DASHBOARD/YTD] RPC Error:', error);
-      return NextResponse.json({ error: 'Error fetching YTD metrics', details: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Error fetching YTD metrics' }, { status: 500 });
     }
 
     return NextResponse.json(data);
@@ -125,6 +122,6 @@ export async function GET(req: Request) {
   } catch (e) {
     const error = e as Error;
     console.error('Unexpected error in dashboard YTD API:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

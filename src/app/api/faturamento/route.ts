@@ -107,11 +107,8 @@ export async function GET(req: Request) {
     }
 
     // Usar client direto com service role para acessar funções
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // Escolher função RPC baseado no parâmetro por_filial
     const rpcName = por_filial === 'true' ? 'get_faturamento_por_filial' : 'get_faturamento_data'
@@ -145,7 +142,7 @@ export async function GET(req: Request) {
 
       console.error('[API/FATURAMENTO] RPC Error:', error)
       return NextResponse.json(
-        { error: 'Error fetching faturamento data', details: error.message },
+        { error: 'Error fetching faturamento data' },
         { status: 500 }
       )
     }
@@ -161,7 +158,7 @@ export async function GET(req: Request) {
     const error = e as Error
     console.error('[API/FATURAMENTO] Unexpected error:', error)
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: error.message },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

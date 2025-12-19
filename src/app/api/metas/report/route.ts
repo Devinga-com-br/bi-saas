@@ -87,33 +87,18 @@ export async function GET(request: NextRequest) {
       p_filial_ids: finalFilialIds
     }
 
-    console.log('[API/METAS/REPORT] 📊 Calling RPC with params:', JSON.stringify(params, null, 2))
-    console.log('[API/METAS/REPORT] 🔍 Requested filial:', requestedFilialId)
-    console.log('[API/METAS/REPORT] 🔍 Final filial IDs:', finalFilialIds)
-    console.log('[API/METAS/REPORT] 🔍 Is single filial?', finalFilialIds?.length === 1)
-    console.log('[API/METAS/REPORT] 🔍 Authorized branches:', authorizedBranches)
-
-    // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Usar client admin para RPC
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error} = await (directSupabase as any).rpc('get_metas_mensais_report', params)
 
     if (error) {
-      console.error('[API/METAS/REPORT] ❌ RPC Error:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      })
-      
+      console.error('[API/METAS/REPORT] RPC Error:', error)
+
       // Se a tabela não existe (primeira vez), retornar dados vazios ao invés de erro
       if (error.message && error.message.includes('does not exist')) {
-        console.log('[API/METAS/REPORT] ⚠️ Tabela não existe ainda, retornando dados vazios')
         return NextResponse.json({
           metas: [],
           total_realizado: 0,
@@ -124,22 +109,12 @@ export async function GET(request: NextRequest) {
           percentual_atingido_d1: 0
         })
       }
-      
+
       return NextResponse.json(
-        { error: error.message || 'Erro ao buscar metas' },
+        { error: 'Erro ao buscar metas' },
         { status: 500 }
       )
     }
-
-    console.log('[API/METAS/REPORT] ✅ Success, data type:', typeof data)
-    console.log('[API/METAS/REPORT] 📋 Data structure:', {
-      hasMetas: !!data?.metas,
-      metasLength: data?.metas?.length,
-      firstDate: data?.metas?.[0]?.data,
-      lastDate: data?.metas?.[data?.metas?.length - 1]?.data,
-      totalRealizado: data?.total_realizado,
-      totalMeta: data?.total_meta
-    })
 
     return NextResponse.json(data || {
       metas: [],

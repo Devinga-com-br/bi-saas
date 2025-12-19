@@ -1,9 +1,26 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 
 /**
+ * Error thrown when branch authorization cannot be determined.
+ * This should result in denying access (fail-closed behavior).
+ */
+export class BranchAuthorizationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BranchAuthorizationError'
+  }
+}
+
+/**
  * Get authorized branch IDs for a user.
  * Returns null if user has access to all branches (no restrictions).
  * Returns array of branch IDs if user has restricted access.
+ *
+ * SECURITY: This function uses fail-closed behavior.
+ * If there's an error fetching authorization, it throws an error
+ * instead of allowing unrestricted access.
+ *
+ * @throws BranchAuthorizationError if authorization cannot be determined
  */
 export async function getUserAuthorizedBranchIds(
   supabase: SupabaseClient,
@@ -16,7 +33,10 @@ export async function getUserAuthorizedBranchIds(
 
   if (error) {
     console.error('Error fetching authorized branches:', error)
-    return null // On error, allow all (fail open for better UX)
+    // SECURITY: Fail closed - deny access if we can't determine authorization
+    throw new BranchAuthorizationError(
+      'Unable to determine branch authorization. Access denied for security.'
+    )
   }
 
   // If no authorized branches, user has access to all
@@ -32,6 +52,12 @@ export async function getUserAuthorizedBranchIds(
  * Get authorized branch codes for a user.
  * Returns null if user has access to all branches (no restrictions).
  * Returns array of branch codes if user has restricted access.
+ *
+ * SECURITY: This function uses fail-closed behavior.
+ * If there's an error fetching authorization, it throws an error
+ * instead of allowing unrestricted access.
+ *
+ * @throws BranchAuthorizationError if authorization cannot be determined
  */
 export async function getUserAuthorizedBranchCodes(
   supabase: SupabaseClient,
@@ -44,7 +70,10 @@ export async function getUserAuthorizedBranchCodes(
 
   if (error) {
     console.error('Error fetching authorized branches:', error)
-    return null // On error, allow all (fail open for better UX)
+    // SECURITY: Fail closed - deny access if we can't determine authorization
+    throw new BranchAuthorizationError(
+      'Unable to determine branch authorization. Access denied for security.'
+    )
   }
 
   // If no authorized branches, user has access to all

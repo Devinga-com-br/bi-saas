@@ -103,11 +103,8 @@ export async function GET(req: Request) {
     }
 
     // Direct Supabase client for schema queries
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // Query vendas_hoje_itens
     let itensQuery = directSupabase
@@ -125,7 +122,7 @@ export async function GET(req: Request) {
     if (itensError) {
       console.error('[API/DASHBOARD-TEMPO-REAL/DEPARTAMENTOS] Itens Query Error:', itensError.message)
       return NextResponse.json(
-        { error: 'Error fetching items data', details: itensError.message },
+        { error: 'Error fetching items data' },
         { status: 500 }
       )
     }
@@ -242,7 +239,7 @@ export async function GET(req: Request) {
     const error = e as Error
     console.error('Unexpected error in dashboard-tempo-real/departamentos-receita API:', error)
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: error.message },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

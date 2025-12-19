@@ -148,7 +148,7 @@ export async function GET(req: Request) {
     if (error) {
       console.error('[API/RELATORIOS/RUPTURA-ABCD] RPC Error:', error)
       return NextResponse.json(
-        { error: 'Error fetching report data', details: error.message },
+        { error: 'Error fetching report data' },
         { status: 500 }
       )
     }
@@ -225,7 +225,7 @@ export async function GET(req: Request) {
     const error = e as Error
     console.error('Unexpected error in ruptura-abcd report API:', error)
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: error.message },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

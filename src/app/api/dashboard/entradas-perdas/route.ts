@@ -108,11 +108,8 @@ export async function GET(req: Request) {
     }
 
     // Usar client direto sem cache
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     let totalEntradas = 0
     let totalPerdas = 0
@@ -175,7 +172,7 @@ export async function GET(req: Request) {
     const error = e as Error
     console.error('Unexpected error in entradas-perdas API:', error)
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: error.message },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

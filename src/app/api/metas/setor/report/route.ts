@@ -109,11 +109,8 @@ export async function GET(request: NextRequest) {
     console.log('[API/METAS/SETOR/REPORT] 🔍 Calling RPC with params:', JSON.stringify(rpcParams, null, 2))
 
     // USAR CLIENT DIRETO SEM CACHE (igual ao módulo metas mensais)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const optimizedResult = await (directSupabase as any).rpc('get_metas_setor_report_optimized', rpcParams)
@@ -183,9 +180,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Function not available',
-            message: `Both RPC functions failed: ${error.message}`,
-            action: 'Check if RPC functions exist in the schema',
-            details: error
+            message: 'RPC functions unavailable',
+            action: 'Check if RPC functions exist in the schema'
           },
           { status: 503 } // Service Unavailable
         )

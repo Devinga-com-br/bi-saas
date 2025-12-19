@@ -102,22 +102,16 @@ export async function GET(req: Request) {
       p_filiais_ids: finalFiliais
     };
 
-    // DEBUG: Log dos parâmetros enviados
-    console.log('[API/DASHBOARD] RPC Params:', JSON.stringify(rpcParams, null, 2));
-
-    // TEMPORÁRIO: Usar client direto sem cache (igual ao test-direct-db)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Usar client admin para RPC
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await directSupabase.rpc('get_dashboard_data', rpcParams as any).single();
 
     if (error) {
       console.error('[API/DASHBOARD] RPC Error:', error);
-      return NextResponse.json({ error: 'Error fetching dashboard data', details: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Error fetching dashboard data' }, { status: 500 });
     }
 
     // A função RPC já retorna todos os dados necessários
@@ -126,6 +120,6 @@ export async function GET(req: Request) {
   } catch (e) {
     const error = e as Error;
     console.error('Unexpected error in dashboard API:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

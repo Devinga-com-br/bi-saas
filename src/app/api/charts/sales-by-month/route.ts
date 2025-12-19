@@ -66,11 +66,8 @@ export async function GET(req: Request) {
     })
 
     // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // Call RPC with filiais parameter for branch filtering - Sales
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,7 +78,7 @@ export async function GET(req: Request) {
 
     if (salesError) {
       console.error('[API/CHARTS/SALES-BY-MONTH] Sales RPC Error:', salesError);
-      return NextResponse.json({ error: 'Error fetching sales chart data', details: salesError.message }, { status: 500 });
+      return NextResponse.json({ error: 'Error fetching sales chart data' }, { status: 500 });
     }
 
     // Call RPC to get expenses by month
@@ -164,6 +161,6 @@ export async function GET(req: Request) {
   } catch (e) {
     const error = e as Error;
     console.error('Unexpected error in sales chart API:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

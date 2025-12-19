@@ -63,11 +63,8 @@ export async function GET(request: NextRequest) {
     })
 
     // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // Chamar função RPC
     const { data, error } = await directSupabase.rpc('get_vendas_por_filial', {
@@ -80,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[API/DASHBOARD/VENDAS-POR-FILIAL] RPC Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Error fetching sales data' }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
@@ -88,7 +85,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[API/DASHBOARD/VENDAS-POR-FILIAL] Erro:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro desconhecido' },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

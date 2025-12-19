@@ -96,11 +96,8 @@ export async function POST(request: NextRequest) {
     })
 
     // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
-    const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-    const directSupabase = createDirectClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const { createDirectClient } = await import('@/lib/supabase/admin')
+    const directSupabase = createDirectClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (directSupabase as any).rpc('generate_metas_mensais', {
@@ -115,7 +112,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('[API/METAS/GENERATE] Error:', error)
       return NextResponse.json(
-        { error: error.message || 'Erro ao gerar metas' },
+        { error: 'Erro ao gerar metas' },
         { status: 500 }
       )
     }

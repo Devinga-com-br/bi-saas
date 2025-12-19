@@ -138,7 +138,7 @@ export async function GET(req: Request) {
     if (error) {
       console.error('[API/PREVISAO-RUPTURA] RPC Error:', error)
       return NextResponse.json(
-        { error: 'Erro ao buscar dados', details: error.message },
+        { error: 'Erro ao buscar dados' },
         { status: 500 }
       )
     }
@@ -187,7 +187,7 @@ export async function GET(req: Request) {
     const error = e as Error
     console.error('[API/PREVISAO-RUPTURA] Unexpected error:', error)
     return NextResponse.json(
-      { error: 'Erro inesperado', details: error.message },
+      { error: 'Erro inesperado' },
       { status: 500 }
     )
   }
