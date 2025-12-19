@@ -155,7 +155,7 @@ export default function DREComparativoPage() {
       setContexts([
         {
           id: generateId(),
-          label: 'Comparação 1',
+          label: 'Período 1',
           filiais: [...todasAsFiliais],
           periodoTipo: 'month',
           mes: mesAnterior,
@@ -167,7 +167,7 @@ export default function DREComparativoPage() {
         },
         {
           id: generateId(),
-          label: 'Comparação 2',
+          label: 'Período 2',
           filiais: [...todasAsFiliais],
           periodoTipo: 'month',
           mes: mesAnterior,
@@ -192,7 +192,7 @@ export default function DREComparativoPage() {
 
     const newContext: ComparisonContext = {
       id: generateId(),
-      label: `Comparação ${contexts.length + 1}`,
+      label: `Período ${contexts.length + 1}`,
       filiais: [...todasAsFiliais],
       periodoTipo: 'month',
       mes: mesNum,
@@ -360,9 +360,9 @@ export default function DREComparativoPage() {
       {/* Configurador de Contextos */}
       <Card>
         <CardHeader>
-          <CardTitle>Configurador de Comparação</CardTitle>
+          <CardTitle>Filtrar Períodos para comparação de DRE</CardTitle>
           <CardDescription>
-            Configure até 4 contextos para comparar (mínimo 2)
+            Configure até 4 períodos para comparar (mínimo 2)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -654,7 +654,7 @@ export default function DREComparativoPage() {
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Adicionar Comparação
+                Adicionar Período
               </Button>
             )}
             <Button
