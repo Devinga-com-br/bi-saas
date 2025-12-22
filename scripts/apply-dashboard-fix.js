@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Script to apply dashboard comparison fix migration
  * Run with: node scripts/apply-dashboard-fix.js

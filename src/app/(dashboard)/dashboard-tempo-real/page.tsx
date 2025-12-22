@@ -705,7 +705,13 @@ export default function DashboardTempoRealPage() {
             ) : vendasPorLojaData?.lojas && vendasPorLojaData.lojas.length > 0 ? (
               <div className="space-y-4">
                 {/* Container com scroll para o gráfico de barras */}
-                <div className="overflow-y-auto" style={{ maxHeight: vendasPorLojaData.lojas.length > 8 ? '220px' : 'auto' }}>
+                {/* Se > 8 filiais: usa toda a altura disponível. Se <= 8: altura limitada para mostrar metas */}
+                <div
+                  className="overflow-y-auto"
+                  style={{
+                    maxHeight: vendasPorLojaData.lojas.length > 8 ? '320px' : '220px'
+                  }}
+                >
                   <ChartContainer
                     config={barChartConfig}
                     className="w-full"
@@ -773,23 +779,25 @@ export default function DashboardTempoRealPage() {
                   </ChartContainer>
                 </div>
 
-                {/* Progress bars para meta por loja - com scroll */}
-                <div className="border-t pt-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Atingimento de Meta</p>
-                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: vendasPorLojaData.lojas.length > 6 ? '150px' : 'auto' }}>
-                    {vendasPorLojaData.lojas.map((loja) => (
-                      <div key={loja.filial_id} className="flex items-center gap-2">
-                        <span className="w-20 text-xs truncate" title={loja.filial_nome}>
-                          {loja.filial_nome}
-                        </span>
-                        <Progress value={Math.min(loja.atingimento_meta, 100)} className="flex-1 h-2" />
-                        <span className="w-12 text-xs text-right">
-                          {loja.atingimento_meta.toFixed(0)}%
-                        </span>
-                      </div>
-                    ))}
+                {/* Progress bars para meta por loja - só mostra se <= 8 filiais */}
+                {vendasPorLojaData.lojas.length <= 8 && (
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Atingimento de Meta</p>
+                    <div className="space-y-2 overflow-y-auto" style={{ maxHeight: vendasPorLojaData.lojas.length > 6 ? '150px' : 'auto' }}>
+                      {vendasPorLojaData.lojas.map((loja) => (
+                        <div key={loja.filial_id} className="flex items-center gap-2">
+                          <span className="w-20 text-xs truncate" title={loja.filial_nome}>
+                            {loja.filial_nome}
+                          </span>
+                          <Progress value={Math.min(loja.atingimento_meta, 100)} className="flex-1 h-2" />
+                          <span className="w-12 text-xs text-right">
+                            {loja.atingimento_meta.toFixed(0)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-center h-80 text-muted-foreground">

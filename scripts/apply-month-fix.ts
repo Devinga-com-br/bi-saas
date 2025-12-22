@@ -14,7 +14,7 @@ async function applyMigration() {
     
     console.log('Applying migration: fix_month_comparison...')
     
-    const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql })
+    const { error } = await supabase.rpc('exec_sql', { sql_query: sql })
     
     if (error) {
       console.error('Migration failed:', error)
