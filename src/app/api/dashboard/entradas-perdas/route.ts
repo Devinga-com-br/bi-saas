@@ -115,11 +115,13 @@ export async function GET(req: Request) {
     let totalPerdas = 0
 
     // Buscar ENTRADAS usando schema dinâmico
+    // Filtra apenas transacoes P (Prazo) e V (Vista) - compras reais
     try {
       let entradasQuery = directSupabase
         .schema(requestedSchema as 'public')
         .from('entradas')
         .select('valor_total')
+        .in('transacao', ['P', 'V'])
         .gte('data_entrada', data_inicio)
         .lte('data_entrada', data_fim)
 
