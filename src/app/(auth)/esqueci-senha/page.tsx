@@ -2,7 +2,8 @@ import { ForgotPasswordForm } from '@/components/auth/forgot-password-form'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import Image from 'next/image'
+
+/* eslint-disable @next/next/no-img-element */
 
 function ForgotPasswordFormWrapper() {
   return (
@@ -19,21 +20,18 @@ function ForgotPasswordFormWrapper() {
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="bg-zinc-900 flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+    <div className="bg-sidebar flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
           {/* Header */}
-          <div className="flex flex-col items-center gap-2 text-center">
-            <Image
-              src="/logo_branco.webp"
-              alt="DevIngá"
-              width={384}
-              height={115}
-              className="w-full h-auto"
-              priority
+          <div className="flex flex-col items-center gap-4 text-center">
+            <img
+              src="/logo_bussola.svg"
+              alt="Bússola ByDevIngá"
+              style={{ height: '60px', width: 'auto' }}
             />
-            <h1 className="text-xl font-bold text-white">Recuperar Senha</h1>
-            <p className="text-sm text-zinc-400">
+            <h1 className="text-xl font-bold text-sidebar-foreground">Recuperar Senha</h1>
+            <p className="text-sm text-sidebar-foreground/70">
               Informe seu email para receber as instruções
             </p>
           </div>
@@ -45,7 +43,7 @@ export default function ForgotPasswordPage() {
           <div className="text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-sidebar-primary hover:underline transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Voltar para o login

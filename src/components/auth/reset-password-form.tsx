@@ -213,7 +213,7 @@ export function ResetPasswordForm() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Password Field */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="password" className="text-white">Nova senha</Label>
+          <Label htmlFor="password" className="text-black">Nova senha</Label>
           <div className="relative">
             <Input
               id="password"
@@ -240,7 +240,7 @@ export function ResetPasswordForm() {
 
         {/* Confirm Password Field */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="confirmPassword" className="text-white">Confirmar nova senha</Label>
+          <Label htmlFor="confirmPassword" className="text-black">Confirmar nova senha</Label>
           <div className="relative">
             <Input
               id="confirmPassword"
