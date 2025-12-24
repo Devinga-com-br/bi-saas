@@ -37,7 +37,7 @@ export default function LoginPage() {
                 href="https://wa.me/5544997223315"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 hover:underline"
+                className="text-[#4F46E5] hover:text-[#02403D] hover:underline transition-colors"
               >
                 Solicite aqui.
               </a>
