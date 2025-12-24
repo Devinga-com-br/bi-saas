@@ -19,7 +19,7 @@ function LoginFormWrapper() {
 
 export default function LoginPage() {
   return (
-    <div className="bg-sidebar flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+    <div className="bg-white flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
           {/* Header */}
@@ -29,15 +29,15 @@ export default function LoginPage() {
               alt="Bússola ByDevIngá"
               style={{ height: '60px', width: 'auto' }}
             />
-            <h1 className="text-xl font-bold text-sidebar-foreground">Bem-vindo ao Bússola 360</h1>
-            <p className="text-sm text-sidebar-foreground/80">Inteligência para negócios</p>
-            <p className="text-sm text-sidebar-foreground/70">
+            <h1 className="text-xl font-bold text-gray-900">Bem-vindo ao Bússola 360</h1>
+            <p className="text-sm text-gray-600">Inteligência para negócios</p>
+            <p className="text-sm text-gray-500">
               Não possui uma conta?{' '}
               <a
                 href="https://wa.me/5544997223315"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sidebar-primary hover:underline"
+                className="text-indigo-600 hover:underline"
               >
                 Solicite aqui.
               </a>
