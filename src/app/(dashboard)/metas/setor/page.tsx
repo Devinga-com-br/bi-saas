@@ -41,7 +41,6 @@ import { logModuleAccess } from '@/lib/audit'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DatePicker } from '@/components/ui/date-picker'
 import { MultiFilialFilter, type FilialOption } from '@/components/filters'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Setor {
   id: number
@@ -762,37 +761,46 @@ export default function MetaSetorPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Target className="h-6 w-6" />
+            Metas por Setor
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Acompanhamento de metas por setor e departamento
+          </p>
+        </div>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={handleAtualizarValores}
-          disabled={isUpdatingValues || !currentTenant || !selectedSetor}
-          className="h-10"
-          title="Atualizar valores realizados com base nas vendas do período"
-        >
-          {isUpdatingValues ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Atualizando...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Atualizar Valores
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleAtualizarValores}
+            disabled={isUpdatingValues || !currentTenant || !selectedSetor}
+            className="h-10"
+            title="Atualizar valores realizados com base nas vendas do período"
+          >
+            {isUpdatingValues ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Atualizando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar Valores
+              </>
+            )}
+          </Button>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="h-10">
-              <Plus className="mr-2 h-4 w-4" />
-              Gerar Meta
-            </Button>
-          </DialogTrigger>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="h-10">
+                <Plus className="mr-2 h-4 w-4" />
+                Gerar Meta
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Gerar Meta por Setor</DialogTitle>
@@ -1029,14 +1037,12 @@ export default function MetaSetorPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filtros */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6">
             {/* FILIAIS */}
             <div className="flex flex-col gap-2 w-full lg:w-[200px]">

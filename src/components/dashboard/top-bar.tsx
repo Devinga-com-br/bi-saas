@@ -4,9 +4,12 @@ import { UserMenu } from './user-menu'
 import { usePathname } from 'next/navigation'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Dashboard Estratégico',
-  '/relatorios/ruptura-abcd': 'Relatório de Ruptura por Curva ABCD',
-  '/relatorios/venda-curva': 'Relatório de Venda por Curva',
+  '/dashboard': 'Dashboard 360',
+  '/relatorios/ruptura-abcd': 'Ruptura por Curva ABCD',
+  '/relatorios/venda-curva': 'Vendas por Curva',
+  '/relatorios/previsao-ruptura': 'Previsão de Ruptura',
+  '/relatorios/ruptura-venda-60d': 'Ruptura Vendas - Dias sem Giro',
+  '/relatorios/perdas': 'Relatório de Perdas',
   '/metas/mensal': 'Metas Mensais',
   '/metas/setor': 'Metas por Setor',
   '/dre-gerencial': 'DRE Gerencial',

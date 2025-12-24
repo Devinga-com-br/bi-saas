@@ -4,7 +4,6 @@ import { Building2, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { TenantCard } from '@/components/empresas/tenant-card'
 import type { Tenant } from '@/types'
 
@@ -52,9 +51,6 @@ export default async function EmpresasPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs items={[{ label: 'Empresas' }]} />
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">

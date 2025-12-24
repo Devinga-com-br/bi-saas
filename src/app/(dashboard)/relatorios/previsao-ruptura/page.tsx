@@ -47,7 +47,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import {
   AlertTriangle,
   Package,
@@ -866,42 +865,20 @@ export default function PrevisaoRupturaPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Botões de Exportação */}
-      {data && data.total_records > 0 && (
-        <div className="flex justify-end gap-2">
-          <Button
-            onClick={handleExportExcel}
-            disabled={exporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Exportar Excel
-          </Button>
-          <Button
-            onClick={handleExportPDF}
-            disabled={exporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            Exportar PDF
-          </Button>
-        </div>
-      )}
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <TrendingDown className="h-6 w-6" />
+          Previsão de Ruptura
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Previsão de produtos que entrarão em ruptura baseado no histórico de vendas
+        </p>
+      </div>
 
       {/* Filtros */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>
-            Configure os filtros para visualizar os produtos em risco
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="space-y-4">
             {/* Primeira linha: Filiais e Curvas */}
             <div className="flex flex-col gap-4 lg:flex-row lg:gap-4">
@@ -1054,13 +1031,37 @@ export default function PrevisaoRupturaPage() {
 
       {/* Tabela */}
       <Card>
-        <CardHeader>
-          <CardTitle>Produtos em Risco de Ruptura</CardTitle>
-          <CardDescription>
-            {data
-              ? `${data.total_records} produtos encontrados`
-              : 'Aplique os filtros para ver os resultados'}
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Produtos em Risco de Ruptura</CardTitle>
+            <CardDescription>
+              {data
+                ? `${data.total_records} produtos encontrados`
+                : 'Aplique os filtros para ver os resultados'}
+            </CardDescription>
+          </div>
+          {data && data.total_records > 0 && (
+            <div className="flex gap-2">
+              <Button
+                onClick={handleExportExcel}
+                disabled={exporting}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Exportar Excel
+              </Button>
+              <Button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (

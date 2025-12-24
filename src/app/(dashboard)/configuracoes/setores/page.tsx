@@ -32,7 +32,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 interface Departamento {
   id: number
@@ -215,9 +214,6 @@ export default function SetoresPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
       <div className="flex justify-end">
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="mr-2 h-4 w-4" />

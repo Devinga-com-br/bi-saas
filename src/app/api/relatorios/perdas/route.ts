@@ -105,18 +105,44 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('page_size') || '50')
 
-    // Validate filial_id is required
-    if (!requestedFilialId) {
-      return NextResponse.json({ error: 'Filial é obrigatória' }, { status: 400 })
-    }
-
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
 
     // Determine which filials to use based on authorization
     let finalFilialIds: number[] = []
 
-    if (authorizedBranches === null) {
+    if (!requestedFilialId) {
+      // No filial specified - use all authorized or all available
+      if (authorizedBranches === null) {
+        // User has no restrictions - get tenant_id from schema
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('supabase_schema', schema)
+          .single() as { data: { id: string } | null }
+
+        if (!tenantData) {
+          return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 404 })
+        }
+
+        // Get all branches for this tenant
+        const { data: allBranches, error: branchesError } = await supabase
+          .from('branches')
+          .select('branch_code')
+          .eq('tenant_id', tenantData.id)
+          .order('branch_code')
+
+        if (branchesError) {
+          console.error('[Perdas] Error fetching all branches:', branchesError)
+          return NextResponse.json({ error: 'Erro ao buscar filiais' }, { status: 500 })
+        }
+
+        finalFilialIds = (allBranches || []).map((b: { branch_code: number }) => b.branch_code)
+      } else {
+        // User has restrictions - use all authorized branches
+        finalFilialIds = authorizedBranches.map(id => parseInt(id, 10))
+      }
+    } else if (authorizedBranches === null) {
       // User has no restrictions - use requested values
       const ids = requestedFilialId.split(',')
         .map(id => parseInt(id.trim(), 10))
@@ -139,6 +165,10 @@ export async function GET(request: Request) {
       }
 
       finalFilialIds = authorizedIds.map(id => parseInt(id, 10))
+    }
+
+    if (finalFilialIds.length === 0) {
+      return NextResponse.json({ error: 'Nenhuma filial disponível' }, { status: 400 })
     }
 
     // Validate parameters

@@ -36,7 +36,6 @@ import {
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -821,40 +820,20 @@ export default function RupturaABCDPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Botões de Exportação */}
-      {data && data.total_records > 0 && (
-        <div className="flex justify-end gap-2">
-          <Button
-            onClick={handleExportExcel}
-            disabled={exporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Exportar Excel
-          </Button>
-          <Button
-            onClick={handleExportPDF}
-            disabled={exporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            Exportar PDF
-          </Button>
-        </div>
-      )}
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <AlertTriangle className="h-6 w-6" />
+          Ruptura por Curva ABCD
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Análise de produtos em ruptura classificados por curva ABC
+        </p>
+      </div>
 
       {/* Filtros */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Configure os filtros para o relatório</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="space-y-4">
             {/* Primeira linha: Filiais e Curvas */}
             <div className="flex flex-col gap-4 lg:flex-row lg:gap-4">
@@ -975,21 +954,39 @@ export default function RupturaABCDPage() {
 
       {/* Resultado */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-xl sm:text-2xl">Produtos em Ruptura</CardTitle>
-              <CardDescription>
-                {data ? `${data.total_records} produtos encontrados` : 'Carregando...'}
-              </CardDescription>
-            </div>
-            {data && data.total_records > 0 && (
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Produtos em Ruptura</CardTitle>
+            <CardDescription>
+              {data ? `${data.total_records} produtos encontrados` : 'Carregando...'}
+            </CardDescription>
+          </div>
+          {data && data.total_records > 0 && (
+            <div className="flex items-center gap-2">
               <Badge variant="destructive" className="gap-1 flex-shrink-0">
                 <AlertTriangle className="h-3 w-3" />
                 {data.total_records} rupturas
               </Badge>
-            )}
-          </div>
+              <Button
+                onClick={handleExportExcel}
+                disabled={exporting}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Exportar Excel
+              </Button>
+              <Button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (

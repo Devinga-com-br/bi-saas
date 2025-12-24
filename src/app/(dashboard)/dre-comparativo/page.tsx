@@ -12,7 +12,6 @@ import { Calendar } from '@/components/ui/calendar'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Plus, X, FileBarChart, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
 import { Fragment } from 'react'
@@ -340,21 +339,16 @@ export default function DREComparativoPage() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <FileBarChart className="h-6 w-6" />
-            DRE Comparativo
-          </h1>
-          <p className="text-muted-foreground">
-            Compare o DRE de diferentes períodos e filiais lado a lado
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <FileBarChart className="h-6 w-6" />
+          DRE Comparativo
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Compare o DRE de diferentes períodos e filiais lado a lado
+        </p>
       </div>
 
       {/* Configurador de Contextos */}

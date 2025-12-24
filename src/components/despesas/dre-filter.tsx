@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { MultiFilialFilter, type FilialOption } from "@/components/filters"
-import { Filter, Search, CalendarIcon } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search, CalendarIcon } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format, parse, isValid, startOfMonth, endOfMonth } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -223,18 +223,7 @@ export function DREFilter({
 
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <div className="space-y-1">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-          </CardTitle>
-          <CardDescription>
-            Selecione as filiais e o período para visualizar o DRE
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {/* Filtros em uma única linha no desktop */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
           {/* Filiais */}

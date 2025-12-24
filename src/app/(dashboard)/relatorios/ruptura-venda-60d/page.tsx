@@ -40,7 +40,6 @@ import {
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -574,25 +573,21 @@ export default function RupturaVenda60dPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <PageBreadcrumb />
-
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ruptura Vendas - Dias sem Giro</h1>
-        <p className="text-muted-foreground mt-2">
-          Produtos com histórico de vendas consistente que pararam de girar, mesmo com estoque disponível
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Package className="h-6 w-6" />
+          Ruptura Vendas - Dias sem Giro
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Produtos com histórico de vendas consistente que pararam de girar
         </p>
       </div>
 
       {/* Filtros */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>
-            Configure os critérios para identificar produtos em ruptura de vendas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             {/* Linha 1: Filtros principais */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -677,21 +672,19 @@ export default function RupturaVenda60dPage() {
                     onClick={handleExportExcel}
                     disabled={exporting}
                     variant="outline"
-                    size="sm"
                     className="gap-2"
                   >
                     <FileSpreadsheet className="h-4 w-4" />
-                    Excel
+                    Exportar Excel
                   </Button>
                   <Button
                     onClick={handleExportPDF}
                     disabled={exporting}
                     variant="outline"
-                    size="sm"
                     className="gap-2"
                   >
                     <FileDown className="h-4 w-4" />
-                    PDF
+                    Exportar PDF
                   </Button>
                 </div>
               )}

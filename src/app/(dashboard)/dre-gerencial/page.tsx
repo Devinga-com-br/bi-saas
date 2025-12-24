@@ -6,7 +6,6 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { type FilialOption } from '@/components/filters'
 import { DataTable } from '@/components/despesas/data-table'
 import { createColumns, type DespesaRow } from '@/components/despesas/columns'
@@ -19,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Receipt, FileDown } from 'lucide-react'
+import { ChartBarBig, FileDown } from 'lucide-react'
 import { MultiFilialFilter } from '@/components/filters'
 
 // Interfaces para dados estruturados por filial
@@ -2010,24 +2009,17 @@ export default function DespesasPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-8 max-w-full overflow-x-hidden">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="space-y-2">
-        <PageBreadcrumb />
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Receipt className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">DRE Gerencial</h1>
-            <p className="text-muted-foreground">
-              Análise comparativa de despesas entre filiais
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ChartBarBig className="h-6 w-6" />
+          DRE Gerencial
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Análise comparativa de despesas entre filiais
+        </p>
       </div>
-
-      <Separator />
 
       {/* Filtros */}
       <DREFilter

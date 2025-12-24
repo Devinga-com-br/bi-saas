@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/pagination'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
-import { ChevronDown, ChevronRight, TrendingUp, DollarSign, FileDown, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, ShoppingCart, TrendingUp, DollarSign, FileDown, Search } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Collapsible,
@@ -35,7 +35,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 // Tipos para jspdf-autotable
 declare module 'jspdf' {
@@ -620,24 +619,17 @@ export default function VendaCurvaPage() {
 
   // Continua na próxima parte...
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Botão de Exportar */}
-      {data && data.hierarquia && data.hierarquia.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            onClick={handleExportarPDF}
-            disabled={loading}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            Exportar PDF
-          </Button>
-        </div>
-      )}
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ShoppingCart className="h-6 w-6" />
+          Vendas por Curva
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Análise de vendas por curva ABC de produtos
+        </p>
+      </div>
 
       {/* Filtros */}
       <Card>
@@ -759,14 +751,25 @@ export default function VendaCurvaPage() {
       {!loading && data && data.hierarquia && data.hierarquia.length > 0 && (
         <>
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Vendas por Departamento e Curva
-              </CardTitle>
-              <CardDescription>
-                Total de {data.total_records} departamentos nível 3 encontrados
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Vendas por Departamento e Curva
+                </CardTitle>
+                <CardDescription>
+                  Total de {data.total_records} departamentos nível 3 encontrados
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleExportarPDF}
+                disabled={loading}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">

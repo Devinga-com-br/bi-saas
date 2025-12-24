@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { PerfilContent } from '@/components/configuracoes/perfil-content'
 import { UsuariosContent } from '@/components/configuracoes/usuarios-content'
 import { SetoresContent } from '@/components/configuracoes/setores-content'
@@ -115,8 +114,20 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
-        <PageBreadcrumb />
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Settings className="h-6 w-6" />
+            Configurações
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Gerencie perfil, usuários, setores e parâmetros do sistema
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end">
         {activeSection === 'usuarios' && isAdminOrAbove && (
           <Button asChild size="sm">
             <Link href="/usuarios/novo">

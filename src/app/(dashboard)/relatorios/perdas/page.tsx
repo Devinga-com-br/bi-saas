@@ -34,7 +34,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { logModuleAccess } from '@/lib/audit'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import {
   PieChart,
   Pie,
@@ -357,10 +356,9 @@ const renderActiveShape = (props: any) => {
 
 export default function PerdasPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { branchOptions: todasAsFiliais, isLoading: isLoadingBranches } = useBranchesOptions({
+  const { options: filiaisOptions } = useBranchesOptions({
     tenantId: currentTenant?.id,
     enabled: !!currentTenant,
-    includeAll: false,
   })
 
   // Estados
@@ -375,7 +373,6 @@ export default function PerdasPage() {
   const [filiaisSelecionadas, setFiliaisSelecionadas] = useState<{ value: string; label: string }[]>([])
   const [page, setPage] = useState(1)
   const pageSize = 50
-  const [defaultFilialSet, setDefaultFilialSet] = useState(false)
 
   // Estados de expansão
   const [expandedDept1, setExpandedDept1] = useState<Record<string, boolean>>({})
@@ -413,14 +410,6 @@ export default function PerdasPage() {
     }
   }, [inputValue])
 
-  // Definir todas as filiais como padrão quando opções estiverem disponíveis
-  useEffect(() => {
-    if (todasAsFiliais.length > 0 && !defaultFilialSet) {
-      setFiliaisSelecionadas([...todasAsFiliais])
-      setDefaultFilialSet(true)
-    }
-  }, [todasAsFiliais, defaultFilialSet])
-
   // Log de acesso ao módulo
   useEffect(() => {
     if (userProfile && currentTenant) {
@@ -435,15 +424,15 @@ export default function PerdasPage() {
 
   // Aplicar filtros automaticamente quando mudarem
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && mes && ano) {
+    if (currentTenant?.supabase_schema && mes && ano) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, ano, filiaisSelecionadas])
+  }, [mes, ano, filiaisSelecionadas, currentTenant?.supabase_schema])
 
   // Carregar dados quando a página mudar
   useEffect(() => {
-    if (currentTenant?.supabase_schema && filiaisSelecionadas.length > 0 && page > 1) {
+    if (currentTenant?.supabase_schema && page > 1) {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -519,7 +508,7 @@ export default function PerdasPage() {
 
     return Object.entries(data.perdas_por_filial)
       .map(([filialId, valor]) => {
-        const filialInfo = todasAsFiliais.find(f => f.value === filialId)
+        const filialInfo = filiaisOptions.find(f => f.value === filialId)
         return {
           name: filialInfo?.label || `Filial ${filialId}`,
           value: valor,
@@ -528,7 +517,7 @@ export default function PerdasPage() {
       })
       .filter(item => item.value > 0)
       .sort((a, b) => b.value - a.value)
-  }, [data?.perdas_por_filial, todasAsFiliais])
+  }, [data?.perdas_por_filial, filiaisOptions])
 
   // Dados para o gráfico de barras horizontais (perdas por departamento nível 3)
   const barChartData = useMemo(() => {
@@ -596,11 +585,6 @@ export default function PerdasPage() {
   const fetchData = async () => {
     if (!currentTenant?.supabase_schema) return
 
-    if (filiaisSelecionadas.length === 0) {
-      setError('Por favor, selecione ao menos uma filial')
-      return
-    }
-
     setLoading(true)
     setError('')
 
@@ -609,10 +593,14 @@ export default function PerdasPage() {
         schema: currentTenant.supabase_schema,
         mes,
         ano,
-        filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: page.toString(),
         page_size: pageSize.toString(),
       })
+
+      // Adicionar filiais apenas se selecionadas (senão API busca todas)
+      if (filiaisSelecionadas.length > 0) {
+        params.set('filial_id', filiaisSelecionadas.map(f => f.value).join(','))
+      }
 
       const response = await fetch(`/api/relatorios/perdas?${params}`)
       const result = await response.json()
@@ -632,7 +620,7 @@ export default function PerdasPage() {
 
   // Exportar PDF
   const handleExportarPDF = async () => {
-    if (!currentTenant?.supabase_schema || filiaisSelecionadas.length === 0) return
+    if (!currentTenant?.supabase_schema) return
 
     try {
       setLoading(true)
@@ -645,10 +633,14 @@ export default function PerdasPage() {
         schema: currentTenant.supabase_schema,
         mes,
         ano,
-        filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: '1',
         page_size: '10000'
       })
+
+      // Adicionar filiais apenas se selecionadas (senão API busca todas)
+      if (filiaisSelecionadas.length > 0) {
+        params.set('filial_id', filiaisSelecionadas.map(f => f.value).join(','))
+      }
 
       const response = await fetch(`/api/relatorios/perdas?${params}`)
 
@@ -669,9 +661,11 @@ export default function PerdasPage() {
       doc.setFont('helvetica')
 
       // Cabeçalho
-      const filialNome = filiaisSelecionadas.length === 1
-        ? (todasAsFiliais.find(f => f.value === filiaisSelecionadas[0].value)?.label || filiaisSelecionadas[0].label)
-        : `${filiaisSelecionadas.length} filiais selecionadas`
+      const filialNome = filiaisSelecionadas.length === 0
+        ? 'Todas as filiais'
+        : filiaisSelecionadas.length === 1
+          ? (filiaisOptions.find(f => f.value === filiaisSelecionadas[0].value)?.label || filiaisSelecionadas[0].label)
+          : `${filiaisSelecionadas.length} filiais selecionadas`
       const mesNome = meses.find(m => m.value === mes)?.label || mes
 
       doc.setFontSize(16)
@@ -846,47 +840,35 @@ export default function PerdasPage() {
   })
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
-
-      {/* Botão de Exportar */}
-      {data && data.hierarquia && data.hierarquia.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            onClick={handleExportarPDF}
-            disabled={loading}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            Exportar PDF
-          </Button>
-        </div>
-      )}
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Newspaper className="h-6 w-6" />
+          Relatório de Perdas
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Análise detalhada de perdas por período e filial
+        </p>
+      </div>
 
       {/* Filtros */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Selecione o período e filial para análise</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
             {/* Filiais */}
-            <div className="flex flex-col gap-2 flex-[1.2] min-w-0">
+            <div className="flex flex-col gap-2 flex-1">
               <Label>Filiais</Label>
-              <div className="min-h-10">
+              <div className="h-10">
                 <MultiSelect
-                  options={todasAsFiliais}
+                  options={filiaisOptions}
                   value={filiaisSelecionadas}
                   onValueChange={(value) => {
                     setFiliaisSelecionadas(value)
                     setPage(1)
                   }}
-                  placeholder={isLoadingBranches ? "Carregando filiais..." : "Selecione..."}
-                  disabled={isLoadingBranches}
-                  className="w-full min-h-10"
+                  placeholder="Todas as filiais"
+                  className="w-full h-10"
                 />
               </div>
             </div>
@@ -1166,14 +1148,25 @@ export default function PerdasPage() {
       {!loading && data && data.hierarquia && data.hierarquia.length > 0 && (
         <>
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Newspaper className="h-5 w-5" />
-                Perdas por Departamento
-              </CardTitle>
-              <CardDescription>
-                Total de {data.total_records} departamentos encontrados
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Newspaper className="h-5 w-5" />
+                  Perdas por Departamento
+                </CardTitle>
+                <CardDescription>
+                  Total de {data.total_records} departamentos encontrados
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleExportarPDF}
+                disabled={loading}
+                variant="outline"
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </Button>
             </CardHeader>
             <CardContent>
               {/* Banner Totalizador */}

@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiFilialFilter, type FilialOption } from "@/components/filters"
-import { Filter, Search } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -79,18 +79,7 @@ export function MetasFilters({
 
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <div className="space-y-1">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-          </CardTitle>
-          <CardDescription>
-            Selecione as filiais, mês e ano para visualizar as metas
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="pt-6 space-y-4">
         {/* Filtros em Layout Flexível */}
         <div className="flex flex-col md:flex-row gap-4">
           {/* Filiais - Maior espaço */}

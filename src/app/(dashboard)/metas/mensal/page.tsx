@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, Loader2, RefreshCw, Target } from 'lucide-react'
+import { ArrowUpIcon, ArrowDownIcon, PlusIcon, ChevronDown, ChevronRight, Loader2, RefreshCw, Target, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { format, parseISO } from 'date-fns'
@@ -19,7 +19,6 @@ import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
 import { DatePicker } from '@/components/ui/date-picker'
 import { type FilialOption } from '@/components/filters'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { MetasFilters } from '@/components/metas/filters'
 
 interface Meta {
@@ -577,10 +576,18 @@ export default function MetaMensalPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <TrendingUp className="h-6 w-6" />
+            Metas Mensais
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Acompanhamento e gestão de metas de vendas por filial
+          </p>
+        </div>
 
-      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button
             variant="outline"

@@ -8,7 +8,6 @@ import { PasswordForm } from '@/components/profile/password-form'
 import { User, Mail, Building2, Shield } from 'lucide-react'
 import type { UserWithTenant, UserProfile } from '@/types'
 import { RoleLabels } from '@/types'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 
 export default async function PerfilPage() {
   const supabase = await createClient()
@@ -57,9 +56,17 @@ export default async function PerfilPage() {
     .slice(0, 2) || '??'
 
   return (
-    <div className="space-y-8">
-      {/* Breadcrumb */}
-      <PageBreadcrumb />
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <User className="h-6 w-6" />
+          Meu Perfil
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Gerencie suas informações pessoais e senha
+        </p>
+      </div>
 
       {/* Profile Overview */}
       <Card>

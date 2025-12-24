@@ -5,7 +5,6 @@ import { Building2, ArrowLeft, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { BranchManager } from '@/components/branches/branch-manager'
 import type { Tenant } from '@/types'
 
@@ -50,14 +49,6 @@ export default async function EmpresaDetailsPage({
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs
-        items={[
-          { label: 'Empresas', href: '/empresas' },
-          { label: tenant.name },
-        ]}
-      />
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import Image from 'next/image' 
+/* eslint-disable @next/next/no-img-element */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -53,7 +53,7 @@ interface NavigationItem {
 
 const visaoGeralNavigation: NavigationItem[] = [
   {
-    name: 'Dashboard',
+    name: 'Dashboard 360',
     href: '/dashboard',
     icon: LayoutDashboard,
     moduleId: 'dashboard',
@@ -187,23 +187,23 @@ export function AppSidebar() {
 
   // Use tenant ID as key to force re-render when tenant changes
   return (
-    <Sidebar collapsible="icon" key={currentTenant?.id || 'no-tenant'}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Image src="/favicon/ico_192x192.png" alt="DevIngá" width={32} height={32} />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">DevIngá</span>
-                  <span className="truncate text-xs">Business Intelligence</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+    <Sidebar collapsible="icon" variant="inset" key={currentTenant?.id || 'no-tenant'}>
+      <SidebarHeader className="px-4 py-4">
+        <Link href="/dashboard" className="flex items-center">
+          {state === 'collapsed' ? (
+            <img
+              src="/simbolo_bussola.svg"
+              alt="Bússola"
+              style={{ height: '32px', width: '32px' }}
+            />
+          ) : (
+            <img
+              src="/logo_bussola.svg"
+              alt="Bússola ByDevIngá"
+              style={{ height: '40px', width: 'auto' }}
+            />
+          )}
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>

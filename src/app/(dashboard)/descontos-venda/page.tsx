@@ -44,7 +44,6 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { Plus, Pencil, Trash2, TrendingDown } from 'lucide-react'
-import { PageBreadcrumb } from '@/components/dashboard/page-breadcrumb'
 import { logModuleAccess } from '@/lib/audit'
 import { toast } from 'sonner'
 
@@ -310,13 +309,15 @@ export default function DescontosVendaPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageBreadcrumb />
-
+    <div className="space-y-6">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Descontos Venda</h1>
-          <p className="text-muted-foreground">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <TrendingDown className="h-6 w-6" />
+            Descontos Venda
+          </h1>
+          <p className="text-sm text-muted-foreground">
             Gerencie os descontos aplicados nas vendas por filial
           </p>
         </div>
