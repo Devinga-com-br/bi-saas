@@ -18,9 +18,14 @@ import {
   AlertTriangle,
   Newspaper,
   Radio,
+  ChevronRight,
 } from 'lucide-react'
 
-// import { cn } from '@/lib/utils'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Sidebar,
   SidebarContent,
@@ -31,12 +36,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useTheme } from '@/contexts/theme-context'
 import { Badge } from '@/components/ui/badge'
 import { CompanySwitcher } from './company-switcher'
+import { NavUser } from './nav-user'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { useAuthorizedModules } from '@/hooks/use-authorized-modules'
 import type { SystemModule } from '@/types/modules'
@@ -212,249 +219,295 @@ export function AppSidebar() {
 
       <SidebarContent>
         {/* Visão Geral */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="relative mb-2">
-            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Visão Geral</span>
-            <div className="absolute left-24 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {filteredVisaoGeralNav.map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-              const Icon = item.icon
-              const isLiveModule = item.href === '/dashboard-tempo-real'
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center">
+                <span className="text-xs font-semibold">Visão Geral</span>
+                <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarMenu>
+                {filteredVisaoGeralNav.map((item) => {
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                  const Icon = item.icon
+                  const isLiveModule = item.href === '/dashboard-tempo-real'
 
-              return (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.name}
-                    isActive={isActive}
-                  >
-                    <Link href={item.href}>
-                      <Icon className={isLiveModule ? 'animate-pulse-live' : undefined} />
-                      <span>{item.name}</span>
-                      {item.badge && (
-                        <Badge variant="secondary" className="ml-auto text-xs">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.name}
+                        isActive={isActive}
+                      >
+                        <Link href={item.href}>
+                          <Icon className={isLiveModule ? 'animate-pulse-live' : undefined} />
+                          <span>{item.name}</span>
+                          {item.badge && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
         {/* Gerencial */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="relative mb-2">
-            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Gerencial</span>
-            <div className="absolute left-20 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {filteredGerencialNav.map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '#' && pathname.startsWith(item.href))
-              const Icon = item.icon
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center">
+                <span className="text-xs font-semibold">Gerencial</span>
+                <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarMenu>
+                {filteredGerencialNav.map((item) => {
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '#' && pathname.startsWith(item.href))
+                  const Icon = item.icon
 
-              return (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton
-                    asChild={!item.comingSoon}
-                    tooltip={item.name}
-                    isActive={isActive}
-                    disabled={item.comingSoon}
-                  >
-                    {item.comingSoon ? (
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <Icon />
-                          <span>{item.name}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          Em breve
-                        </Badge>
-                      </div>
-                    ) : (
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.name}</span>
-                        {item.badge && (
-                          <Badge variant="secondary" className="ml-auto text-xs">
-                            {item.badge}
-                          </Badge>
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        asChild={!item.comingSoon}
+                        tooltip={item.name}
+                        isActive={isActive}
+                        disabled={item.comingSoon}
+                      >
+                        {item.comingSoon ? (
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Icon />
+                              <span>{item.name}</span>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              Em breve
+                            </Badge>
+                          </div>
+                        ) : (
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.name}</span>
+                            {item.badge && (
+                              <Badge variant="secondary" className="ml-auto text-xs">
+                                {item.badge}
+                              </Badge>
+                            )}
+                          </Link>
                         )}
-                      </Link>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
         {/* Vendas */}
         {filteredVendasNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="relative mb-2">
-              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Vendas</span>
-              <div className="absolute left-16 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              {filteredVendasNav.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                const Icon = item.icon
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup className="py-1">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex w-full items-center">
+                  <span className="text-xs font-semibold">Vendas</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarMenu>
+                  {filteredVendasNav.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href)
+                    const Icon = item.icon
 
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.name}
-                      isActive={isActive}
-                    >
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.name}
+                          isActive={isActive}
+                        >
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
         {/* Metas */}
         {filteredMetasNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="relative mb-2">
-              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Metas</span>
-              <div className="absolute left-14 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              {filteredMetasNav.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                const Icon = item.icon
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup className="py-1">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex w-full items-center">
+                  <span className="text-xs font-semibold">Metas</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarMenu>
+                  {filteredMetasNav.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href)
+                    const Icon = item.icon
 
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.name}
-                      isActive={isActive}
-                    >
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.name}
+                          isActive={isActive}
+                        >
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
         {/* Ruptura */}
         {filteredRupturaNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="relative mb-2">
-              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Ruptura</span>
-              <div className="absolute left-16 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              {filteredRupturaNav.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                const Icon = item.icon
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup className="py-1">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex w-full items-center">
+                  <span className="text-xs font-semibold">Ruptura</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarMenu>
+                  {filteredRupturaNav.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href)
+                    const Icon = item.icon
 
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.name}
-                      isActive={isActive}
-                    >
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.name}
+                          isActive={isActive}
+                        >
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
         {/* Perdas */}
         {filteredPerdasNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="relative mb-2">
-              <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Perdas</span>
-              <div className="absolute left-14 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              {filteredPerdasNav.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                const Icon = item.icon
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup className="py-1">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex w-full items-center">
+                  <span className="text-xs font-semibold">Perdas</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarMenu>
+                  {filteredPerdasNav.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href)
+                    const Icon = item.icon
 
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.name}
-                      isActive={isActive}
-                    >
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.name}
+                          isActive={isActive}
+                        >
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
         {/* Conta */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="relative mb-2">
-            <span className="relative z-10 bg-sidebar pr-3 text-xs font-semibold">Conta</span>
-            <div className="absolute left-12 right-2 top-1/2 h-[2px] bg-gradient-to-r from-border via-border/80 to-transparent rounded-full" />
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {filteredAccountNav.map((item) => {
-              const isActive = pathname === item.href
-              const Icon = item.icon
+        <Collapsible className="group/collapsible">
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center">
+                <span className="text-xs font-semibold">Conta</span>
+                <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarMenu>
+                {filteredAccountNav.map((item) => {
+                  const isActive = pathname === item.href
+                  const Icon = item.icon
 
-              return (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.name}
-                    isActive={isActive}
-                  >
-                    <Link href={item.href}>
-                      <Icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.name}
+                        isActive={isActive}
+                      >
+                        <Link href={item.href}>
+                          <Icon />
+                          <span>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
       </SidebarContent>
 
-      {/* Footer with Company Switcher */}
+      {/* Footer with User and Company Switcher */}
       <SidebarFooter>
+        <NavUser />
         {state === "expanded" && (
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <CompanySwitcher />
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <>
+            <SidebarSeparator />
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <CompanySwitcher />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </>
         )}
       </SidebarFooter>
     </Sidebar>
