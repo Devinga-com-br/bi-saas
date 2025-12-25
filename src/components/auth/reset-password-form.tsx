@@ -223,7 +223,7 @@ export function ResetPasswordForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={status === 'submitting'}
-              className="pr-10"
+              className="pr-10 bg-white border-gray-300 text-gray-900 focus:border-[#4F46E5] focus:ring-[#4F46E5]"
               autoFocus
             />
             <button
@@ -250,7 +250,7 @@ export function ResetPasswordForm() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={status === 'submitting'}
-              className={`pr-10 ${
+              className={`pr-10 bg-white border-gray-300 text-gray-900 ${
                 confirmPassword && (passwordsMatch ? 'border-emerald-500 focus-visible:ring-emerald-500' : 'border-red-500 focus-visible:ring-red-500')
               }`}
             />

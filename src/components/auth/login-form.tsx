@@ -168,6 +168,7 @@ export function LoginForm() {
             required
             disabled={loading}
             autoFocus
+            className="bg-white border-gray-300 text-gray-900 focus:border-[#4F46E5] focus:ring-[#4F46E5]"
           />
         </div>
 
@@ -191,7 +192,7 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading}
-              className="pr-10"
+              className="pr-10 bg-white border-gray-300 text-gray-900 focus:border-[#4F46E5] focus:ring-[#4F46E5]"
             />
             <button
               type="button"

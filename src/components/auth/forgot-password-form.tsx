@@ -72,6 +72,7 @@ export function ForgotPasswordForm() {
             required
             disabled={loading}
             autoFocus
+            className="bg-white border-gray-300 text-gray-900 focus:border-[#4F46E5] focus:ring-[#4F46E5]"
           />
           <p className="text-xs text-zinc-400">
             Digite o email da sua conta para receber as instruções
