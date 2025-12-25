@@ -34,6 +34,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useTenantContext } from '@/contexts/tenant-context'
+import { useTheme } from '@/contexts/theme-context'
 import { Badge } from '@/components/ui/badge'
 import { CompanySwitcher } from './company-switcher'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
@@ -152,8 +153,11 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { userProfile, currentTenant } = useTenantContext()
   const { state } = useSidebar()
+  const { theme } = useTheme()
   const { parameters } = useTenantParameters(currentTenant?.id)
   const { hasModuleAccess, hasFullAccess } = useAuthorizedModules()
+
+  const logoSrc = theme === 'dark' ? '/logo_bussola_dark_mode.svg' : '/logo_bussola.svg'
 
   const isSuperAdmin = userProfile?.role === 'superadmin'
   const isAdminOrAbove = ['superadmin', 'admin'].includes(userProfile?.role || '')
@@ -198,7 +202,7 @@ export function AppSidebar() {
             />
           ) : (
             <img
-              src="/logo_bussola.svg"
+              src={logoSrc}
               alt="Bússola ByDevIngá"
               style={{ height: '40px', width: 'auto' }}
             />
