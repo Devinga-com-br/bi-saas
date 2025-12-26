@@ -11,7 +11,6 @@ import {
   Package,
   TrendingUp,
   Target,
-  Cog,
   ChartBarBig,
   TrendingDown,
   ShoppingCart,
@@ -36,13 +35,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useTheme } from '@/contexts/theme-context'
 import { Badge } from '@/components/ui/badge'
-import { CompanySwitcher } from './company-switcher'
 import { NavUser } from './nav-user'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { useAuthorizedModules } from '@/hooks/use-authorized-modules'
@@ -148,14 +145,6 @@ const perdasNavigation: NavigationItem[] = [
   },
 ]
 
-const accountNavigation: NavigationItem[] = [
-  {
-    name: 'Configurações',
-    href: '/configuracoes',
-    icon: Cog,
-  },
-]
-
 export function AppSidebar() {
   const pathname = usePathname()
   const { userProfile, currentTenant } = useTenantContext()
@@ -194,7 +183,6 @@ export function AppSidebar() {
   const filteredMetasNav = filterNavigation(metasNavigation)
   const filteredRupturaNav = filterNavigation(rupturaNavigation)
   const filteredPerdasNav = filterNavigation(perdasNavigation)
-  const filteredAccountNav = filterNavigation(accountNavigation)
 
   // Use tenant ID as key to force re-render when tenant changes
   return (
@@ -460,55 +448,11 @@ export function AppSidebar() {
           </Collapsible>
         )}
 
-        {/* Conta */}
-        <Collapsible className="group/collapsible">
-          <SidebarGroup className="py-1">
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center">
-                <span className="text-xs font-semibold">Conta</span>
-                <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarMenu>
-                {filteredAccountNav.map((item) => {
-                  const isActive = pathname === item.href
-                  const Icon = item.icon
-
-                  return (
-                    <SidebarMenuItem key={item.name}>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.name}
-                        isActive={isActive}
-                      >
-                        <Link href={item.href}>
-                          <Icon />
-                          <span>{item.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
       </SidebarContent>
 
-      {/* Footer with User and Company Switcher */}
+      {/* Footer with User */}
       <SidebarFooter>
         <NavUser />
-        {state === "expanded" && (
-          <>
-            <SidebarSeparator />
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <CompanySwitcher />
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </>
-        )}
       </SidebarFooter>
     </Sidebar>
   )

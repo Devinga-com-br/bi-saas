@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, ChevronsUpDown, Building2, Loader2 } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,11 +21,17 @@ import { Badge } from '@/components/ui/badge'
 import { useTenantContext } from '@/contexts/tenant-context'
 import { useIsSuperAdmin } from '@/hooks/use-permissions'
 
-export function CompanySwitcher() {
+interface CompanySwitcherProps {
+  variant?: 'sidebar' | 'topbar'
+}
+
+export function CompanySwitcher({ variant = 'sidebar' }: CompanySwitcherProps) {
   const [open, setOpen] = React.useState(false)
   const [switching, setSwitching] = React.useState(false)
   const { currentTenant, accessibleTenants, loading, switchTenant } = useTenantContext()
   const isSuperAdmin = useIsSuperAdmin()
+
+  const isTopbar = variant === 'topbar'
 
   if (loading) {
     return (
@@ -35,7 +41,7 @@ export function CompanySwitcher() {
       </div>
     )
   }
-  
+
   // Overlay de loading durante troca de tenant
   if (switching) {
     return (
@@ -52,11 +58,8 @@ export function CompanySwitcher() {
         </div>
         {/* Componente original (escondido) */}
         <div className="opacity-0">
-          <div className="flex items-center gap-2 px-2 py-2">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-              <Building2 className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium truncate flex-1">{currentTenant?.name || '...'}</span>
+          <div className="flex items-center px-2 py-2">
+            <span className="text-sm font-medium truncate">{currentTenant?.name || '...'}</span>
           </div>
         </div>
       </>
@@ -67,43 +70,66 @@ export function CompanySwitcher() {
     return null
   }
 
-  // Se não for superadmin, mostrar badge fixo
-  if (!isSuperAdmin) {
+  // Se não for superadmin ou tiver apenas uma empresa, mostrar badge fixo (sem seletor)
+  const hasMultipleTenants = accessibleTenants.length > 1
+
+  if (!isSuperAdmin || !hasMultipleTenants) {
     return (
-      <div className="flex items-center gap-2 px-2 py-2">
-        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <Building2 className="h-4 w-4" />
-        </div>
-        <span className="text-sm font-medium truncate flex-1">{currentTenant.name}</span>
+      <div className={cn(
+        "flex items-center min-w-0",
+        isTopbar ? "px-3 py-2 rounded-lg bg-muted/50 max-w-[200px] sm:max-w-[280px] md:max-w-none" : "px-2 py-2"
+      )}>
+        <span className={cn(
+          "truncate",
+          isTopbar ? "text-lg font-semibold" : "text-sm font-medium"
+        )}>
+          {currentTenant.name}
+        </span>
       </div>
     )
   }
 
-  // Superadmin: mostrar selector com todas as empresas acessíveis
+  // Superadmin com múltiplas empresas: mostrar selector
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant={isTopbar ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between h-auto py-2 px-2"
+          className={cn(
+            "justify-between",
+            isTopbar
+              ? "h-9 px-2 gap-1.5 hover:bg-accent min-w-0 max-w-[200px] sm:max-w-[280px] md:max-w-none"
+              : "w-full h-auto py-2 px-2"
+          )}
         >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shrink-0">
-              <Building2 className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium truncate">{currentTenant.name}</span>
+          <div className="flex items-center min-w-0">
+            <span className={cn(
+              "truncate",
+              isTopbar ? "text-lg font-semibold" : "text-sm font-medium"
+            )}>
+              {currentTenant.name}
+            </span>
           </div>
-          <div className="flex items-center gap-1 shrink-0 ml-2">
-            <Badge variant="secondary" className="text-xs">
-              {accessibleTenants.length}
-            </Badge>
+          <div className="flex items-center gap-1 shrink-0">
+            {!isTopbar && (
+              <Badge variant="secondary" className="text-xs">
+                {accessibleTenants.length}
+              </Badge>
+            )}
             <ChevronsUpDown className="h-4 w-4 opacity-50" />
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" side="top">
+      <PopoverContent
+        className={cn(
+          "p-0",
+          isTopbar ? "w-64" : "w-[var(--radix-popover-trigger-width)]"
+        )}
+        align={isTopbar ? "end" : "start"}
+        side={isTopbar ? "bottom" : "top"}
+      >
         <Command>
           <CommandInput placeholder="Buscar empresa..." />
           <CommandList>
