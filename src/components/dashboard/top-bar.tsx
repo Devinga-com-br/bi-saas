@@ -1,6 +1,5 @@
 'use client'
 
-import { CompanySwitcher } from './company-switcher'
 import { ThemeToggle } from './theme-toggle'
 import { usePathname } from 'next/navigation'
 
@@ -32,7 +31,6 @@ export function TopBar() {
     <div className="flex flex-1 items-center justify-between gap-4">
       <h1 className="text-lg font-semibold">{pageTitle}</h1>
       <div className="flex items-center gap-2">
-        <CompanySwitcher variant="topbar" />
         <ThemeToggle />
       </div>
     </div>

@@ -41,6 +41,7 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { useTheme } from '@/contexts/theme-context'
 import { Badge } from '@/components/ui/badge'
 import { NavUser } from './nav-user'
+import { SidebarCompanySwitcher } from './sidebar-company-switcher'
 import { useTenantParameters } from '@/hooks/use-tenant-parameters'
 import { useAuthorizedModules } from '@/hooks/use-authorized-modules'
 import type { SystemModule } from '@/types/modules'
@@ -204,6 +205,11 @@ export function AppSidebar() {
           )}
         </Link>
       </SidebarHeader>
+
+      {/* Company Switcher */}
+      <div className="p-2">
+        <SidebarCompanySwitcher />
+      </div>
 
       <SidebarContent>
         {/* Visão Geral */}
