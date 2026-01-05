@@ -6,9 +6,16 @@ import { z } from 'zod'
 
 const updateMetaIndividualSchema = z.object({
   schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
-  metaId: z.string().uuid('ID da meta deve ser um UUID válido'),
+  metaId: z.union([z.string(), z.number()])
+    .transform(val => {
+      const num = typeof val === 'string' ? parseInt(val, 10) : val
+      if (isNaN(num) || num <= 0) {
+        throw new Error('ID da meta deve ser um número positivo válido')
+      }
+      return num
+    }),
   valorMeta: z.number().min(0, 'Valor da meta não pode ser negativo'),
-  metaPercentual: z.number().min(0).max(1000, 'Meta percentual deve estar entre 0 e 1000'),
+  metaPercentual: z.number().min(-100).max(1000, 'Meta percentual deve estar entre -100 e 1000'),
 })
 
 const updateMetaLoteSchema = z.object({
@@ -29,9 +36,23 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
+    console.log('[API/METAS/UPDATE] 📥 Request received:', {
+      body,
+      hasMetaId: body.metaId !== undefined,
+      metaIdType: typeof body.metaId,
+      metaIdValue: body.metaId
+    })
+
     // Se tem metaId, é atualização individual de meta
     if (body.metaId !== undefined) {
       const validation = updateMetaIndividualSchema.safeParse(body)
+      
+      console.log('[API/METAS/UPDATE] Validation result:', {
+        success: validation.success,
+        error: validation.success ? null : validation.error.flatten(),
+        data: validation.success ? validation.data : null
+      })
+      
       if (!validation.success) {
         return NextResponse.json(
           { error: 'Dados inválidos', details: validation.error.flatten() },
@@ -57,17 +78,32 @@ export async function POST(request: NextRequest) {
         p_meta_percentual: metaPercentual
       })
 
+      console.log('[API/METAS/UPDATE] RPC Response:', { data, error })
+
       if (error) {
         console.error('[API/METAS/UPDATE] RPC Error:', error)
-        return safeErrorResponse(error, 'metas-update')
+        return NextResponse.json(
+          { error: `Erro ao chamar função: ${error.message}` },
+          { status: 500 }
+        )
+      }
+
+      // A função retorna um JSON com { success, message, data, calculated }
+      if (data && typeof data === 'object' && 'success' in data && !data.success) {
+        console.error('[API/METAS/UPDATE] Function returned error:', data)
+        return NextResponse.json(
+          { error: data.error || 'Erro ao atualizar meta' },
+          { status: 400 }
+        )
       }
 
       console.log('[API/METAS/UPDATE] Meta updated successfully:', data)
 
       return NextResponse.json({ 
-        message: 'Meta atualizada com sucesso',
+        message: data?.message || 'Meta atualizada com sucesso',
         success: true,
-        data
+        data: data?.data,
+        calculated: data?.calculated
       })
     }
 

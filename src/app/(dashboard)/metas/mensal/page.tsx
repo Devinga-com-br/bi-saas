@@ -480,11 +480,25 @@ export default function MetaMensalPage() {
       return
     }
 
+    if (newValue < 0) {
+      toast.error('Valor inválido', {
+        description: 'O valor não pode ser negativo. Use 0 para zerar a meta.'
+      })
+      return
+    }
+
     setSavingEdit(true)
 
     try {
       const meta = report?.metas.find(m => m.id === editingCell.id)
-      if (!meta) return
+      if (!meta) {
+        toast.error('Meta não encontrada', {
+          description: 'Não foi possível localizar a meta para edição'
+        })
+        setSavingEdit(false)
+        cancelEditing()
+        return
+      }
 
       let valorMeta: number
       let metaPercentual: number
@@ -504,20 +518,50 @@ export default function MetaMensalPage() {
         }
       }
 
+      const requestBody = {
+        schema: currentTenant.supabase_schema,
+        metaId: editingCell.id,
+        valorMeta,
+        metaPercentual
+      }
+
+      console.log('[METAS] 📤 Enviando para API:', {
+        requestBody,
+        types: {
+          metaId: typeof requestBody.metaId,
+          valorMeta: typeof requestBody.valorMeta,
+          metaPercentual: typeof requestBody.metaPercentual
+        }
+      })
+
       const response = await fetch('/api/metas/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          schema: currentTenant.supabase_schema,
-          metaId: editingCell.id,
-          valorMeta,
-          metaPercentual
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Erro ao atualizar meta')
+        console.error('[METAS] ❌ Erro ao atualizar:', { 
+          status: response.status, 
+          statusText: response.statusText,
+          error,
+          requestBody,
+          errorDetails: error.details
+        })
+        
+        // Formatar mensagem de erro mais detalhada
+        let errorMsg = 'Erro ao atualizar meta'
+        if (error.details) {
+          const detailsMsg = Object.entries(error.details)
+            .map(([key, msgs]) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n')
+          errorMsg = `Erro de validação:\n${detailsMsg}`
+        } else if (error.error) {
+          errorMsg = error.error
+        }
+        
+        throw new Error(errorMsg)
       }
 
       // Atualizar estado local

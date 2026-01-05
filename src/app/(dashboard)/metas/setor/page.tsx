@@ -537,6 +537,13 @@ export default function MetaSetorPage() {
       return
     }
 
+    if (newValue < 0) {
+      toast.error('Valor inválido', {
+        description: 'O valor não pode ser negativo. Use 0 para zerar a meta.'
+      })
+      return
+    }
+
     setSavingEdit(true)
     try {
       // Encontrar a meta atual
@@ -550,6 +557,8 @@ export default function MetaSetorPage() {
         toast.error('Meta não encontrada', {
           description: 'Não foi possível localizar a meta para atualização'
         })
+        setSavingEdit(false)
+        cancelEditing()
         return
       }
 
@@ -596,6 +605,13 @@ export default function MetaSetorPage() {
       const result = await response.json()
 
       if (!response.ok || !result.success) {
+        console.error('[METAS_SETOR] Erro ao atualizar:', { 
+          status: response.status, 
+          result,
+          setor_id: setorIdNum,
+          filial_id: filialIdNum,
+          data: editingCell.data
+        })
         throw new Error(result.error || 'Erro ao atualizar meta')
       }
 
