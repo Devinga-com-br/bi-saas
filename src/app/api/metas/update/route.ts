@@ -89,21 +89,34 @@ export async function POST(request: NextRequest) {
       }
 
       // A função retorna um JSON com { success, message, data, calculated }
-      if (data && typeof data === 'object' && 'success' in data && !data.success) {
-        console.error('[API/METAS/UPDATE] Function returned error:', data)
-        return NextResponse.json(
-          { error: data.error || 'Erro ao atualizar meta' },
-          { status: 400 }
-        )
+      // Type guard para verificar se é o formato esperado
+      if (data && typeof data === 'object' && 'success' in data) {
+        const result = data as { success: boolean; message?: string; data?: unknown; calculated?: unknown; error?: string }
+        
+        if (!result.success) {
+          console.error('[API/METAS/UPDATE] Function returned error:', result)
+          return NextResponse.json(
+            { error: result.error || 'Erro ao atualizar meta' },
+            { status: 400 }
+          )
+        }
+
+        console.log('[API/METAS/UPDATE] Meta updated successfully:', result)
+
+        return NextResponse.json({ 
+          message: result.message || 'Meta atualizada com sucesso',
+          success: true,
+          data: result.data,
+          calculated: result.calculated
+        })
       }
 
-      console.log('[API/METAS/UPDATE] Meta updated successfully:', data)
-
+      // Fallback se o formato for diferente (não deveria acontecer)
+      console.log('[API/METAS/UPDATE] Meta updated successfully (fallback):', data)
       return NextResponse.json({ 
-        message: data?.message || 'Meta atualizada com sucesso',
+        message: 'Meta atualizada com sucesso',
         success: true,
-        data: data?.data,
-        calculated: data?.calculated
+        data
       })
     }
 
