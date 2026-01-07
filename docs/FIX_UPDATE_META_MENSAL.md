@@ -1,15 +1,17 @@
 # Fix: Erro ao Editar Metas Mensais
 
 **Data:** 2026-01-05  
+**Status:** ✅ RESOLVIDO  
 **Problema:** Erro "Dados inválidos" ao tentar editar (inclusive zerar) metas mensais
 
 ## 🐛 Problema Identificado
 
 ### Sintomas
-- Erro ao duplo-clicar e editar qualquer meta
-- Erro específico ao tentar zerar meta de dias sem venda
-- Console mostra: `[METAS] Erro ao atualizar: {}`
-- API retorna: `Dados inválidos`
+- ✅ Erro ao duplo-clicar e editar qualquer meta
+- ✅ Erro específico ao tentar zerar meta de dias sem venda
+- Console mostrava: `[METAS] Erro ao atualizar: {}`
+- API retornava: `Dados inválidos`
+- Erro específico: `"Too small: expected number to be >=0"` para `metaPercentual`
 
 ### Causa Raiz
 
@@ -18,7 +20,12 @@
 - A validação da API esperava `UUID` (string)
 - Incompatibilidade causava falha na validação Zod
 
-**2. Problema na Função RPC `update_meta_mensal`**
+**2. Validação Não Permitia Percentuais Negativos**
+- Ao zerar uma meta (`valorMeta = 0`), o cálculo resulta em `metaPercentual = -100%`
+- A validação só aceitava `metaPercentual >= 0`
+- **Este era o erro principal!**
+
+**3. Problema na Função RPC `update_meta_mensal`**
 - A função tentava armazenar um RECORD em variável JSON
 - `EXECUTE ... INTO v_result` não funciona corretamente com JSON
 - Faltava cálculo de diferença e diferença_percentual no update
@@ -30,10 +37,7 @@
 **Arquivo:** `src/app/api/metas/update/route.ts`
 
 ```typescript
-// ANTES:
-metaId: z.string().uuid('ID da meta deve ser um UUID válido')
-
-// DEPOIS:
+// TIPO: ANTES esperava UUID, DEPOIS aceita number
 metaId: z.union([z.string(), z.number()])
   .transform(val => {
     const num = typeof val === 'string' ? parseInt(val, 10) : val
@@ -42,6 +46,34 @@ metaId: z.union([z.string(), z.number()])
     }
     return num
   })
+
+// PERCENTUAL: ANTES .min(0), DEPOIS .min(-100)
+metaPercentual: z.number().min(-100).max(1000)
+```
+
+**Por que -100%?**
+- Quando `valorMeta = 0` e `valor_referencia > 0`: `(0 / valor_ref - 1) * 100 = -100%`
+- Quando meta < referência: percentual negativo é válido
+- Quando meta > referência: percentual positivo
+
+### 2. Type Guard para TypeScript
+
+```typescript
+// Type guard adequado para evitar erro de compilação
+if (data && typeof data === 'object' && 'success' in data) {
+  const result = data as { 
+    success: boolean; 
+    message?: string; 
+    data?: unknown; 
+    calculated?: unknown; 
+    error?: string 
+  }
+  
+  if (!result.success) {
+    return NextResponse.json({ error: result.error }, { status: 400 })
+  }
+  // ...
+}
 ```
 
 ### 2. Correção da Função RPC

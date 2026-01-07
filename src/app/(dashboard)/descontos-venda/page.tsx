@@ -247,6 +247,8 @@ export default function DescontosVendaPage() {
 
       const method = editingId ? 'PUT' : 'POST'
 
+      console.log('[DescontosVenda] Submitting payload:', payload)
+
       const response = await fetch('/api/descontos-venda', {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -255,6 +257,19 @@ export default function DescontosVendaPage() {
 
       if (!response.ok) {
         const error = await response.json()
+        console.error('[DescontosVenda] API Error:', error)
+        
+        // Se tiver detalhes de validação, mostrar de forma mais clara
+        if (error.details) {
+          const fieldErrors = error.details.fieldErrors || {}
+          const formErrors = error.details.formErrors || []
+          const errorMessages = [
+            ...Object.entries(fieldErrors).map(([field, msgs]) => `${field}: ${msgs}`),
+            ...formErrors
+          ]
+          throw new Error(errorMessages.join(', ') || error.error || 'Erro ao salvar desconto')
+        }
+        
         throw new Error(error.error || 'Erro ao salvar desconto')
       }
 

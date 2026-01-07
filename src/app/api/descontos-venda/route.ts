@@ -10,7 +10,7 @@ const descontoSchema = z.object({
   data_desconto: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use YYYY-MM-DD)'),
   valor_desconto: z.number().min(0, 'Valor não pode ser negativo'),
   desconto_custo: z.number().min(0, 'Desconto custo não pode ser negativo'),
-  observacao: z.string().max(500).optional(),
+  observacao: z.string().max(500).optional().nullable(), // Aceita null ou undefined
 })
 
 const descontoUpdateSchema = descontoSchema.extend({
@@ -82,11 +82,18 @@ export async function POST(request: Request) {
     // Obter dados do request
     const body = await request.json()
 
+    console.log('[POST /api/descontos-venda] Request body:', JSON.stringify(body, null, 2))
+
     // Validar dados com Zod
     const validation = descontoSchema.safeParse(body)
     if (!validation.success) {
+      console.error('[POST /api/descontos-venda] Validation failed:', validation.error.flatten())
       return NextResponse.json(
-        { error: 'Dados inválidos', details: validation.error.flatten() },
+        { 
+          error: 'Dados inválidos', 
+          details: validation.error.flatten(),
+          received: body 
+        },
         { status: 400 }
       )
     }
