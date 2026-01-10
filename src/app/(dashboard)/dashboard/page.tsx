@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -407,7 +407,23 @@ export default function DashboardPage() {
   const vendasFilialUrl = apiParams.schema
     ? `/api/dashboard/vendas-por-filial?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&filter_type=${apiParams.filter_type}`
     : null
-  const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(vendasFilialUrl, fetcher, { refreshInterval: 0 });
+  const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(
+    vendasFilialUrl, 
+    fetcher, 
+    { 
+      refreshInterval: 0,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 0
+    }
+  );
+
+  // Força revalidação quando URL mudar (filtros mudaram)
+  useEffect(() => {
+    if (vendasFilialUrl) {
+      mutate(vendasFilialUrl)
+    }
+  }, [vendasFilialUrl])
 
   // Buscar dados de faturamento (totais)
   const faturamentoUrl = apiParams.schema
