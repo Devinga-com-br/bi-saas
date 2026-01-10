@@ -111,6 +111,11 @@ interface VendaPorFilial {
   pa_total_entradas: number
   delta_entradas: number
   delta_entradas_percent: number
+  // Campos de Cupons
+  total_cupons: number
+  pa_total_cupons: number
+  delta_cupons: number
+  delta_cupons_percent: number
 }
 
 // Interface para dados de faturamento
@@ -136,7 +141,7 @@ interface EntradasPerdasData {
 }
 
 // Tipos para ordenação
-type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro' | 'total_entradas'
+type SortColumn = 'filial_id' | 'valor_total' | 'ticket_medio' | 'custo_total' | 'total_lucro' | 'margem_lucro' | 'total_entradas' | 'total_cupons'
 type SortDirection = 'asc' | 'desc'
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -851,7 +856,7 @@ export default function DashboardPage() {
 
       // Preparar dados da tabela
       const tableHead = [
-        ['Filial', 'Receita Bruta', 'Δ%', 'Ticket Médio', 'Δ%', 'Custo', 'Δ%', 'Lucro Bruto', 'Δ%', 'Margem', 'Δ%', 'Entradas', 'Δ%']
+        ['Filial', 'Receita Bruta', 'Δ%', 'Ticket Médio', 'Δ%', 'Custo', 'Δ%', 'Lucro Bruto', 'Δ%', 'Margem', 'Δ%', 'Entradas', 'Δ%', 'Cupons', 'Δ%']
       ]
 
       // Função auxiliar para formatar variação com sinal
@@ -879,7 +884,9 @@ export default function DashboardPage() {
           `${venda.margem_lucro.toFixed(2)}%`,
           formatDelta(venda.delta_margem, 'p.p.'),
           formatCurrency(venda.total_entradas || 0),
-          formatDelta(venda.delta_entradas_percent || 0)
+          formatDelta(venda.delta_entradas_percent || 0),
+          (venda.total_cupons || 0).toLocaleString('pt-BR'),
+          formatDelta(venda.delta_cupons_percent || 0)
         ]
       })
 
@@ -895,6 +902,8 @@ export default function DashboardPage() {
         pa_total_lucro: acc.pa_total_lucro + venda.pa_total_lucro,
         total_entradas: acc.total_entradas + (venda.total_entradas || 0),
         pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
+        total_cupons: acc.total_cupons + (venda.total_cupons || 0),
+        pa_total_cupons: acc.pa_total_cupons + (venda.pa_total_cupons || 0),
       }), {
         valor_total: 0,
         pa_valor_total: 0,
@@ -906,6 +915,8 @@ export default function DashboardPage() {
         pa_total_lucro: 0,
         total_entradas: 0,
         pa_total_entradas: 0,
+        total_cupons: 0,
+        pa_total_cupons: 0,
       })
 
       const ticket_medio_total = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
@@ -918,6 +929,7 @@ export default function DashboardPage() {
       const delta_lucro_total = totais.pa_total_lucro > 0 ? ((totais.total_lucro - totais.pa_total_lucro) / totais.pa_total_lucro) * 100 : 0
       const delta_margem_total = margem_total - pa_margem_total
       const delta_entradas_total = totais.pa_total_entradas > 0 ? ((totais.total_entradas - totais.pa_total_entradas) / totais.pa_total_entradas) * 100 : 0
+      const delta_cupons_total = totais.pa_total_cupons > 0 ? ((totais.total_cupons - totais.pa_total_cupons) / totais.pa_total_cupons) * 100 : 0
 
       // Adicionar linha de total
       const totalRow = [
@@ -933,12 +945,14 @@ export default function DashboardPage() {
         `${margem_total.toFixed(2)}%`,
         formatDelta(delta_margem_total, 'p.p.'),
         formatCurrency(totais.total_entradas),
-        formatDelta(delta_entradas_total)
+        formatDelta(delta_entradas_total),
+        totais.total_cupons.toLocaleString('pt-BR'),
+        formatDelta(delta_cupons_total)
       ]
       tableBody.push(totalRow)
 
       // Índice das colunas de variação (Δ%)
-      const deltaColumns = [2, 4, 6, 8, 10, 12]
+      const deltaColumns = [2, 4, 6, 8, 10, 12, 14]
       // Coluna de custo tem lógica invertida (aumento é ruim)
       const custoColumn = 6
 
@@ -1033,6 +1047,14 @@ export default function DashboardPage() {
         case 'margem_lucro':
           aValue = a.margem_lucro
           bValue = b.margem_lucro
+          break
+        case 'total_entradas':
+          aValue = a.total_entradas || 0
+          bValue = b.total_entradas || 0
+          break
+        case 'total_cupons':
+          aValue = a.total_cupons || 0
+          bValue = b.total_cupons || 0
           break
         default:
           return 0
@@ -1541,6 +1563,17 @@ export default function DashboardPage() {
                         <SortIcon column="total_entradas" />
                       </Button>
                     </TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-accent ml-auto"
+                        onClick={() => handleSort('total_cupons')}
+                      >
+                        Cupons
+                        <SortIcon column="total_cupons" />
+                      </Button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1717,6 +1750,26 @@ export default function DashboardPage() {
                             {formatCurrency(venda.pa_total_entradas || 0)}
                           </div>
                         </TableCell>
+
+                        {/* Cupons */}
+                        <TableCell className="text-right">
+                          <div className="font-medium">
+                            {(venda.total_cupons || 0).toLocaleString('pt-BR')}
+                          </div>
+                          <div className={`flex items-center justify-end gap-1 text-xs ${(venda.delta_cupons_percent || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(venda.delta_cupons_percent || 0) >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            <span>
+                              {(venda.delta_cupons_percent || 0) >= 0 ? '+' : ''}{(venda.delta_cupons_percent || 0).toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {(venda.pa_total_cupons || 0).toLocaleString('pt-BR')}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -1735,6 +1788,8 @@ export default function DashboardPage() {
                       pa_total_lucro: acc.pa_total_lucro + venda.pa_total_lucro,
                       total_entradas: acc.total_entradas + (venda.total_entradas || 0),
                       pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
+                      total_cupons: acc.total_cupons + (venda.total_cupons || 0),
+                      pa_total_cupons: acc.pa_total_cupons + (venda.pa_total_cupons || 0),
                     }), {
                       valor_total: 0,
                       pa_valor_total: 0,
@@ -1746,6 +1801,8 @@ export default function DashboardPage() {
                       pa_total_lucro: 0,
                       total_entradas: 0,
                       pa_total_entradas: 0,
+                      total_cupons: 0,
+                      pa_total_cupons: 0,
                     })
 
                     // Totais Faturamento
@@ -1916,6 +1973,33 @@ export default function DashboardPage() {
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 {formatCurrency(totaisPdv.pa_total_entradas)}
+                              </div>
+                            </TableCell>
+                          )
+                        })()}
+
+                        {/* Total Cupons */}
+                        {(() => {
+                          const delta_cupons_percent = totaisPdv.pa_total_cupons > 0
+                            ? ((totaisPdv.total_cupons - totaisPdv.pa_total_cupons) / totaisPdv.pa_total_cupons) * 100
+                            : 0
+                          return (
+                            <TableCell className="text-right">
+                              <div>
+                                {totaisPdv.total_cupons.toLocaleString('pt-BR')}
+                              </div>
+                              <div className={`flex items-center justify-end gap-1 text-xs ${delta_cupons_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {delta_cupons_percent >= 0 ? (
+                                  <ArrowUp className="h-3 w-3" />
+                                ) : (
+                                  <ArrowDown className="h-3 w-3" />
+                                )}
+                                <span>
+                                  {delta_cupons_percent >= 0 ? '+' : ''}{delta_cupons_percent.toFixed(2)}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {totaisPdv.pa_total_cupons.toLocaleString('pt-BR')}
                               </div>
                             </TableCell>
                           )
