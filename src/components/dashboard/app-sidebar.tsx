@@ -18,6 +18,7 @@ import {
   Newspaper,
   Radio,
   ChevronRight,
+  ChartCandlestick,
 } from 'lucide-react'
 
 import {
@@ -98,6 +99,12 @@ const vendasNavigation: NavigationItem[] = [
     href: '/relatorios/venda-curva',
     icon: ShoppingCart,
     moduleId: 'relatorios_venda_curva',
+  },
+  {
+    name: 'Produtos sem Vendas',
+    href: '/relatorios/produtos-sem-vendas',
+    icon: ChartCandlestick,
+    moduleId: 'relatorios_produtos_sem_vendas',
   },
 ]
 

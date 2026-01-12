@@ -18,6 +18,7 @@ export type SystemModule =
   | 'relatorios_venda_curva'
   | 'relatorios_ruptura_60d'
   | 'relatorios_perdas'
+  | 'relatorios_produtos_sem_vendas'
 
 // Configuração de cada módulo (para exibição e ordenação)
 export interface ModuleConfig {
@@ -118,6 +119,14 @@ export const SYSTEM_MODULES: ModuleConfig[] = [
     order: 11,
     category: 'relatorios',
     route: '/relatorios/perdas'
+  },
+  {
+    id: 'relatorios_produtos_sem_vendas',
+    label: 'Relatórios > Produtos sem Vendas',
+    description: 'Produtos sem movimentação de vendas há X dias',
+    order: 12,
+    category: 'relatorios',
+    route: '/relatorios/produtos-sem-vendas'
   }
 ]
 
