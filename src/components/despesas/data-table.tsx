@@ -118,38 +118,48 @@ export function DataTable<TData, TValue>({
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
-                    {row.getVisibleCells().map((cell, index) => {
-                      const isFirstColumn = index === 0
-                      const isSecondColumn = index === 1
-                      
-                      let stickyClass = ""
-                      if (isFirstColumn) {
-                        stickyClass = "sticky left-0 z-10 bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] min-w-[250px] max-w-[400px]"
-                      } else if (isSecondColumn) {
-                        stickyClass = "sticky left-[250px] z-10 bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] min-w-[130px]"
-                      } else {
-                        stickyClass = "min-w-[150px]"
-                      }
-                      
-                      return (
-                        <TableCell 
-                          key={cell.id}
-                          className={stickyClass}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  // Identificar linhas de subgrupo
+                  const rowData = row.original as { tipo?: string }
+                  const isSubGroup = rowData?.tipo === 'cmv' || 
+                                    rowData?.tipo === 'lucro_bruto' || 
+                                    rowData?.tipo === 'lucro_liquido'
+                  
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      style={isSubGroup ? { backgroundColor: '#F5F5FF' } : undefined}
+                    >
+                      {row.getVisibleCells().map((cell, index) => {
+                        const isFirstColumn = index === 0
+                        const isSecondColumn = index === 1
+                        
+                        let stickyClass = ""
+                        if (isFirstColumn) {
+                          stickyClass = "sticky left-0 z-10 bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] min-w-[250px] max-w-[400px]"
+                        } else if (isSecondColumn) {
+                          stickyClass = "sticky left-[250px] z-10 bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] min-w-[130px]"
+                        } else {
+                          stickyClass = "min-w-[150px]"
+                        }
+                        
+                        return (
+                          <TableCell 
+                            key={cell.id}
+                            className={`${stickyClass} ${isSubGroup ? 'text-gray-900' : ''}`}
+                            style={isSubGroup ? { backgroundColor: '#F5F5FF', color: '#111827' } : undefined}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        )
+                      })}
+                    </TableRow>
+                  )
+                })
               ) : (
                 <TableRow>
                   <TableCell

@@ -59,12 +59,6 @@ interface ApiResponse {
   }
 }
 
-interface Filial {
-  id: number
-  codigo: string
-  nome: string
-}
-
 // Opções de curvas
 const curvasOptions = [
   { value: 'all', label: 'Todas' },
@@ -76,7 +70,7 @@ const curvasOptions = [
 
 export default function ProdutosSemVendasPage() {
   const { currentTenant, userProfile } = useTenantContext()
-  const { branchOptions: branches, isLoading: isLoadingBranches } = useBranchesOptions({
+  const { branchOptions: branches } = useBranchesOptions({
     tenantId: currentTenant?.id,
     enabled: !!currentTenant,
     includeAll: false,
@@ -97,7 +91,6 @@ export default function ProdutosSemVendasPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(100)
-  const [filiais, setFiliais] = useState<Filial[]>([])
   const [departamentos, setDepartamentos] = useState<Array<{ id: number; departamento_id: number; descricao: string }>>([])
   const [setores, setSetores] = useState<Array<{ id: number; nome: string; departamento_nivel: number; departamento_ids: number[]; ativo: boolean }>>([])
   const [loading, setLoading] = useState(false)
@@ -325,8 +318,8 @@ export default function ProdutosSemVendasPage() {
 
   // Helper para obter nome da filial
   const getFilialNome = (filialId: number): string => {
-    const filial = filiais.find(f => f.id === filialId)
-    return filial ? `${filial.codigo} - ${filial.nome}` : filialId.toString()
+    const filial = branches.find(f => parseInt(f.value) === filialId)
+    return filial ? filial.label : filialId.toString()
   }
 
   // Log de acesso

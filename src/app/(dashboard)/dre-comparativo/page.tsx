@@ -13,7 +13,7 @@ import { useTenantContext } from '@/contexts/tenant-context'
 import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, X, FileBarChart, ChevronDown, ChevronRight, CalendarIcon } from 'lucide-react'
+import { Plus, X, FileBarChart, ChevronDown, ChevronRight, CalendarIcon, FileDown } from 'lucide-react'
 import { Fragment } from 'react'
 import { format, parse, isValid, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -337,6 +337,162 @@ export default function DREComparativoPage() {
         : `${ctx.filiais.length} filiais`
     return `${periodoLabel} - ${filiaisLabel}`
   }
+
+  // ==================== FUNÇÃO DE EXPORTAÇÃO PDF ====================
+  const handleExportarPDF = async () => {
+    if (!data || !data.linhas || data.linhas.length === 0) {
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      // Dynamic imports
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      // Criar documento PDF em formato landscape
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      // Preparar headers
+      const headers = [
+        'DESCRIÇÃO',
+        ...contexts.map(ctx => getContextDisplayLabel(ctx).toUpperCase()),
+        ...(contexts.length >= 2 ? ['VARIAÇÃO (R$)', 'VARIAÇÃO (%)'] : [])
+      ]
+
+      // Preparar dados - função recursiva para processar hierarquia
+      const processarLinhas = (linhas: DRELineData[], nivel = 0): (string | number)[][] => {
+        const rows: (string | number)[][] = []
+
+        linhas.forEach(linha => {
+          const indentacao = '  '.repeat(nivel)
+          const descricao = `${indentacao}${linha.descricao}`
+
+          // Valores dos contextos
+          const valores = contexts.map(ctx => {
+            const valor = linha.valores[ctx.id] || 0
+            const isMargin = isMarginLine(linha.descricao)
+            return isMargin 
+              ? formatMargin(valor)
+              : formatCurrency(valor)
+          })
+
+          // Calcular diferenças se houver 2+ contextos
+          let diffCells: (string | number)[] = []
+          if (contexts.length >= 2) {
+            const valor1 = linha.valores[contexts[0].id] || 0
+            const valor2 = linha.valores[contexts[1].id] || 0
+            const diffAbs = calcDiferencaAbsoluta(valor1, valor2)
+            const diffPercent = calcDiferencaPercentual(valor1, valor2)
+
+            const isMargin = isMarginLine(linha.descricao)
+            diffCells = [
+              isMargin ? formatPP(diffAbs) : formatCurrency(diffAbs),
+              formatPercent(diffPercent)
+            ]
+          }
+
+          rows.push([descricao, ...valores, ...diffCells])
+
+          // Processar subitens recursivamente
+          if (linha.items && linha.items.length > 0) {
+            const subRows = processarLinhas(linha.items, nivel + 1)
+            rows.push(...subRows)
+          }
+        })
+
+        return rows
+      }
+
+      const bodyData = processarLinhas(data.linhas)
+
+      // Título do relatório
+      doc.setFontSize(16)
+      doc.text('DRE COMPARATIVO', 14, 15)
+
+      doc.setFontSize(10)
+      const tenantNome = (currentTenant?.name || 'Empresa').toUpperCase()
+      doc.text(tenantNome, 14, 22)
+
+      // Data de geração
+      doc.setFontSize(8)
+      const dataGeracao = `GERADO EM: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
+      doc.text(dataGeracao, 14, 28)
+
+      // Configurar tabela
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      autoTable(doc as any, {
+        head: [headers],
+        body: bodyData,
+        startY: 33,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          overflow: 'linebreak',
+          halign: 'left',
+        },
+        headStyles: {
+          fillColor: [139, 79, 232], // #8B4FE8
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        columnStyles: {
+          0: { cellWidth: 80, halign: 'left' },
+          // Colunas dinâmicas para contextos e diferenças
+          ...(contexts.length >= 2 
+            ? {
+                [contexts.length + 1]: { halign: 'left', fillColor: [245, 245, 245] },
+                [contexts.length + 2]: { halign: 'left', fillColor: [245, 245, 245] }
+              }
+            : {}
+          )
+        },
+        margin: { left: 14, right: 14 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        didParseCell: (data: any) => {
+          const cellText = data.cell.text[0] || ''
+
+          // Aplicar cores intercaladas
+          if (data.section === 'body') {
+            const backgroundColor = data.row.index % 2 === 0 ? [255, 255, 255] : [154, 193, 208]
+            data.cell.styles.fillColor = backgroundColor
+          }
+
+          // Negrito para linhas principais (sem indentação)
+          if (data.section === 'body' && data.column.index === 0) {
+            if (cellText && !cellText.startsWith('  ')) {
+              data.cell.styles.fontStyle = 'bold'
+              data.cell.styles.fontSize = 8
+            }
+          }
+
+          // Totais em negrito
+          if (cellText.includes('TOTAL') || cellText.includes('LUCRO')) {
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.fontSize = 8
+          }
+        }
+      })
+
+      // Salvar PDF
+      const tenantSlug = (currentTenant?.name || 'empresa').toLowerCase().replace(/\s/g, '-')
+      const nomeArquivo = `dre-comparativo-${tenantSlug}-${Date.now()}.pdf`
+      doc.save(nomeArquivo)
+
+    } catch (err) {
+      console.error('[PDF Export] Erro ao exportar PDF:', err)
+      alert(`Erro ao exportar PDF: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+  // ==================== FIM DA EXPORTAÇÃO PDF ====================
 
   return (
     <div className="space-y-6">
@@ -690,33 +846,47 @@ export default function DREComparativoPage() {
       {!loading && data && data.linhas && data.linhas.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Demonstração do Resultado do Exercício</CardTitle>
-            <CardDescription>
-              Comparação entre {contexts.length} períodos
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>Demonstração do Resultado do Exercício</CardTitle>
+                <CardDescription>
+                  Comparação entre {contexts.length} períodos
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleExportarPDF}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b-2">
-                    <TableHead className="min-w-[200px] sticky left-0 bg-background z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                  <TableRow className="border-b-2" style={{ backgroundColor: '#8B4FE8' }}>
+                    <TableHead className="min-w-[200px] sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] text-white font-medium" style={{ backgroundColor: '#8B4FE8' }}>
                       Descrição
                     </TableHead>
                     {contexts.map((ctx) => (
-                      <TableHead key={ctx.id} className="text-right min-w-[120px]">
-                        <div className="text-xs font-normal text-muted-foreground">
+                      <TableHead key={ctx.id} className="text-right min-w-[120px] text-white font-medium">
+                        <div className="text-sm">
                           {getContextDisplayLabel(ctx)}
                         </div>
                       </TableHead>
                     ))}
                     {contexts.length >= 2 && (
                       <>
-                        <TableHead className="text-right min-w-[100px] bg-muted/30">
-                          <div className="text-xs">Δ Absoluto</div>
+                        <TableHead className="text-right min-w-[100px] text-white font-medium">
+                          <div className="text-sm">Variação (R$)</div>
                         </TableHead>
-                        <TableHead className="text-right min-w-[80px] bg-muted/30">
-                          <div className="text-xs">Δ %</div>
+                        <TableHead className="text-right min-w-[80px] text-white font-medium">
+                          <div className="text-sm">Variação (%)</div>
                         </TableHead>
                       </>
                     )}
@@ -732,6 +902,9 @@ export default function DREComparativoPage() {
                                      linha.descricao.toLowerCase().includes('despesa') ||
                                      linha.descricao.toLowerCase().includes('cmv')
                     const isMargin = isMarginLine(linha.descricao)
+                    
+                    // Aplicar cor uniforme para todas as linhas
+                    const rowBgColor = '#EDE2FF'
 
                     // Calcular diferenças (primeiro contexto - segundo contexto)
                     const valor1 = linha.valores[contexts[0]?.id] || 0
@@ -743,13 +916,17 @@ export default function DREComparativoPage() {
                       <Fragment key={idx}>
                         <TableRow
                           className={`
-                            ${isHeader ? 'bg-primary/10 font-semibold' : ''}
-                            ${isTotal ? 'bg-muted font-bold border-t-2' : ''}
-                            ${hasItems ? 'cursor-pointer hover:bg-muted/50' : ''}
+                            ${isHeader ? 'font-semibold' : ''}
+                            ${isTotal ? 'font-bold border-t-2' : ''}
+                            ${hasItems ? 'cursor-pointer hover:opacity-90' : ''}
                           `}
+                          style={{ backgroundColor: rowBgColor }}
                           onClick={() => hasItems && toggleRow(`${idx}`)}
                         >
-                          <TableCell className={`sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] ${isHeader ? 'bg-blue-50 dark:bg-blue-950' : isTotal ? 'bg-muted' : 'bg-background'}`}>
+                          <TableCell 
+                            className={`sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]`}
+                            style={{ backgroundColor: rowBgColor }}
+                          >
                             <div className="flex items-center gap-2">
                               {hasItems && (
                                 isExpanded
@@ -764,7 +941,8 @@ export default function DREComparativoPage() {
                           {contexts.map((ctx) => (
                             <TableCell
                               key={ctx.id}
-                              className={`text-right ${isHeader ? 'bg-primary/10' : ''} ${isTotal ? 'bg-muted' : ''}`}
+                              className="text-right"
+                              style={{ backgroundColor: rowBgColor }}
                             >
                               {isMargin
                                 ? formatMargin(linha.valores[ctx.id] || 0)
@@ -774,13 +952,19 @@ export default function DREComparativoPage() {
                           ))}
                           {contexts.length >= 2 && (
                             <>
-                              <TableCell className={`text-right bg-muted/30 ${getDiffColor(diffAbs, isExpense)}`}>
+                              <TableCell 
+                                className={`text-right ${getDiffColor(diffAbs, isExpense)}`}
+                                style={{ backgroundColor: rowBgColor }}
+                              >
                                 {isMargin
                                   ? formatPP(diffAbs)
                                   : formatCurrency(diffAbs)
                                 }
                               </TableCell>
-                              <TableCell className={`text-right bg-muted/30 ${getDiffColor(diffPercent, isExpense)}`}>
+                              <TableCell 
+                                className={`text-right ${getDiffColor(diffPercent, isExpense)}`}
+                                style={{ backgroundColor: rowBgColor }}
+                              >
                                 {isMargin
                                   ? '-'
                                   : formatPercent(diffPercent)

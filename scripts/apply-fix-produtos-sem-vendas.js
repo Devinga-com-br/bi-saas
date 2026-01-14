@@ -5,10 +5,12 @@
  * Execute: node scripts/apply-fix-produtos-sem-vendas.js
  */
 
-const { createClient } = require('@supabase/supabase-js')
-const fs = require('fs')
-const path = require('path')
-require('dotenv').config({ path: '.env.local' })
+import { createClient } from '@supabase/supabase-js'
+import fs from 'fs'
+import path from 'path'
+import dotenv from 'dotenv'
+
+dotenv.config({ path: '.env.local' })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -29,7 +31,7 @@ async function applyFix() {
   const sql = fs.readFileSync(sqlFile, 'utf8')
 
   try {
-    const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql })
+    const { error } = await supabase.rpc('exec_sql', { sql_query: sql })
     
     if (error) {
       console.error('❌ Erro ao executar SQL:', error)
