@@ -76,6 +76,9 @@ export default function ProdutosSemVendasPage() {
     includeAll: false,
   })
 
+  // Armazena filiais completas para uso no getFilialNome
+  const [filiaisCompletas] = useState<Array<{ value: string; label: string }>>([])
+
   // Estados de filtros
   const [selectedBranches, setSelectedBranches] = useState<Array<{ value: string; label: string }>>([])
   const [diasSemVendasMin, setDiasSemVendasMin] = useState<number>(15)
@@ -84,7 +87,6 @@ export default function ProdutosSemVendasPage() {
   const [filtroTipo, setFiltroTipo] = useState<string>('all')
   const [departamentosSelecionados, setDepartamentosSelecionados] = useState<number[]>([])
   const [setoresSelecionados, setSetoresSelecionados] = useState<number[]>([])
-  const [produtosSelecionados, setProdutosSelecionados] = useState<number[]>([])
 
   // Estados de dados
   const [produtos, setProdutos] = useState<ProdutoSemVenda[]>([])
@@ -93,6 +95,7 @@ export default function ProdutosSemVendasPage() {
   const [pageSize] = useState(100)
   const [departamentos, setDepartamentos] = useState<Array<{ id: number; departamento_id: number; descricao: string }>>([])
   const [setores, setSetores] = useState<Array<{ id: number; nome: string; departamento_nivel: number; departamento_ids: number[]; ativo: boolean }>>([])
+  const [produtosSelecionados, setProdutosSelecionados] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [defaultFilialSet, setDefaultFilialSet] = useState(false)
@@ -109,8 +112,11 @@ export default function ProdutosSemVendasPage() {
       console.log('✅ [Auto-select] Selecionando primeira filial:', sortedFiliais[0])
       setSelectedBranches([sortedFiliais[0]])
       setDefaultFilialSet(true)
+      
+      // Armazena filiais para uso posterior
+      filiaisCompletas.splice(0, filiaisCompletas.length, ...branches)
     }
-  }, [branches, defaultFilialSet])
+  }, [branches, defaultFilialSet, filiaisCompletas])
 
   // Auto-load: Executar busca quando filtros estiverem prontos (APENAS PRIMEIRA VEZ)
   useEffect(() => {
@@ -318,7 +324,7 @@ export default function ProdutosSemVendasPage() {
 
   // Helper para obter nome da filial
   const getFilialNome = (filialId: number): string => {
-    const filial = branches.find(f => parseInt(f.value) === filialId)
+    const filial = filiaisCompletas.find(f => parseInt(f.value) === filialId)
     return filial ? filial.label : filialId.toString()
   }
 

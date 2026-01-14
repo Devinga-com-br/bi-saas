@@ -14,7 +14,6 @@ import { useBranchesOptions } from '@/hooks/use-branches'
 import { logModuleAccess } from '@/lib/audit'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Plus, X, FileBarChart, ChevronDown, ChevronRight, CalendarIcon, FileDown } from 'lucide-react'
-import { Fragment } from 'react'
 import { format, parse, isValid, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -893,35 +892,43 @@ export default function DREComparativoPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.linhas.map((linha, idx) => {
-                    const isExpanded = expandedRows[`${idx}`]
-                    const hasItems = linha.items && linha.items.length > 0
-                    const isHeader = linha.tipo === 'header'
-                    const isTotal = linha.tipo === 'total'
-                    const isExpense = linha.isDeduction ||
-                                     linha.descricao.toLowerCase().includes('despesa') ||
-                                     linha.descricao.toLowerCase().includes('cmv')
-                    const isMargin = isMarginLine(linha.descricao)
-                    
-                    // Aplicar cor uniforme para todas as linhas
-                    const rowBgColor = '#EDE2FF'
+                  {/* Renderizar linhas recursivamente */}
+                  {(() => {
+                    const renderLine = (linha: DRELineData, path: string, baseNivel: number = 0): React.ReactNode[] => {
+                      const isExpanded = expandedRows[path]
+                      const hasItems = linha.items && linha.items.length > 0
+                      const isHeader = linha.tipo === 'header'
+                      const isTotal = linha.tipo === 'total'
+                      const isExpense = linha.isDeduction ||
+                                       linha.descricao.toLowerCase().includes('despesa') ||
+                                       linha.descricao.toLowerCase().includes('cmv')
+                      const isMargin = isMarginLine(linha.descricao)
+                      
+                      // Cor de fundo baseada no nível
+                      const rowBgColor = baseNivel === 0 ? '#EDE2FF' : 
+                                        baseNivel === 1 ? '#F3E8FF' :
+                                        baseNivel === 2 ? '#F9F5FF' :
+                                        '#FEFBFF'
 
-                    // Calcular diferenças (primeiro contexto - segundo contexto)
-                    const valor1 = linha.valores[contexts[0]?.id] || 0
-                    const valor2 = linha.valores[contexts[1]?.id] || 0
-                    const diffAbs = calcDiferencaAbsoluta(valor1, valor2)
-                    const diffPercent = calcDiferencaPercentual(valor1, valor2)
+                      // Calcular diferenças
+                      const valor1 = linha.valores[contexts[0]?.id] || 0
+                      const valor2 = linha.valores[contexts[1]?.id] || 0
+                      const diffAbs = calcDiferencaAbsoluta(valor1, valor2)
+                      const diffPercent = calcDiferencaPercentual(valor1, valor2)
 
-                    return (
-                      <Fragment key={idx}>
+                      const rows: React.ReactNode[] = []
+
+                      // Linha principal
+                      rows.push(
                         <TableRow
+                          key={path}
                           className={`
                             ${isHeader ? 'font-semibold' : ''}
                             ${isTotal ? 'font-bold border-t-2' : ''}
                             ${hasItems ? 'cursor-pointer hover:opacity-90' : ''}
                           `}
                           style={{ backgroundColor: rowBgColor }}
-                          onClick={() => hasItems && toggleRow(`${idx}`)}
+                          onClick={() => hasItems && toggleRow(path)}
                         >
                           <TableCell 
                             className={`sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]`}
@@ -973,43 +980,22 @@ export default function DREComparativoPage() {
                             </>
                           )}
                         </TableRow>
+                      )
 
-                        {/* Sub-items (expandable) */}
-                        {hasItems && isExpanded && linha.items?.map((subItem, subIdx) => {
-                          const subValor1 = subItem.valores[contexts[0]?.id] || 0
-                          const subValor2 = subItem.valores[contexts[1]?.id] || 0
-                          const subDiffAbs = calcDiferencaAbsoluta(subValor1, subValor2)
-                          const subDiffPercent = calcDiferencaPercentual(subValor1, subValor2)
-                          const subIsExpense = subItem.isDeduction || true // Subitens de despesas
+                      // Renderizar subitens recursivamente se expandido
+                      if (hasItems && isExpanded && linha.items) {
+                        linha.items.forEach((subItem, subIdx) => {
+                          const subPath = `${path}-${subIdx}`
+                          rows.push(...renderLine(subItem, subPath, baseNivel + 1))
+                        })
+                      }
 
-                          return (
-                            <TableRow key={`${idx}-${subIdx}`} className="bg-muted/20">
-                              <TableCell className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                                <span style={{ paddingLeft: `${(linha.nivel + 1) * 16}px` }}>
-                                  {subItem.descricao}
-                                </span>
-                              </TableCell>
-                              {contexts.map((ctx) => (
-                                <TableCell key={ctx.id} className="text-right">
-                                  {formatCurrency(subItem.valores[ctx.id] || 0)}
-                                </TableCell>
-                              ))}
-                              {contexts.length >= 2 && (
-                                <>
-                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffAbs, subIsExpense)}`}>
-                                    {formatCurrency(subDiffAbs)}
-                                  </TableCell>
-                                  <TableCell className={`text-right bg-muted/30 ${getDiffColor(subDiffPercent, subIsExpense)}`}>
-                                    {formatPercent(subDiffPercent)}
-                                  </TableCell>
-                                </>
-                              )}
-                            </TableRow>
-                          )
-                        })}
-                      </Fragment>
-                    )
-                  })}
+                      return rows
+                    }
+
+                    // Renderizar todas as linhas principais
+                    return data.linhas.flatMap((linha, idx) => renderLine(linha, `${idx}`, 0))
+                  })()}
                 </TableBody>
               </Table>
             </div>

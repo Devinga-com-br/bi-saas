@@ -33,6 +33,18 @@ interface DREData {
     departamento_id: number
     departamento: string
     valor: number
+    tipos?: {
+      tipo_id: number
+      tipo: string
+      valor: number
+      despesas?: {
+        valor: number
+        descricao: string
+        serie_nota: string | null
+        numero_nota: number
+        data_emissao: string
+      }[]
+    }[]
   }[]
 }
 
@@ -338,34 +350,152 @@ function buildDRELines(
     expandable: false,
   })
 
-  // 6. (-) DESPESAS OPERACIONAIS - With expandable items
+  // 6. (-) DESPESAS OPERACIONAIS - With hierarchical expandable items (Dept > Tipo > Despesa)
   // Collect all unique departments across all contexts
-  const allDepartments = new Map<number, string>()
+  const allDepartments = new Map<number, { name: string; tipos: Map<number, { name: string; despesas: unknown[] }> }>()
+  
+  console.log('[DRE Comparativo] Processing despesas_json for contexts:', contexts.map(c => c.id))
+  
   for (const ctx of contexts) {
     const data = dataByContext[ctx.id]
+    console.log(`[DRE Comparativo] Context ${ctx.id} despesas_json:`, JSON.stringify(data?.despesas_json || [], null, 2))
+    
     if (data && data.despesas_json) {
       for (const dept of data.despesas_json) {
         if (dept.departamento_id && dept.departamento) {
-          allDepartments.set(dept.departamento_id, dept.departamento)
+          if (!allDepartments.has(dept.departamento_id)) {
+            allDepartments.set(dept.departamento_id, {
+              name: dept.departamento,
+              tipos: new Map()
+            })
+          }
+          
+          // Process tipos for this department
+          if (dept.tipos && Array.isArray(dept.tipos)) {
+            console.log(`[DRE Comparativo] Dept ${dept.departamento} has ${dept.tipos.length} tipos`)
+            const deptData = allDepartments.get(dept.departamento_id)!
+            
+            for (const tipo of dept.tipos) {
+              if (tipo.tipo_id && tipo.tipo) {
+                if (!deptData.tipos.has(tipo.tipo_id)) {
+                  deptData.tipos.set(tipo.tipo_id, {
+                    name: tipo.tipo,
+                    despesas: []
+                  })
+                }
+                
+                // Store despesas for this tipo
+                if (tipo.despesas && Array.isArray(tipo.despesas)) {
+                  const tipoData = deptData.tipos.get(tipo.tipo_id)!
+                  // Merge despesas from all contexts
+                  tipoData.despesas.push(...tipo.despesas)
+                }
+              }
+            }
+          }
         }
       }
     }
   }
 
-  // Build despesas items
-  const despesasItems: DRELineData[] = Array.from(allDepartments.entries()).map(([deptId, deptName]) => {
-    const valores: Record<string, number> = {}
+  // Build despesas items with hierarchy
+  const despesasItems: DRELineData[] = Array.from(allDepartments.entries()).map(([deptId, deptInfo]) => {
+    // Calculate department valores across all contexts
+    const deptValores: Record<string, number> = {}
     for (const ctx of contexts) {
       const data = dataByContext[ctx.id]
       const deptData = data?.despesas_json?.find((d) => d.departamento_id === deptId)
-      valores[ctx.id] = deptData ? deptData.valor : 0
+      deptValores[ctx.id] = deptData ? deptData.valor : 0
     }
+    
+    // Build tipos items for this department
+    const tiposItems: DRELineData[] = Array.from(deptInfo.tipos.entries()).map(([tipoId, tipoInfo]) => {
+      // Calculate tipo valores across all contexts
+      const tipoValores: Record<string, number> = {}
+      for (const ctx of contexts) {
+        const data = dataByContext[ctx.id]
+        const deptData = data?.despesas_json?.find((d) => d.departamento_id === deptId)
+        const tipoData = deptData?.tipos?.find((t: { tipo_id: number }) => t.tipo_id === tipoId)
+        tipoValores[ctx.id] = tipoData ? tipoData.valor : 0
+      }
+      
+      // Build despesas items for this tipo
+      const despesasItemsList: DRELineData[] = []
+      
+      // Group despesas by descricao+nota to avoid duplicates across contexts
+      const despesasMap = new Map<string, { descricao: string; nota: unknown; serie: unknown; data: unknown; valores: Record<string, number> }>()
+      
+      for (const ctx of contexts) {
+        const data = dataByContext[ctx.id]
+        const deptData = data?.despesas_json?.find((d) => d.departamento_id === deptId)
+        const tipoData = deptData?.tipos?.find((t: { tipo_id: number }) => t.tipo_id === tipoId)
+        
+        if (tipoData?.despesas && Array.isArray(tipoData.despesas)) {
+          for (const desp of tipoData.despesas) {
+            const key = `${desp.descricao || ''}-${desp.numero_nota || ''}-${desp.serie_nota || ''}`
+            
+            if (!despesasMap.has(key)) {
+              despesasMap.set(key, {
+                descricao: desp.descricao || 'Sem descrição',
+                nota: desp.numero_nota,
+                serie: desp.serie_nota,
+                data: desp.data_emissao,
+                valores: {}
+              })
+            }
+            
+            const despItem = despesasMap.get(key)!
+            despItem.valores[ctx.id] = (despItem.valores[ctx.id] || 0) + (desp.valor || 0)
+          }
+        }
+      }
+      
+      // Convert despesas map to array
+      despesasMap.forEach((despItem) => {
+        despesasItemsList.push({
+          descricao: despItem.descricao,
+          tipo: 'subitem' as const,
+          nivel: 4,
+          valores: despItem.valores,
+          expandable: false,
+          isDeduction: true,
+        })
+      })
+      
+      // Sort despesas by first context value
+      despesasItemsList.sort((a, b) => {
+        const firstCtxId = contexts[0]?.id
+        const aVal = Math.abs(a.valores[firstCtxId] || 0)
+        const bVal = Math.abs(b.valores[firstCtxId] || 0)
+        return bVal - aVal
+      })
+      
+      return {
+        descricao: tipoInfo.name,
+        tipo: 'subitem' as const,
+        nivel: 3,
+        valores: tipoValores,
+        expandable: despesasItemsList.length > 0,
+        items: despesasItemsList.length > 0 ? despesasItemsList : undefined,
+        isDeduction: true,
+      }
+    })
+    
+    // Sort tipos by first context value
+    tiposItems.sort((a, b) => {
+      const firstCtxId = contexts[0]?.id
+      const aVal = Math.abs(a.valores[firstCtxId] || 0)
+      const bVal = Math.abs(b.valores[firstCtxId] || 0)
+      return bVal - aVal
+    })
+    
     return {
-      descricao: deptName,
+      descricao: deptInfo.name,
       tipo: 'subitem' as const,
       nivel: 2,
-      valores,
-      expandable: false,
+      valores: deptValores,
+      expandable: tiposItems.length > 0,
+      items: tiposItems.length > 0 ? tiposItems : undefined,
       isDeduction: true,
     }
   }).sort((a, b) => {
@@ -375,6 +505,9 @@ function buildDRELines(
     const bVal = Math.abs(b.valores[firstCtxId] || 0)
     return bVal - aVal
   })
+
+  console.log(`[DRE Comparativo] Built ${despesasItems.length} department items`)
+  console.log('[DRE Comparativo] First dept item:', JSON.stringify(despesasItems[0], null, 2))
 
   linhas.push({
     descricao: '(-) DESPESAS OPERACIONAIS',
