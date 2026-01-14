@@ -28,36 +28,72 @@ type UserProfile = UP & {
 interface UsuariosContentProps {
   currentUserRole: string
   currentUserTenantId: string | null
+  selectedTenantId: string | null
 }
 
-export function UsuariosContent({ currentUserRole, currentUserTenantId }: UsuariosContentProps) {
+export function UsuariosContent({ currentUserRole, currentUserTenantId, selectedTenantId }: UsuariosContentProps) {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [userEmail, setUserEmail] = useState<string>('')
+  const [selectedTenantName, setSelectedTenantName] = useState<string>('')
 
   useEffect(() => {
     const loadUsers = async () => {
       const supabase = createClient()
+
+      // Carregar nome do tenant selecionado (se superadmin)
+      if (currentUserRole === 'superadmin' && selectedTenantId) {
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('name')
+          .eq('id', selectedTenantId)
+          .single() as { data: { name: string } | null }
+        
+        setSelectedTenantName(tenant?.name || '')
+      }
 
       let usersQuery = supabase
         .from('user_profiles')
         .select('*')
         .order('created_at', { ascending: false })
 
-      // If admin, only show users from their tenant AND exclude superadmins
+      // Admin: apenas usuários do próprio tenant (exclui superadmins)
       if (currentUserRole === 'admin' && currentUserTenantId) {
         usersQuery = usersQuery
           .eq('tenant_id', currentUserTenantId)
           .neq('role', 'superadmin')
       }
+      
+      // SuperAdmin: filtra por tenant selecionado
+      // - Todos os superadmins (sem filtro de tenant)
+      // - Admins e users do tenant selecionado
+      if (currentUserRole === 'superadmin' && selectedTenantId) {
+        // Não podemos fazer OR direto no Supabase de forma simples
+        // Solução: buscar todos e filtrar no client-side
+        // OU fazer duas queries e combinar
+        
+        // Vamos buscar todos e filtrar no client (mais simples)
+        // A query não terá filtro aqui, filtraremos após
+      }
 
       const { data: userProfiles } = (await usersQuery) as { data: UP[] | null }
 
+      // Filtro adicional para SuperAdmin com tenant selecionado
+      let filteredProfiles = userProfiles || []
+      if (currentUserRole === 'superadmin' && selectedTenantId) {
+        filteredProfiles = userProfiles?.filter(profile => {
+          // Incluir todos os superadmins
+          if (profile.role === 'superadmin') return true
+          // Incluir admins e users do tenant selecionado
+          return profile.tenant_id === selectedTenantId
+        }) || []
+      }
+
       // Buscar todos os tenants únicos dos usuários
-      const tenantIds = [...new Set(userProfiles?.map(u => u.tenant_id).filter(Boolean) as string[])]
+      const tenantIds = [...new Set(filteredProfiles?.map(u => u.tenant_id).filter(Boolean) as string[])]
 
       const tenantsMap = new Map()
       if (tenantIds.length > 0) {
@@ -72,7 +108,7 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
       }
 
       // Combinar users com tenants
-      const usersWithTenants: UserProfile[] = userProfiles?.map(profile => ({
+      const usersWithTenants: UserProfile[] = filteredProfiles?.map(profile => ({
         ...profile,
         tenants: profile.tenant_id ? tenantsMap.get(profile.tenant_id) : null
       })) || []
@@ -82,7 +118,7 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
     }
 
     loadUsers()
-  }, [currentUserRole, currentUserTenantId])
+  }, [currentUserRole, currentUserTenantId, selectedTenantId])
 
   // Calculate stats
   const totalUsers = users?.length || 0
@@ -166,7 +202,16 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
 
         const { data: userProfiles } = (await usersQuery) as { data: UP[] | null }
 
-        const tenantIds = [...new Set(userProfiles?.map(u => u.tenant_id).filter(Boolean) as string[])]
+        // Filtro adicional para SuperAdmin com tenant selecionado
+        let filteredProfiles = userProfiles || []
+        if (currentUserRole === 'superadmin' && selectedTenantId) {
+          filteredProfiles = userProfiles?.filter(profile => {
+            if (profile.role === 'superadmin') return true
+            return profile.tenant_id === selectedTenantId
+          }) || []
+        }
+
+        const tenantIds = [...new Set(filteredProfiles?.map(u => u.tenant_id).filter(Boolean) as string[])]
         const tenantsMap = new Map()
 
         if (tenantIds.length > 0) {
@@ -180,7 +225,7 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
           })
         }
 
-        const usersWithTenants: UserProfile[] = userProfiles?.map(profile => ({
+        const usersWithTenants: UserProfile[] = filteredProfiles?.map(profile => ({
           ...profile,
           tenants: profile.tenant_id ? tenantsMap.get(profile.tenant_id) : null
         })) || []
@@ -277,9 +322,15 @@ export function UsuariosContent({ currentUserRole, currentUserTenantId }: Usuari
         <CardHeader>
           <CardTitle className="text-base">Lista de Usuários</CardTitle>
           <CardDescription className="text-xs">
-            {currentUserRole === 'superadmin'
-              ? 'Todos os usuários do sistema'
-              : 'Usuários da sua empresa (superadmins não são exibidos)'}
+            {currentUserRole === 'superadmin' && selectedTenantId && selectedTenantName ? (
+              <>
+                Todos os <strong>Superadmins</strong> + Admins e Usuários de <strong>{selectedTenantName}</strong>
+              </>
+            ) : currentUserRole === 'superadmin' ? (
+              'Todos os usuários do sistema'
+            ) : (
+              'Usuários da sua empresa (superadmins não são exibidos)'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>

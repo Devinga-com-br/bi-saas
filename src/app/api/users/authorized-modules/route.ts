@@ -7,6 +7,7 @@
  * Endpoints:
  * - GET: Listar módulos autorizados de um usuário
  * - POST: Atualizar módulos autorizados (substituição completa)
+ * - DELETE: Remover todos os módulos autorizados (usado quando role muda para admin/superadmin)
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -259,3 +260,82 @@ export async function POST(request: Request) {
     )
   }
 }
+
+/**
+ * DELETE /api/users/authorized-modules
+ *
+ * Remove todos os módulos autorizados de um usuário
+ * (usado quando role é alterado para admin ou superadmin)
+ *
+ * Body:
+ * {
+ *   user_id: string
+ * }
+ *
+ * Response:
+ * {
+ *   user_id: string
+ *   message: string
+ * }
+ */
+export async function DELETE(request: Request) {
+  try {
+    const supabase = await createClient()
+
+    // 1. Validar autenticação
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      )
+    }
+
+    // 2. Obter perfil do solicitante
+    const { data: requesterProfile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single() as { data: { role: string } | null }
+
+    // 3. Verificar permissões (admin ou superadmin)
+    if (!requesterProfile || !['admin', 'superadmin'].includes(requesterProfile.role)) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      )
+    }
+
+    // 4. Obter dados do body
+    const body = await request.json()
+    const { user_id } = body
+
+    if (!user_id) {
+      return NextResponse.json(
+        { error: 'user_id is required' },
+        { status: 400 }
+      )
+    }
+
+    // 5. Deletar todos os módulos do usuário
+    const { error: deleteError } = await supabase
+      .from('user_authorized_modules')
+      .delete()
+      .eq('user_id', user_id)
+
+    if (deleteError) throw deleteError
+
+    return NextResponse.json({
+      user_id,
+      message: 'All authorized modules removed successfully'
+    })
+
+  } catch (error) {
+    console.error('[API] Delete authorized modules error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+

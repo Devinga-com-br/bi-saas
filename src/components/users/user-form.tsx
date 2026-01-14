@@ -13,7 +13,6 @@ import type { Database } from '@/types/database.types'
 import { BranchSelector } from '@/components/users/branch-selector'
 import { ModuleSelector } from '@/components/usuarios/module-selector'
 import type { SystemModule } from '@/types/modules'
-import { ALL_MODULE_IDS } from '@/types/modules'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 type Tenant = Database['public']['Tables']['tenants']['Row']
@@ -41,9 +40,9 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
   const [authorizedBranches, setAuthorizedBranches] = useState<string[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
-  // Se for criação (não tem user), inicia com TODOS os módulos selecionados
-  // Se for edição (tem user), carrega do banco via useEffect
-  const [authorizedModules, setAuthorizedModules] = useState<SystemModule[]>(user ? [] : ALL_MODULE_IDS)
+  // Inicia vazio em ambos os casos - criação e edição
+  // Se for edição, carrega do banco via useEffect
+  const [authorizedModules, setAuthorizedModules] = useState<SystemModule[]>([])
   const [loadingModules, setLoadingModules] = useState(false)
 
   // Quando role é superadmin, tenant_id deve ser null
@@ -128,20 +127,25 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
   // Load authorized modules when editing
   useEffect(() => {
     async function loadAuthorizedModules() {
-      if (user && user.role === 'user') {
+      if (user) {
         setLoadingModules(true)
         try {
           const response = await fetch(`/api/users/authorized-modules?userId=${user.id}`)
           if (response.ok) {
             const data = await response.json()
-            setAuthorizedModules(data.modules || ALL_MODULE_IDS)
+            // Se for user, carrega módulos do banco
+            // Se for admin/superadmin, carrega todos (para caso mude para user)
+            setAuthorizedModules(data.modules || [])
           }
         } catch (error) {
           console.error('Error loading authorized modules:', error)
-          setAuthorizedModules(ALL_MODULE_IDS)
+          setAuthorizedModules([])
         } finally {
           setLoadingModules(false)
         }
+      } else {
+        // Criação de novo usuário: inicia vazio, usuário deve selecionar
+        setAuthorizedModules([])
       }
     }
 
@@ -332,8 +336,9 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
           }
         }
 
-        // Update authorized modules (only for role = user)
+        // Update authorized modules
         if (role === 'user') {
+          // Se role é user, salvar módulos selecionados
           const modulesResponse = await fetch('/api/users/authorized-modules', {
             method: 'POST',
             headers: {
@@ -349,6 +354,21 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
             setError('Erro ao atualizar módulos autorizados')
             setLoading(false)
             return
+          }
+        } else {
+          // Se role é admin/superadmin, limpar todos os módulos autorizados
+          const modulesResponse = await fetch('/api/users/authorized-modules', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+            }),
+          })
+
+          if (!modulesResponse.ok) {
+            console.warn('Erro ao limpar módulos autorizados (não crítico)')
           }
         }
 
@@ -528,29 +548,24 @@ export function UserForm({ user, currentUserRole, currentUserTenantId }: UserFor
         />
       )}
 
-      {/* Módulos Autorizados - Apenas para role = user */}
-      {role === 'user' && (
-        <div className="space-y-2 border-t pt-6">
+      {/* Módulos Autorizados */}
+      <div className="space-y-2 border-t pt-6">
+        {role === 'user' ? (
           <ModuleSelector
             selectedModules={authorizedModules}
             onChange={setAuthorizedModules}
             disabled={loading || loadingModules}
             showFullAccessMessage={false}
           />
-        </div>
-      )}
-
-      {/* Mensagem de Acesso Full para Superadmin e Admin */}
-      {(role === 'superadmin' || role === 'admin') && (
-        <div className="border-t pt-6">
+        ) : (
           <ModuleSelector
             selectedModules={[]}
             onChange={() => {}}
             disabled={true}
             showFullAccessMessage={true}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex gap-4">
         <Button type="submit" disabled={loading}>

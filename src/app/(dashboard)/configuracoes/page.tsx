@@ -209,6 +209,7 @@ export default function ConfiguracoesPage() {
             <UsuariosContent
               currentUserRole={userProfile.role}
               currentUserTenantId={userProfile.tenant_id}
+              selectedTenantId={currentTenant?.id || null}
             />
           )}
 
