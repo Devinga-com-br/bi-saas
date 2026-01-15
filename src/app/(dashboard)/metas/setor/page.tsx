@@ -399,19 +399,27 @@ export default function MetaSetorPage() {
 
     // Validar campos obrigatórios
     if (generateForm.setor_ids.length === 0) {
-      alert('Selecione pelo menos um setor')
+      toast.error('Campos obrigatórios', {
+        description: 'Selecione pelo menos um setor'
+      })
       return
     }
     if (generateForm.filial_ids.length === 0) {
-      alert('Selecione pelo menos uma filial')
+      toast.error('Campos obrigatórios', {
+        description: 'Selecione pelo menos uma filial'
+      })
       return
     }
     if (!generateForm.data_referencia) {
-      alert('Informe a data de referência')
+      toast.error('Campos obrigatórios', {
+        description: 'Informe a data de referência'
+      })
       return
     }
     if (generateForm.meta_percentual === undefined || generateForm.meta_percentual === null) {
-      alert('Informe o percentual da meta')
+      toast.error('Campos obrigatórios', {
+        description: 'Informe o percentual da meta'
+      })
       return
     }
 
@@ -462,17 +470,18 @@ export default function MetaSetorPage() {
       }
 
       // Mostrar resultado
-      let message = `✅ Geração concluída!\n\n`
-      message += `Sucesso: ${successCount}/${total}\n`
       if (errorCount > 0) {
-        message += `Erros: ${errorCount}/${total}\n\n`
-        message += `Detalhes dos erros:\n${errors.slice(0, 5).join('\n')}`
-        if (errors.length > 5) {
-          message += `\n... e mais ${errors.length - 5} erros`
-        }
+        const errorDetails = errors.slice(0, 3).join('\n')
+        const moreErrors = errors.length > 3 ? `\n... e mais ${errors.length - 3} erros` : ''
+        
+        toast.error('Erro ao gerar metas', {
+          description: `${successCount} de ${total} metas criadas com sucesso.\n\nPrimeiros erros:\n${errorDetails}${moreErrors}`
+        })
+      } else {
+        toast.success('Metas geradas com sucesso', {
+          description: `${successCount} metas criadas para o período`
+        })
       }
-
-      alert(message)
 
       if (successCount > 0) {
         // Limpar formulário após sucesso
@@ -489,7 +498,9 @@ export default function MetaSetorPage() {
       }
     } catch (error) {
       console.error('Error generating metas:', error)
-      alert(`❌ Erro ao gerar metas:\n${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+      toast.error('Erro ao gerar metas', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
     } finally {
       setIsGenerating(false)
       setGenerationProgress({ current: 0, total: 0 })
@@ -537,13 +548,6 @@ export default function MetaSetorPage() {
       return
     }
 
-    if (newValue < 0) {
-      toast.error('Valor inválido', {
-        description: 'O valor não pode ser negativo. Use 0 para zerar a meta.'
-      })
-      return
-    }
-
     setSavingEdit(true)
     try {
       // Encontrar a meta atual
@@ -555,7 +559,7 @@ export default function MetaSetorPage() {
 
       if (!filialData) {
         toast.error('Meta não encontrada', {
-          description: 'Não foi possível localizar a meta para atualização'
+          description: 'Não foi possível localizar a meta para edição'
         })
         setSavingEdit(false)
         cancelEditing()

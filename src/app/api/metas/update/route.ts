@@ -14,7 +14,7 @@ const updateMetaIndividualSchema = z.object({
       }
       return num
     }),
-  valorMeta: z.number().min(0, 'Valor da meta não pode ser negativo'),
+  valorMeta: z.number(),
   metaPercentual: z.number().min(-100).max(1000, 'Meta percentual deve estar entre -100 e 1000'),
 })
 

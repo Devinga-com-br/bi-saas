@@ -12,7 +12,7 @@ const generateMetaSchema = z.object({
   schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
   mes: z.number().int().min(1).max(12),
   ano: z.number().int().min(2020).max(2100),
-  metaPercentual: z.number().min(0).max(1000),
+  metaPercentual: z.number().min(-100).max(1000),
   dataReferenciaInicial: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   filialId: z.union([z.string(), z.number()]).optional(),
 })

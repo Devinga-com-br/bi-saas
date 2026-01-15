@@ -5,7 +5,7 @@ import type { UserProfile } from '@/types'
  * Whitelist of allowed tenant schemas.
  * Any schema not in this list will be rejected.
  */
-export const ALLOWED_SCHEMAS = ['okilao', 'saoluiz', 'paraiso', 'lucia', 'sol'] as const
+export const ALLOWED_SCHEMAS = ['okilao', 'saoluiz', 'paraiso', 'lucia', 'sol', 'demo'] as const
 export type TenantSchema = (typeof ALLOWED_SCHEMAS)[number]
 
 /**
@@ -44,7 +44,7 @@ export async function validateSchemaAccess(
     .from('user_profiles')
     .select('role, can_switch_tenants, tenant_id')
     .eq('id', user.id)
-    .single() as { data: Pick<UserProfile, 'role' | 'can_switch_tenants' | 'tenant_id'> | null }
+    .single() as { data: Pick<UserProfile, 'role' | 'can_switch_tenants' | 'tenant_id'> | null; error: unknown }
 
   if (!profile) {
     return false
@@ -58,6 +58,7 @@ export async function validateSchemaAccess(
       .eq('supabase_schema', requestedSchema)
       .eq('is_active', true)
       .single()
+    
     return !!tenant && !error
   }
 

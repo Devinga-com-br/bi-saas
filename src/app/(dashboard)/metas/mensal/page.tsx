@@ -480,12 +480,7 @@ export default function MetaMensalPage() {
       return
     }
 
-    if (newValue < 0) {
-      toast.error('Valor inválido', {
-        description: 'O valor não pode ser negativo. Use 0 para zerar a meta.'
-      })
-      return
-    }
+
 
     setSavingEdit(true)
 
