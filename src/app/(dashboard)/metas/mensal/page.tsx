@@ -719,10 +719,15 @@ export default function MetaMensalPage() {
                     id="form-meta"
                     type="number"
                     step="0.01"
-                    placeholder="Ex: 10"
+                    min="-100"
+                    max="1000"
+                    placeholder="Ex: 10 (ou -10 para meta negativa)"
                     value={formMetaPercentual}
                     onChange={(e) => setFormMetaPercentual(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Valores negativos indicam redução da meta em relação à referência
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="form-data-ref">Data de Referência Inicial</Label>
