@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,14 +13,8 @@ import { useBranchesOptions } from '@/hooks/use-branches'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { DepartmentFilterPopover, SectorFilterPopover } from '@/components/filters'
 import { ChartCandlestick, FileDown, Loader2 } from 'lucide-react'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTable } from '@/components/ui/data-table'
+import { createColumns, ProdutoSemVenda } from './columns'
 import { logModuleAccess } from '@/lib/audit'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
@@ -34,19 +28,6 @@ declare module 'jspdf' {
     }
     autoTable: (options: Record<string, unknown>) => jsPDF
   }
-}
-
-interface ProdutoSemVenda {
-  filial_id: number
-  produto_id: number
-  descricao: string
-  estoque_atual: number
-  data_ultima_venda: string | null
-  preco_custo: number
-  curva_abcd: string | null
-  curva_lucro: string | null
-  dias_sem_venda: number
-  total_count?: number
 }
 
 interface ApiResponse {
@@ -328,6 +309,9 @@ export default function ProdutosSemVendasPage() {
     return filial ? filial.label : filialId.toString()
   }
 
+  // Criar colunas com useMemo para evitar recriação desnecessária
+  const columns = useMemo(() => createColumns(getFilialNome), [filiaisCompletas])
+
   // Log de acesso
   useEffect(() => {
     const logAccess = async () => {
@@ -551,83 +535,14 @@ export default function ProdutosSemVendasPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Filial</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead className="min-w-[300px]">Descrição</TableHead>
-                    <TableHead className="text-right">Estoque</TableHead>
-                    <TableHead>Últ. Venda</TableHead>
-                    <TableHead className="text-right">Custo</TableHead>
-                    <TableHead className="text-center">Curva Venda</TableHead>
-                    <TableHead className="text-center">Curva Lucro</TableHead>
-                    <TableHead className="text-right">Dias</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {produtos.map((produto, index) => (
-                    <TableRow key={`${produto.filial_id}-${produto.produto_id}-${index}`}>
-                      <TableCell className="font-medium">
-                        {getFilialNome(produto.filial_id)}
-                      </TableCell>
-                      <TableCell>{produto.produto_id}</TableCell>
-                      <TableCell className="max-w-[300px] truncate">
-                        {produto.descricao}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {produto.estoque_atual.toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        {produto.data_ultima_venda
-                          ? format(new Date(produto.data_ultima_venda), 'dd/MM/yyyy')
-                          : <span className="text-muted-foreground">-</span>
-                        }
-                      </TableCell>
-                      <TableCell className="text-right">
-                        R$ {produto.preco_custo.toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {produto.curva_abcd ? (
-                          <Badge variant={
-                            produto.curva_abcd === 'A' ? 'default' :
-                            produto.curva_abcd === 'B' ? 'secondary' :
-                            'outline'
-                          }>
-                            {produto.curva_abcd}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {produto.curva_lucro ? (
-                          <Badge variant="outline">{produto.curva_lucro}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge 
-                          variant={produto.dias_sem_venda > 90 ? 'destructive' : 'secondary'}
-                        >
-                          {produto.dias_sem_venda}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable 
+              columns={columns} 
+              data={produtos}
+              pageSize={100}
+              showPagination={false}
+            />
             
-            {/* Paginação */}
+            {/* Paginação Server-Side */}
             {totalCount > pageSize && (
               <div className="flex items-center justify-between pt-4">
                 <div className="text-sm text-muted-foreground">
