@@ -123,6 +123,13 @@ interface VendaPorFilial {
   delta_sku_percent: number
 }
 
+// Interface para resposta da API de vendas por filial
+interface VendasPorFilialResponse {
+  vendas: VendaPorFilial[]
+  total_sku_distinct: number
+  pa_total_sku_distinct: number
+}
+
 // Interface para dados de faturamento
 interface FaturamentoData {
   receita_faturamento: number
@@ -407,7 +414,7 @@ export default function DashboardPage() {
   const vendasFilialUrl = apiParams.schema
     ? `/api/dashboard/vendas-por-filial?schema=${apiParams.schema}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filiais=${apiParams.filiais}&filter_type=${apiParams.filter_type}`
     : null
-  const { data: vendasPorFilial, isLoading: isLoadingVendasFilial } = useSWR<VendaPorFilial[]>(
+  const { data: vendasPorFilialData, isLoading: isLoadingVendasFilial } = useSWR<VendasPorFilialResponse>(
     vendasFilialUrl, 
     fetcher, 
     { 
@@ -417,6 +424,10 @@ export default function DashboardPage() {
       dedupingInterval: 0
     }
   );
+
+  // Extrair totais de SKU
+  const totalSkuDistinct = vendasPorFilialData?.total_sku_distinct || 0
+  const paTotalSkuDistinct = vendasPorFilialData?.pa_total_sku_distinct || 0
 
   // Força revalidação quando URL mudar (filtros mudaram)
   useEffect(() => {
@@ -927,8 +938,6 @@ export default function DashboardPage() {
         pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
         total_cupons: acc.total_cupons + (venda.total_cupons || 0),
         pa_total_cupons: acc.pa_total_cupons + (venda.pa_total_cupons || 0),
-        total_sku: acc.total_sku + (venda.total_sku || 0),
-        pa_total_sku: acc.pa_total_sku + (venda.pa_total_sku || 0),
       }), {
         valor_total: 0,
         pa_valor_total: 0,
@@ -942,9 +951,11 @@ export default function DashboardPage() {
         pa_total_entradas: 0,
         total_cupons: 0,
         pa_total_cupons: 0,
-        total_sku: 0,
-        pa_total_sku: 0,
       })
+
+      // SKU total usa valores distintos da API, não soma
+      const total_sku = totalSkuDistinct
+      const pa_total_sku = paTotalSkuDistinct
 
       const ticket_medio_total = totais.total_transacoes > 0 ? totais.valor_total / totais.total_transacoes : 0
       const pa_ticket_medio_total = totais.pa_total_transacoes > 0 ? totais.pa_valor_total / totais.pa_total_transacoes : 0
@@ -957,7 +968,7 @@ export default function DashboardPage() {
       const delta_margem_total = margem_total - pa_margem_total
       const delta_entradas_total = totais.pa_total_entradas > 0 ? ((totais.total_entradas - totais.pa_total_entradas) / totais.pa_total_entradas) * 100 : 0
       const delta_cupons_total = totais.pa_total_cupons > 0 ? ((totais.total_cupons - totais.pa_total_cupons) / totais.pa_total_cupons) * 100 : 0
-      const delta_sku_total = totais.pa_total_sku > 0 ? ((totais.total_sku - totais.pa_total_sku) / totais.pa_total_sku) * 100 : 0
+      const delta_sku_total = pa_total_sku > 0 ? ((total_sku - pa_total_sku) / pa_total_sku) * 100 : 0
 
       // Adicionar linha de total
       const totalRow = [
@@ -976,7 +987,7 @@ export default function DashboardPage() {
         formatDelta(delta_entradas_total),
         totais.total_cupons.toLocaleString('pt-BR'),
         formatDelta(delta_cupons_total),
-        totais.total_sku.toLocaleString('pt-BR'),
+        total_sku.toLocaleString('pt-BR'),
         formatDelta(delta_sku_total)
       ]
       tableBody.push(totalRow)
@@ -1047,6 +1058,9 @@ export default function DashboardPage() {
 
   // Dados ordenados usando useMemo para performance
   const sortedVendasPorFilial = useMemo(() => {
+    // Extrair vendas do response
+    const vendasPorFilial = vendasPorFilialData?.vendas || []
+    
     if (!vendasPorFilial || !Array.isArray(vendasPorFilial) || vendasPorFilial.length === 0) return []
 
     const sorted = [...vendasPorFilial].sort((a, b) => {
@@ -1102,7 +1116,7 @@ export default function DashboardPage() {
     })
 
     return sorted
-  }, [vendasPorFilial, sortColumn, sortDirection])
+  }, [vendasPorFilialData?.vendas, sortColumn, sortDirection])
 
   // Componente de ícone para ordenação
   const SortIcon = ({ column }: { column: SortColumn }) => {
@@ -1855,8 +1869,6 @@ export default function DashboardPage() {
                       pa_total_entradas: acc.pa_total_entradas + (venda.pa_total_entradas || 0),
                       total_cupons: acc.total_cupons + (venda.total_cupons || 0),
                       pa_total_cupons: acc.pa_total_cupons + (venda.pa_total_cupons || 0),
-                      total_sku: acc.total_sku + (venda.total_sku || 0),
-                      pa_total_sku: acc.pa_total_sku + (venda.pa_total_sku || 0),
                     }), {
                       valor_total: 0,
                       pa_valor_total: 0,
@@ -1870,9 +1882,11 @@ export default function DashboardPage() {
                       pa_total_entradas: 0,
                       total_cupons: 0,
                       pa_total_cupons: 0,
-                      total_sku: 0,
-                      pa_total_sku: 0,
                     })
+
+                    // SKU total usa valores distintos da API, não soma
+                    const total_sku_table = totalSkuDistinct
+                    const pa_total_sku_table = paTotalSkuDistinct
 
                     // Totais Faturamento
                     const totalFaturamentoReceita = faturamentoData?.receita_faturamento || 0
@@ -2076,13 +2090,13 @@ export default function DashboardPage() {
 
                         {/* Total SKU */}
                         {(() => {
-                          const delta_sku_percent = totaisPdv.pa_total_sku > 0
-                            ? ((totaisPdv.total_sku - totaisPdv.pa_total_sku) / totaisPdv.pa_total_sku) * 100
+                          const delta_sku_percent = pa_total_sku_table > 0
+                            ? ((total_sku_table - pa_total_sku_table) / pa_total_sku_table) * 100
                             : 0
                           return (
                             <TableCell className="text-right">
                               <div>
-                                {totaisPdv.total_sku.toLocaleString('pt-BR')}
+                                {total_sku_table.toLocaleString('pt-BR')}
                               </div>
                               <div className={`flex items-center justify-end gap-1 text-xs ${delta_sku_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {delta_sku_percent >= 0 ? (
@@ -2095,7 +2109,7 @@ export default function DashboardPage() {
                                 </span>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {totaisPdv.pa_total_sku.toLocaleString('pt-BR')}
+                                {pa_total_sku_table.toLocaleString('pt-BR')}
                               </div>
                             </TableCell>
                           )

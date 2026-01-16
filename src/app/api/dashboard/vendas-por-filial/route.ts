@@ -80,7 +80,40 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Error fetching sales data' }, { status: 500 })
     }
 
-    return NextResponse.json(data || [])
+    // Buscar total de SKUs distintos (produtos vendidos no período - não somar por filial!)
+    const { data: totalSkuData, error: skuError } = await directSupabase.rpc('get_total_sku_distinct', {
+      p_schema: schema,
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filiais: finalFiliais
+    } as never)
+
+    console.log('[DEBUG] get_total_sku_distinct response:', {
+      data: totalSkuData,
+      error: skuError,
+      extracted: totalSkuData?.[0]?.total_sku
+    })
+
+    // Buscar total de SKUs distintos do período anterior
+    const { data: totalSkuPaData, error: skuPaError } = await directSupabase.rpc('get_total_sku_distinct_pa', {
+      p_schema: schema,
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filiais: finalFiliais,
+      p_filter_type: filterType
+    } as never)
+
+    console.log('[DEBUG] get_total_sku_distinct_pa response:', {
+      data: totalSkuPaData,
+      error: skuPaError,
+      extracted: totalSkuPaData?.[0]?.pa_total_sku
+    })
+
+    return NextResponse.json({
+      vendas: data || [],
+      total_sku_distinct: totalSkuData?.[0]?.total_sku || 0,
+      pa_total_sku_distinct: totalSkuPaData?.[0]?.pa_total_sku || 0
+    })
 
   } catch (error) {
     console.error('[API/DASHBOARD/VENDAS-POR-FILIAL] Erro:', error)
