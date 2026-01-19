@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Pagination,
@@ -51,8 +52,11 @@ interface Produto {
   filial_id: number
   qtde: number
   valor_vendas: number
+  valor_vendas_ano_anterior?: number
   valor_lucro: number
+  valor_lucro_ano_anterior?: number
   percentual_lucro: number
+  percentual_lucro_ano_anterior?: number
   curva_venda: string
   curva_lucro: string
 }
@@ -61,8 +65,11 @@ interface DeptNivel1 {
   dept1_id: number
   dept_nivel1: string
   total_vendas: number
+  total_vendas_ano_anterior?: number
   total_lucro: number
+  total_lucro_ano_anterior?: number
   margem: number
+  margem_ano_anterior?: number
   produtos: Produto[]
 }
 
@@ -70,8 +77,11 @@ interface DeptNivel2 {
   dept2_id: number
   dept_nivel2: string
   total_vendas: number
+  total_vendas_ano_anterior?: number
   total_lucro: number
+  total_lucro_ano_anterior?: number
   margem: number
+  margem_ano_anterior?: number
   nivel1: DeptNivel1[]
 }
 
@@ -79,8 +89,11 @@ interface DeptNivel3 {
   dept3_id: number
   dept_nivel3: string
   total_vendas: number
+  total_vendas_ano_anterior?: number
   total_lucro: number
+  total_lucro_ano_anterior?: number
   margem: number
+  margem_ano_anterior?: number
   nivel2: DeptNivel2[]
 }
 
@@ -95,16 +108,40 @@ interface ReportData {
 // Componente memoizado para renderização de produtos
 const ProdutoTable = memo(function ProdutoTable({
   produtos,
-  filtroProduto
+  filtroProduto,
+  compararAnoAnterior,
+  compareLabel
 }: {
   produtos: Produto[]
   filtroProduto: string
+  compararAnoAnterior: boolean
+  compareLabel: string
 }) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(value)
+  }
+
+  const formatPercent = (value: number) => `${value.toFixed(2)}%`
+
+  const formatDeltaPercent = (current: number, previous: number) => {
+    if (previous === 0) {
+      return '(-)'
+    }
+    const delta = ((current - previous) / previous) * 100
+    const rounded = Math.round(delta)
+    const sign = rounded > 0 ? '+' : ''
+    return `${sign}${rounded}%`
+  }
+
+  const getDeltaClass = (current: number, previous: number) => {
+    if (previous === 0) return 'text-muted-foreground'
+    const delta = ((current - previous) / previous) * 100
+    if (delta > 0) return 'text-green-600'
+    if (delta < 0) return 'text-red-600'
+    return 'text-muted-foreground'
   }
 
   const produtoCorrespondeFiltro = (produto: Produto): boolean => {
@@ -143,14 +180,53 @@ const ProdutoTable = memo(function ProdutoTable({
               <TableCell className="text-xs font-mono">{produto.codigo}</TableCell>
               <TableCell className="text-xs">{produto.descricao}</TableCell>
               <TableCell className="text-right text-xs">{produto.qtde}</TableCell>
-              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_vendas)}</TableCell>
+              <TableCell className="text-right text-xs">
+                <div className="flex flex-col items-end">
+                  <span>{formatCurrency(produto.valor_vendas)}</span>
+                  {compararAnoAnterior && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {compareLabel} {formatCurrency(produto.valor_vendas_ano_anterior || 0)} (
+                      <span className={getDeltaClass(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)}>
+                        {formatDeltaPercent(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)}
+                      </span>
+                      )
+                    </span>
+                  )}
+                </div>
+              </TableCell>
               <TableCell className="text-xs">
                 <Badge variant={produto.curva_venda === 'A' ? 'default' : produto.curva_venda === 'B' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0">
                   {produto.curva_venda}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right text-xs">{formatCurrency(produto.valor_lucro)}</TableCell>
-              <TableCell className="text-right text-xs">{produto.percentual_lucro.toFixed(2)}%</TableCell>
+              <TableCell className="text-right text-xs">
+                <div className="flex flex-col items-end">
+                  <span>{formatCurrency(produto.valor_lucro)}</span>
+                  {compararAnoAnterior && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {compareLabel} {formatCurrency(produto.valor_lucro_ano_anterior || 0)} (
+                      <span className={getDeltaClass(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)}>
+                        {formatDeltaPercent(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)}
+                      </span>
+                      )
+                    </span>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right text-xs">
+                <div className="flex flex-col items-end">
+                  <span>{formatPercent(produto.percentual_lucro)}</span>
+                  {compararAnoAnterior && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {compareLabel} {formatPercent(produto.percentual_lucro_ano_anterior || 0)} (
+                      <span className={getDeltaClass(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)}>
+                        {formatDeltaPercent(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)}
+                      </span>
+                      )
+                    </span>
+                  )}
+                </div>
+              </TableCell>
               <TableCell className="text-xs">
                 <Badge variant={produto.curva_lucro === 'A' ? 'default' : produto.curva_lucro === 'B' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0">
                   {produto.curva_lucro}
@@ -185,6 +261,7 @@ export default function VendaCurvaPage() {
   const [page, setPage] = useState(1)
   const pageSize = 50
   const [defaultFilialSet, setDefaultFilialSet] = useState(false)
+  const [compararAnoAnterior, setCompararAnoAnterior] = useState(false)
 
   // Estados de expansão
   const [expandedDept1, setExpandedDept1] = useState<Record<string, boolean>>({})
@@ -254,7 +331,7 @@ export default function VendaCurvaPage() {
       fetchData()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, ano, filiaisSelecionadas])
+  }, [mes, ano, filiaisSelecionadas, compararAnoAnterior])
 
   // Carregar dados quando a página mudar
   useEffect(() => {
@@ -370,6 +447,7 @@ export default function VendaCurvaPage() {
         filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: page.toString(),
         page_size: pageSize.toString(),
+        compare_ano_anterior: compararAnoAnterior ? '1' : '0',
       })
 
       const response = await fetch(`/api/relatorios/venda-curva?${params}`)
@@ -406,7 +484,8 @@ export default function VendaCurvaPage() {
         ano,
         filial_id: filiaisSelecionadas.map(f => f.value).join(','),
         page: '1',
-        page_size: '10000'
+        page_size: '10000',
+        compare_ano_anterior: compararAnoAnterior ? '1' : '0',
       })
 
       const response = await fetch(`/api/relatorios/venda-curva?${params}`)
@@ -423,7 +502,7 @@ export default function VendaCurvaPage() {
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4',
-      })
+      }) as import('jspdf').jsPDF
 
       // Configurar fonte
       doc.setFont('helvetica')
@@ -443,68 +522,7 @@ export default function VendaCurvaPage() {
       doc.text(`Total de departamentos: ${allData.hierarquia?.length || 0}`, 14, 35)
       doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40)
 
-      // Preparar dados da tabela - estrutura hierárquica achatada
-      const tableData: (string | number | { content: string; colSpan: number; styles: { fillColor: number[]; fontStyle: string; textColor?: number[] } })[][] = []
-
-      allData.hierarquia?.forEach((dept3: DeptNivel3) => {
-        // Departamento Nível 3 (header principal)
-        tableData.push([
-          {
-            content: `${dept3.dept_nivel3} - Vendas: ${formatCurrency(dept3.total_vendas)} | Lucro: ${formatCurrency(dept3.total_lucro)} | Margem: ${dept3.margem.toFixed(2)}%`,
-            colSpan: 9,
-            styles: {
-              fillColor: [59, 130, 246],
-              fontStyle: 'bold',
-              textColor: [255, 255, 255]
-            }
-          }
-        ])
-
-        dept3.nivel2?.forEach((dept2: DeptNivel2) => {
-          // Departamento Nível 2 (sub-header)
-          tableData.push([
-            {
-              content: `  ${dept2.dept_nivel2} - Vendas: ${formatCurrency(dept2.total_vendas)} | Lucro: ${formatCurrency(dept2.total_lucro)} | Margem: ${dept2.margem.toFixed(2)}%`,
-              colSpan: 9,
-              styles: {
-                fillColor: [200, 220, 240],
-                fontStyle: 'bold'
-              }
-            }
-          ])
-
-          dept2.nivel1?.forEach((dept1: DeptNivel1) => {
-            // Departamento Nível 1 (grupo)
-            tableData.push([
-              {
-                content: `    ${dept1.dept_nivel1} - Vendas: ${formatCurrency(dept1.total_vendas)} | Lucro: ${formatCurrency(dept1.total_lucro)} | Margem: ${dept1.margem.toFixed(2)}%`,
-                colSpan: 9,
-                styles: {
-                  fillColor: [240, 240, 240],
-                  fontStyle: 'bold'
-                }
-              }
-            ])
-
-            // Produtos do departamento nível 1
-            dept1.produtos?.forEach((produto: Produto) => {
-              tableData.push([
-                produto.codigo.toString(),
-                produto.descricao.substring(0, 40), // Limitar tamanho
-                produto.qtde.toFixed(2),
-                formatCurrency(produto.valor_vendas),
-                produto.curva_venda,
-                formatCurrency(produto.valor_lucro),
-                produto.percentual_lucro.toFixed(2) + '%',
-                produto.curva_lucro,
-                produto.filial_id.toString()
-              ])
-            })
-          })
-        })
-      })
-
-      // Cabeçalhos da tabela
+      // Configuração de colunas para o PDF (ajuste para margem igual)
       const headers = [
         'Código',
         'Descrição',
@@ -516,50 +534,263 @@ export default function VendaCurvaPage() {
         'Curva Lucro',
         'Filial'
       ]
+      const baseColumnWidths = [20, 70, 20, 30, 20, 30, 20, 20, 15]
+      const tableStartX = 10
+      const tableEndX = doc.internal.pageSize.width - 10
+      const availableWidth = tableEndX - tableStartX
+      const baseWidth = baseColumnWidths.reduce((sum, w) => sum + w, 0)
+      const scale = availableWidth / baseWidth
+      const columnWidths = baseColumnWidths.map((w) => Math.round(w * scale))
+      const tableWidth = columnWidths.reduce((sum, w) => sum + w, 0)
+      const pageHeight = doc.internal.pageSize.height
+      const bottomMargin = 15
+      let currentY = 45
+      let lastFooterPage = 0
 
-      // Estilos de coluna
       const columnStyles: Record<number, { cellWidth?: number; halign?: 'center' | 'right' | 'left' }> = {
-        0: { cellWidth: 20 }, // Código
-        1: { cellWidth: 70 }, // Descrição
-        2: { cellWidth: 20, halign: 'right' }, // Qtde
-        3: { cellWidth: 30, halign: 'right' }, // Valor Vendas
-        4: { cellWidth: 20, halign: 'center' }, // Curva Venda
-        5: { cellWidth: 30, halign: 'right' }, // Valor Lucro
-        6: { cellWidth: 20, halign: 'right' }, // % Lucro
-        7: { cellWidth: 20, halign: 'center' }, // Curva Lucro
-        8: { cellWidth: 15, halign: 'center' }, // Filial
+        0: { cellWidth: columnWidths[0] }, // Código
+        1: { cellWidth: columnWidths[1] }, // Descrição
+        2: { cellWidth: columnWidths[2], halign: 'right' }, // Qtde
+        3: { cellWidth: columnWidths[3], halign: 'right' }, // Valor Vendas
+        4: { cellWidth: columnWidths[4], halign: 'center' }, // Curva Venda
+        5: { cellWidth: columnWidths[5], halign: 'right' }, // Valor Lucro
+        6: { cellWidth: columnWidths[6], halign: 'right' }, // % Lucro
+        7: { cellWidth: columnWidths[7], halign: 'center' }, // Curva Lucro
+        8: { cellWidth: columnWidths[8], halign: 'center' }, // Filial
       }
 
-      // Gerar tabela
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      autoTable(doc as any, {
-        head: [headers],
-        body: tableData as any,
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        startY: 45,
-        styles: {
-          fontSize: 7,
-          cellPadding: 1.5,
-        },
-        headStyles: {
-          fillColor: [59, 130, 246],
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 8,
-        },
-        columnStyles,
-        margin: { top: 45, left: 10, right: 10 },
-        didDrawPage: (data) => {
-          // Rodapé com número da página
-          const pageCount = doc.getNumberOfPages()
-          doc.setFontSize(8)
-          doc.text(
-            `Página ${data.pageNumber} de ${pageCount}`,
-            doc.internal.pageSize.width / 2,
-            doc.internal.pageSize.height - 10,
-            { align: 'center' }
-          )
-        },
+      const getColRightX = (colIndex: number) => {
+        const widthToCol = columnWidths.slice(0, colIndex + 1).reduce((sum, w) => sum + w, 0)
+        return tableStartX + widthToCol - 1
+      }
+      const marginRightX = tableStartX + tableWidth - 1
+
+      const ensureSpace = (height: number) => {
+        if (currentY + height > pageHeight - bottomMargin) {
+          doc.addPage()
+          currentY = 15
+        }
+      }
+
+      const mapPdfColor = (className: string): number[] => {
+        if (className === 'text-green-600') return [22, 163, 74]
+        if (className === 'text-red-600') return [220, 38, 38]
+        return [107, 114, 128]
+      }
+
+      const drawDeptHeaderRow = () => {
+        ensureSpace(6)
+        doc.setFillColor(59, 130, 246)
+        doc.rect(tableStartX, currentY, tableWidth, 6, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        const textY = currentY + 4.5
+        doc.text('Departamento', tableStartX + 2, textY)
+        doc.text('Vendas', getColRightX(3), textY, { align: 'right' })
+        doc.text('Lucro', getColRightX(5), textY, { align: 'right' })
+        doc.text('Margem', marginRightX, textY, { align: 'right' })
+        doc.setFont('helvetica', 'normal')
+        currentY += 6
+      }
+
+      const drawDeptRow = (options: {
+        label: string
+        vendas: number
+        lucro: number
+        margem: number
+        vendasAnterior?: number
+        lucroAnterior?: number
+        margemAnterior?: number
+        vendasDelta?: string
+        lucroDelta?: string
+        margemDelta?: string
+        fillColor: number[]
+        textColor: number[]
+        fontSize: number
+        indent?: number
+        rowHeight: number
+      }) => {
+        ensureSpace(options.rowHeight)
+        doc.setFillColor(options.fillColor[0], options.fillColor[1], options.fillColor[2])
+        doc.rect(tableStartX, currentY, tableWidth, options.rowHeight, 'F')
+        doc.setFontSize(options.fontSize)
+        doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2])
+        const indent = options.indent ? options.indent : 0
+        const textY = currentY + options.rowHeight / 2 + 1
+        doc.text(options.label, tableStartX + 2 + indent, textY)
+        const vendasMain = formatCurrency(options.vendas)
+        const lucroMain = formatCurrency(options.lucro)
+        const margemMain = `${options.margem.toFixed(2)}%`
+        const vendasCompare = options.vendasAnterior !== undefined
+          ? `${compareLabel} ${formatCurrency(options.vendasAnterior)} ${options.vendasDelta ? `(${options.vendasDelta})` : ''}`
+          : null
+        const lucroCompare = options.lucroAnterior !== undefined
+          ? `${compareLabel} ${formatCurrency(options.lucroAnterior)} ${options.lucroDelta ? `(${options.lucroDelta})` : ''}`
+          : null
+        const margemCompare = options.margemAnterior !== undefined
+          ? `${compareLabel} ${options.margemAnterior.toFixed(2)}% ${options.margemDelta ? `(${options.margemDelta})` : ''}`
+          : null
+
+        if (vendasCompare || lucroCompare || margemCompare) {
+          const mainY = currentY + options.rowHeight / 2 - 1
+          const compareY = currentY + options.rowHeight / 2 + 4
+          doc.text(vendasMain, getColRightX(3), mainY, { align: 'right' })
+          doc.text(lucroMain, getColRightX(5), mainY, { align: 'right' })
+          doc.text(margemMain, marginRightX, mainY, { align: 'right' })
+          doc.setFontSize(options.fontSize - 1)
+          doc.setTextColor(107, 114, 128)
+          if (vendasCompare) doc.text(vendasCompare, getColRightX(3), compareY, { align: 'right' })
+          if (lucroCompare) doc.text(lucroCompare, getColRightX(5), compareY, { align: 'right' })
+          if (margemCompare) doc.text(margemCompare, marginRightX, compareY, { align: 'right' })
+          doc.setFontSize(options.fontSize)
+          doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2])
+        } else {
+          doc.text(vendasMain, getColRightX(3), textY, { align: 'right' })
+          doc.text(lucroMain, getColRightX(5), textY, { align: 'right' })
+          doc.text(margemMain, marginRightX, textY, { align: 'right' })
+        }
+        currentY += options.rowHeight
+      }
+
+      drawDeptHeaderRow()
+
+      allData.hierarquia?.forEach((dept3: DeptNivel3) => {
+        drawDeptRow({
+          label: dept3.dept_nivel3,
+          vendas: dept3.total_vendas,
+          lucro: dept3.total_lucro,
+          margem: dept3.margem,
+          vendasAnterior: compararAnoAnterior ? (dept3.total_vendas_ano_anterior || 0) : undefined,
+          lucroAnterior: compararAnoAnterior ? (dept3.total_lucro_ano_anterior || 0) : undefined,
+          margemAnterior: compararAnoAnterior ? (dept3.margem_ano_anterior || 0) : undefined,
+          vendasDelta: compararAnoAnterior ? formatDeltaPercent(dept3.total_vendas, dept3.total_vendas_ano_anterior || 0) : undefined,
+          lucroDelta: compararAnoAnterior ? formatDeltaPercent(dept3.total_lucro, dept3.total_lucro_ano_anterior || 0) : undefined,
+          margemDelta: compararAnoAnterior ? formatDeltaPercent(dept3.margem, dept3.margem_ano_anterior || 0) : undefined,
+          fillColor: [214, 214, 214],
+          textColor: [30, 41, 59],
+          fontSize: 9,
+          rowHeight: compararAnoAnterior ? 14 : 11
+        })
+
+        dept3.nivel2?.forEach((dept2: DeptNivel2) => {
+          drawDeptRow({
+            label: dept2.dept_nivel2,
+            vendas: dept2.total_vendas,
+            lucro: dept2.total_lucro,
+            margem: dept2.margem,
+            vendasAnterior: compararAnoAnterior ? (dept2.total_vendas_ano_anterior || 0) : undefined,
+            lucroAnterior: compararAnoAnterior ? (dept2.total_lucro_ano_anterior || 0) : undefined,
+            margemAnterior: compararAnoAnterior ? (dept2.margem_ano_anterior || 0) : undefined,
+            vendasDelta: compararAnoAnterior ? formatDeltaPercent(dept2.total_vendas, dept2.total_vendas_ano_anterior || 0) : undefined,
+            lucroDelta: compararAnoAnterior ? formatDeltaPercent(dept2.total_lucro, dept2.total_lucro_ano_anterior || 0) : undefined,
+            margemDelta: compararAnoAnterior ? formatDeltaPercent(dept2.margem, dept2.margem_ano_anterior || 0) : undefined,
+            fillColor: [228, 228, 228],
+            textColor: [30, 41, 59],
+            fontSize: 9,
+            indent: 6,
+            rowHeight: compararAnoAnterior ? 14 : 11
+          })
+
+          dept2.nivel1?.forEach((dept1: DeptNivel1) => {
+            drawDeptRow({
+              label: dept1.dept_nivel1,
+              vendas: dept1.total_vendas,
+              lucro: dept1.total_lucro,
+              margem: dept1.margem,
+              vendasAnterior: compararAnoAnterior ? (dept1.total_vendas_ano_anterior || 0) : undefined,
+              lucroAnterior: compararAnoAnterior ? (dept1.total_lucro_ano_anterior || 0) : undefined,
+              margemAnterior: compararAnoAnterior ? (dept1.margem_ano_anterior || 0) : undefined,
+              vendasDelta: compararAnoAnterior ? formatDeltaPercent(dept1.total_vendas, dept1.total_vendas_ano_anterior || 0) : undefined,
+              lucroDelta: compararAnoAnterior ? formatDeltaPercent(dept1.total_lucro, dept1.total_lucro_ano_anterior || 0) : undefined,
+              margemDelta: compararAnoAnterior ? formatDeltaPercent(dept1.margem, dept1.margem_ano_anterior || 0) : undefined,
+              fillColor: [241, 241, 241],
+              textColor: [30, 41, 59],
+              fontSize: 9,
+              indent: 12,
+              rowHeight: compararAnoAnterior ? 14 : 11
+            })
+
+            const tableRows: (string | number | { content: string; styles: { textColor?: number[]; fillColor?: number[]; fontSize?: number } })[][] = []
+            dept1.produtos?.forEach((produto: Produto) => {
+              tableRows.push([
+                produto.codigo.toString(),
+                produto.descricao.substring(0, 40),
+                produto.qtde.toFixed(2),
+                formatCurrency(produto.valor_vendas),
+                produto.curva_venda,
+                formatCurrency(produto.valor_lucro),
+                produto.percentual_lucro.toFixed(2) + '%',
+                produto.curva_lucro,
+                produto.filial_id.toString()
+              ])
+
+              if (compararAnoAnterior) {
+                const vendasDelta = formatDeltaPercent(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)
+                const lucroDelta = formatDeltaPercent(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)
+                const margemDelta = formatDeltaPercent(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)
+                const compareRowBaseStyles = { fontSize: 6, fillColor: [245, 245, 245] }
+                tableRows.push([
+                  { content: '', styles: compareRowBaseStyles },
+                  { content: '', styles: compareRowBaseStyles },
+                  { content: '', styles: compareRowBaseStyles },
+                  {
+                    content: `${compareLabel} ${formatCurrency(produto.valor_vendas_ano_anterior || 0)} (${vendasDelta})`,
+                    styles: { ...compareRowBaseStyles, textColor: mapPdfColor(getDeltaClass(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)) }
+                  },
+                  { content: '', styles: compareRowBaseStyles },
+                  {
+                    content: `${compareLabel} ${formatCurrency(produto.valor_lucro_ano_anterior || 0)} (${lucroDelta})`,
+                    styles: { ...compareRowBaseStyles, textColor: mapPdfColor(getDeltaClass(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)) }
+                  },
+                  {
+                    content: `${compareLabel} ${(produto.percentual_lucro_ano_anterior || 0).toFixed(2)}% (${margemDelta})`,
+                    styles: { ...compareRowBaseStyles, textColor: mapPdfColor(getDeltaClass(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)) }
+                  },
+                  { content: '', styles: compareRowBaseStyles },
+                  { content: '', styles: compareRowBaseStyles },
+                ])
+              }
+            })
+
+            if (tableRows.length > 0) {
+              ensureSpace(10)
+              /* eslint-disable @typescript-eslint/no-explicit-any */
+              autoTable(doc as any, {
+                head: [headers],
+                body: tableRows as any,
+                /* eslint-enable @typescript-eslint/no-explicit-any */
+                startY: currentY,
+                styles: {
+                  fontSize: 7,
+                  cellPadding: 1.5,
+                },
+                headStyles: {
+                  fillColor: [59, 130, 246],
+                  textColor: 255,
+                  fontStyle: 'bold',
+                  fontSize: 8,
+                },
+                columnStyles,
+                margin: { left: tableStartX, right: tableStartX },
+                didDrawPage: (data) => {
+                  if (data.pageNumber !== lastFooterPage) {
+                    const pageCount = doc.getNumberOfPages()
+                    doc.setFontSize(8)
+                    doc.text(
+                      `Página ${data.pageNumber} de ${pageCount}`,
+                      doc.internal.pageSize.width / 2,
+                      doc.internal.pageSize.height - 10,
+                      { align: 'center' }
+                    )
+                    lastFooterPage = data.pageNumber
+                  }
+                },
+              })
+              currentY = (doc.lastAutoTable?.finalY ?? currentY) + 4
+            }
+          })
+        })
       })
 
       // Salvar PDF
@@ -597,6 +828,26 @@ export default function VendaCurvaPage() {
     }).format(value)
   }
 
+  const formatPercent = (value: number) => `${value.toFixed(2)}%`
+
+  const formatDeltaPercent = (current: number, previous: number) => {
+    if (previous === 0) {
+      return '(-)'
+    }
+    const delta = ((current - previous) / previous) * 100
+    const rounded = Math.round(delta)
+    const sign = rounded > 0 ? '+' : ''
+    return `${sign}${rounded}%`
+  }
+
+  const getDeltaClass = (current: number, previous: number) => {
+    if (previous === 0) return 'text-muted-foreground'
+    const delta = ((current - previous) / previous) * 100
+    if (delta > 0) return 'text-green-600'
+    if (delta < 0) return 'text-red-600'
+    return 'text-muted-foreground'
+  }
+
   const meses = [
     { value: '1', label: 'Janeiro' },
     { value: '2', label: 'Fevereiro' },
@@ -612,10 +863,27 @@ export default function VendaCurvaPage() {
     { value: '12', label: 'Dezembro' },
   ]
 
+  const mesesCurto: Record<string, string> = {
+    '1': 'Jan',
+    '2': 'Fev',
+    '3': 'Mar',
+    '4': 'Abr',
+    '5': 'Mai',
+    '6': 'Jun',
+    '7': 'Jul',
+    '8': 'Ago',
+    '9': 'Set',
+    '10': 'Out',
+    '11': 'Nov',
+    '12': 'Dez',
+  }
+
   const anos = Array.from({ length: 5 }, (_, i) => {
     const year = currentDate.getFullYear() - i
     return { value: year.toString(), label: year.toString() }
   })
+
+  const compareLabel = `${mesesCurto[mes] || mes}/${String(Number(ano) - 1).slice(-2)}`
 
   // Continua na próxima parte...
   return (
@@ -720,6 +988,21 @@ export default function VendaCurvaPage() {
                 )}
               </div>
             </div>
+
+            {/* Comparar Ano Anterior */}
+            <div className="flex items-center gap-2 h-10">
+              <Checkbox
+                id="comparar-ano-anterior"
+                checked={compararAnoAnterior}
+                onCheckedChange={(value) => {
+                  setCompararAnoAnterior(!!value)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="comparar-ano-anterior" className="text-sm">
+                Comparar com vendas do ano anterior
+              </Label>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -792,23 +1075,50 @@ export default function VendaCurvaPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <div className="text-xs text-muted-foreground">Vendas</div>
-                            <div className="font-semibold text-sm">
-                              {formatCurrency(dept3.total_vendas)}
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Vendas</div>
+                              <div className="font-semibold text-sm">
+                                {formatCurrency(dept3.total_vendas)}
+                              </div>
+                              {compararAnoAnterior && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {compareLabel} {formatCurrency(dept3.total_vendas_ano_anterior || 0)} (
+                                  <span className={getDeltaClass(dept3.total_vendas, dept3.total_vendas_ano_anterior || 0)}>
+                                    {formatDeltaPercent(dept3.total_vendas, dept3.total_vendas_ano_anterior || 0)}
+                                  </span>
+                                  )
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Lucro</div>
+                              <div className="font-semibold text-sm">
+                                {formatCurrency(dept3.total_lucro)}
+                              </div>
+                              {compararAnoAnterior && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {compareLabel} {formatCurrency(dept3.total_lucro_ano_anterior || 0)} (
+                                  <span className={getDeltaClass(dept3.total_lucro, dept3.total_lucro_ano_anterior || 0)}>
+                                    {formatDeltaPercent(dept3.total_lucro, dept3.total_lucro_ano_anterior || 0)}
+                                  </span>
+                                  )
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Margem</div>
+                              <div className="font-semibold text-sm">{formatPercent(dept3.margem)}</div>
+                              {compararAnoAnterior && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {compareLabel} {formatPercent(dept3.margem_ano_anterior || 0)} (
+                                  <span className={getDeltaClass(dept3.margem, dept3.margem_ano_anterior || 0)}>
+                                    {formatDeltaPercent(dept3.margem, dept3.margem_ano_anterior || 0)}
+                                  </span>
+                                  )
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="text-xs text-muted-foreground">Lucro</div>
-                            <div className="font-semibold text-sm">
-                              {formatCurrency(dept3.total_lucro)}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs text-muted-foreground">Margem</div>
-                            <div className="font-semibold text-sm">{dept3.margem.toFixed(2)}%</div>
-                          </div>
-                        </div>
                       </CollapsibleTrigger>
 
                       <CollapsibleContent>
@@ -837,16 +1147,43 @@ export default function VendaCurvaPage() {
                                       <div className="font-medium text-xs">
                                         {formatCurrency(dept2.total_vendas)}
                                       </div>
+                                      {compararAnoAnterior && (
+                                        <div className="text-[10px] text-muted-foreground">
+                                          {compareLabel} {formatCurrency(dept2.total_vendas_ano_anterior || 0)} (
+                                          <span className={getDeltaClass(dept2.total_vendas, dept2.total_vendas_ano_anterior || 0)}>
+                                            {formatDeltaPercent(dept2.total_vendas, dept2.total_vendas_ano_anterior || 0)}
+                                          </span>
+                                          )
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="text-right">
                                       <div className="text-xs text-muted-foreground">Lucro</div>
                                       <div className="font-medium text-xs">
                                         {formatCurrency(dept2.total_lucro)}
                                       </div>
+                                      {compararAnoAnterior && (
+                                        <div className="text-[10px] text-muted-foreground">
+                                          {compareLabel} {formatCurrency(dept2.total_lucro_ano_anterior || 0)} (
+                                          <span className={getDeltaClass(dept2.total_lucro, dept2.total_lucro_ano_anterior || 0)}>
+                                            {formatDeltaPercent(dept2.total_lucro, dept2.total_lucro_ano_anterior || 0)}
+                                          </span>
+                                          )
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="text-right">
                                       <div className="text-xs text-muted-foreground">Margem</div>
-                                      <div className="font-medium text-xs">{dept2.margem.toFixed(2)}%</div>
+                                      <div className="font-medium text-xs">{formatPercent(dept2.margem)}</div>
+                                      {compararAnoAnterior && (
+                                        <div className="text-[10px] text-muted-foreground">
+                                          {compareLabel} {formatPercent(dept2.margem_ano_anterior || 0)} (
+                                          <span className={getDeltaClass(dept2.margem, dept2.margem_ano_anterior || 0)}>
+                                            {formatDeltaPercent(dept2.margem, dept2.margem_ano_anterior || 0)}
+                                          </span>
+                                          )
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </CollapsibleTrigger>
@@ -872,32 +1209,64 @@ export default function VendaCurvaPage() {
                                               </span>
                                             </div>
                                             <div className="flex items-center gap-6">
-                                              <div className="text-right">
-                                                <div className="text-[10px] text-muted-foreground">Vendas</div>
-                                                <div className="font-medium text-xs">
-                                                  {formatCurrency(dept1.total_vendas)}
+                                            <div className="text-right">
+                                              <div className="text-[10px] text-muted-foreground">Vendas</div>
+                                              <div className="font-medium text-xs">
+                                                {formatCurrency(dept1.total_vendas)}
+                                              </div>
+                                              {compararAnoAnterior && (
+                                                <div className="text-[10px] text-muted-foreground">
+                                                  {compareLabel} {formatCurrency(dept1.total_vendas_ano_anterior || 0)} (
+                                                  <span className={getDeltaClass(dept1.total_vendas, dept1.total_vendas_ano_anterior || 0)}>
+                                                    {formatDeltaPercent(dept1.total_vendas, dept1.total_vendas_ano_anterior || 0)}
+                                                  </span>
+                                                  )
                                                 </div>
-                                              </div>
-                                              <div className="text-right">
-                                                <div className="text-[10px] text-muted-foreground">Lucro</div>
-                                                <div className="font-medium text-xs">
-                                                  {formatCurrency(dept1.total_lucro)}
-                                                </div>
-                                              </div>
-                                              <div className="text-right">
-                                                <div className="text-[10px] text-muted-foreground">Margem</div>
-                                                <div className="font-medium text-xs">{dept1.margem.toFixed(2)}%</div>
-                                              </div>
-                                            </div>
-                                          </CollapsibleTrigger>
-
-                                          <CollapsibleContent>
-                                            <div className="border-t">
-                                              {dept1.produtos && dept1.produtos.length > 0 && (
-                                                <ProdutoTable produtos={dept1.produtos} filtroProduto={filtroProduto} />
                                               )}
                                             </div>
-                                          </CollapsibleContent>
+                                            <div className="text-right">
+                                              <div className="text-[10px] text-muted-foreground">Lucro</div>
+                                              <div className="font-medium text-xs">
+                                                {formatCurrency(dept1.total_lucro)}
+                                              </div>
+                                              {compararAnoAnterior && (
+                                                <div className="text-[10px] text-muted-foreground">
+                                                  {compareLabel} {formatCurrency(dept1.total_lucro_ano_anterior || 0)} (
+                                                  <span className={getDeltaClass(dept1.total_lucro, dept1.total_lucro_ano_anterior || 0)}>
+                                                    {formatDeltaPercent(dept1.total_lucro, dept1.total_lucro_ano_anterior || 0)}
+                                                  </span>
+                                                  )
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="text-right">
+                                              <div className="text-[10px] text-muted-foreground">Margem</div>
+                                              <div className="font-medium text-xs">{formatPercent(dept1.margem)}</div>
+                                              {compararAnoAnterior && (
+                                                <div className="text-[10px] text-muted-foreground">
+                                                  {compareLabel} {formatPercent(dept1.margem_ano_anterior || 0)} (
+                                                  <span className={getDeltaClass(dept1.margem, dept1.margem_ano_anterior || 0)}>
+                                                    {formatDeltaPercent(dept1.margem, dept1.margem_ano_anterior || 0)}
+                                                  </span>
+                                                  )
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </CollapsibleTrigger>
+
+                                        <CollapsibleContent>
+                                          <div className="border-t">
+                                            {dept1.produtos && dept1.produtos.length > 0 && (
+                                              <ProdutoTable
+                                                produtos={dept1.produtos}
+                                                filtroProduto={filtroProduto}
+                                                compararAnoAnterior={compararAnoAnterior}
+                                                compareLabel={compareLabel}
+                                              />
+                                            )}
+                                          </div>
+                                        </CollapsibleContent>
                                         </div>
                                       </Collapsible>
                                     ))}
