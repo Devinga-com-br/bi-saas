@@ -5,13 +5,13 @@ import {
   ComposedChart,
   LabelList,
   Legend,
-  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/chart-config'
 
 interface SalesChartData {
@@ -32,13 +32,16 @@ interface SalesChartData {
 
 // Tipo de venda para o filtro
 type SalesType = 'complete' | 'pdv' | 'faturamento'
+type FilterType = 'month' | 'year' | 'custom'
 
 interface ChartVendasProps {
   data: SalesChartData[]
   salesType?: SalesType
+  filterType?: FilterType
+  periodStart?: Date
 }
 
-export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasProps) {
+export function ChartVendas({ data = [], salesType = 'complete', filterType = 'year', periodStart }: ChartVendasProps) {
   // Validate data is an array
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
@@ -53,12 +56,13 @@ export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasPr
   // Format function for Y axis: converts to "00M" format
   const formatYAxis = (value: number): string => {
     const absValue = Math.abs(value)
+    const sign = value < 0 ? '-' : ''
     if (absValue >= 1000000) {
-      return `${(absValue / 1000000).toFixed(0)}M`
+      return `${sign}R$${(absValue / 1000000).toFixed(0)}Mi`
     } else if (absValue >= 1000) {
-      return `${(absValue / 1000).toFixed(0)}K`
+      return `${sign}R$${(absValue / 1000).toFixed(0)}k`
     }
-    return absValue.toString()
+    return `${sign}R$${absValue.toFixed(0)}`
   }
 
   // Format function for bar labels: converts to "3.5M" format with one decimal
@@ -217,6 +221,29 @@ export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasPr
     }
   })
 
+  const maxPositiveValue = chartData.reduce((max, item) => {
+    const values = [item.receita ?? 0, item.lucro ?? 0].filter((v) => v > 0)
+    const localMax = values.length > 0 ? Math.max(...values) : 0
+    return Math.max(max, localMax)
+  }, 0)
+
+  const maxNegativeAbsValue = chartData.reduce((max, item) => {
+    const values = [item.despesa ?? 0, item.lucro ?? 0, item.receita ?? 0].filter((v) => v < 0)
+    const localMax = values.length > 0 ? Math.max(...values.map((v) => Math.abs(v))) : 0
+    return Math.max(max, localMax)
+  }, 0)
+
+  const maxAbsValue = Math.max(maxPositiveValue, maxNegativeAbsValue)
+
+  const stepReference = 1_000_000
+  const maxReference = Math.ceil(maxAbsValue / stepReference) * stepReference
+  const hasNegative = maxNegativeAbsValue > 0
+  const referenceLines = []
+  for (let value = stepReference; value <= maxReference; value += stepReference) {
+    referenceLines.push(value)
+    if (hasNegative) referenceLines.push(-value)
+  }
+
   return (
     <div className="w-full h-[400px] min-h-[350px] max-h-[500px]">
       <ResponsiveContainer width="100%" height="100%">
@@ -231,12 +258,23 @@ export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasPr
             tickLine={{ stroke: '#888' }}
           />
           <YAxis
+            domain={[-maxNegativeAbsValue, maxPositiveValue]}
             tickFormatter={formatYAxis}
             axisLine={{ stroke: '#888' }}
             tickLine={{ stroke: '#888' }}
           />
           <Tooltip
             formatter={(value: number) => formatCurrency(Math.abs(value))}
+            labelFormatter={(label) => {
+              if (filterType === 'month' && periodStart) {
+                const day = Number(label)
+                if (!Number.isNaN(day)) {
+                  const date = new Date(periodStart.getFullYear(), periodStart.getMonth(), day)
+                  return format(date, 'dd/MM/yyyy')
+                }
+              }
+              return String(label)
+            }}
             labelStyle={{ color: '#000' }}
             contentStyle={{
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -245,28 +283,18 @@ export function ChartVendas({ data = [], salesType = 'complete' }: ChartVendasPr
             }}
           />
           <Legend />
+          {referenceLines.map((value) => (
+            <ReferenceLine key={`ref-${value}`} y={value} stroke="rgba(0, 0, 0, 0.15)" strokeWidth={0.5} />
+          ))}
           <ReferenceLine y={0} stroke="#000" strokeWidth={2} />
-          <Bar dataKey="receita" fill="#1cca5b" stackId="stack" name="Receita">
-            <LabelList
-              dataKey="receita"
-              content={renderReceitaLabel}
-            />
-          </Bar>
-          <Bar dataKey="despesa" fill="#ef4343" stackId="stack" name="Despesa">
-            <LabelList
-              dataKey="despesa"
-              content={renderCustomLabel}
-            />
-          </Bar>
-          <Line
-            type="monotone"
+          <Bar dataKey="receita" fill="#1cca5b" stackId="stack" name="Receita" />
+          <Bar dataKey="despesa" fill="#ef4343" stackId="stack" name="Despesa" />
+          <Bar
             dataKey="lucro"
-            stroke="#f59e0b"
-            strokeWidth={4}
-            dot={{ fill: '#f59e0b', r: 6, strokeWidth: 2, stroke: '#fff' }}
-            activeDot={{ r: 8 }}
-            connectNulls={false}
+            fill="#3b82f6"
             name="Lucro Bruto"
+            barSize={12}
+            opacity={0.7}
           />
         </ComposedChart>
       </ResponsiveContainer>

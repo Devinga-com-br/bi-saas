@@ -404,9 +404,9 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldFetchMTD, mtdApiUrl, mtdData, mtdError, filterType, dataInicio, dataFim])
 
-  // Buscar dados para o gráfico de vendas (com filtro de filiais)
+  // Buscar dados para o gráfico de vendas (com filtro de filiais e período)
   const chartApiUrl = apiParams.schema
-    ? `/api/charts/sales-by-month?schema=${apiParams.schema}&filiais=${apiParams.filiais}`
+    ? `/api/charts/sales-by-month?schema=${apiParams.schema}&filiais=${apiParams.filiais}&data_inicio=${apiParams.data_inicio}&data_fim=${apiParams.data_fim}&filter_type=${apiParams.filter_type}`
     : null
   const { data: chartData, isLoading: isChartLoading } = useSWR(chartApiUrl, fetcher, { refreshInterval: 0 });
 
@@ -1527,8 +1527,8 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Vendas e Despesas Mensais (Ano Atual)</CardTitle>
-          <CardDescription>Comparativo entre total de Vendas e Despesas por mês.</CardDescription>
+          <CardTitle>Vendas e Despesas</CardTitle>
+          <CardDescription>Comparativo entre total de Vendas e Despesas no período selecionado.</CardDescription>
         </CardHeader>
         <CardContent>
           {isChartLoading ? (
@@ -1551,7 +1551,12 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : chartData ? (
-            <ChartVendas data={chartData} salesType={salesType} />
+            <ChartVendas
+              data={chartData}
+              salesType={salesType}
+              filterType={filterType}
+              periodStart={dataInicio}
+            />
           ) : (
             <div className="text-center text-muted-foreground">
               {error ? 'Erro ao carregar dados do gráfico.' : 'Nenhum dado para exibir.'}

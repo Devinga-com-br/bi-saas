@@ -116,9 +116,11 @@ export function DashboardFilter({ onPeriodChange }: DashboardFilterProps) {
     setFilterType(value)
 
     if (value === 'month') {
+      // Sempre usa o ano atual no filtro por mês
+      setSelectedYear(currentYear.toString())
       // Volta para o mês atual quando muda para filtro por mês
       const monthIndex = parseInt(selectedMonth)
-      const yearValue = parseInt(selectedYear)
+      const yearValue = currentYear
       const firstDay = startOfMonth(new Date(yearValue, monthIndex))
       const lastDay = endOfMonth(new Date(yearValue, monthIndex))
 

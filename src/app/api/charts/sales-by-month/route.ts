@@ -12,6 +12,9 @@ export const revalidate = 0
 const querySchema = z.object({
   schema: z.string().min(1),
   filiais: z.string().optional(),
+  data_inicio: z.string().optional(),
+  data_fim: z.string().optional(),
+  filter_type: z.enum(['month', 'year', 'custom']).optional(),
 });
 
 export async function GET(req: Request) {
@@ -31,7 +34,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Invalid query parameters', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const { schema: requestedSchema, filiais: requestedFiliais } = validation.data;
+    const {
+      schema: requestedSchema,
+      filiais: requestedFiliais,
+      data_inicio: requestedDataInicio,
+      data_fim: requestedDataFim,
+      filter_type: requestedFilterType,
+    } = validation.data;
 
     // Get user's authorized branches
     const authorizedBranches = await getUserAuthorizedBranchCodes(supabase, user.id)
@@ -58,11 +67,19 @@ export async function GET(req: Request) {
         : authorizedBranches.join(',')
     }
 
+    const currentYear = new Date().getFullYear()
+    const dataInicio = requestedDataInicio || `${currentYear}-01-01`
+    const dataFim = requestedDataFim || `${currentYear}-12-31`
+    const filterType = requestedFilterType || 'year'
+
     console.log('[API/CHARTS/SALES-BY-MONTH] Params:', {
       requestedSchema,
       requestedFiliais,
       finalFiliais,
-      authorizedBranches
+      authorizedBranches,
+      dataInicio,
+      dataFim,
+      filterType,
     })
 
     // TEMPORÁRIO: Usar client direto sem cache (igual ao dashboard)
@@ -73,7 +90,10 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: salesData, error: salesError } = await (directSupabase as any).rpc('get_sales_by_month_chart', {
       schema_name: requestedSchema,
-      p_filiais: finalFiliais || 'all'
+      p_filiais: finalFiliais || 'all',
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filter_type: filterType,
     });
 
     if (salesError) {
@@ -85,7 +105,10 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: expensesData, error: expensesError } = await (directSupabase as any).rpc('get_expenses_by_month_chart', {
       schema_name: requestedSchema,
-      p_filiais: finalFiliais || 'all'
+      p_filiais: finalFiliais || 'all',
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filter_type: filterType,
     });
 
     if (expensesError) {
@@ -98,7 +121,10 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lucroData, error: lucroError } = await (directSupabase as any).rpc('get_lucro_by_month_chart', {
       schema_name: requestedSchema,
-      p_filiais: finalFiliais || 'all'
+      p_filiais: finalFiliais || 'all',
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filter_type: filterType,
     });
 
     if (lucroError) {
@@ -110,7 +136,10 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: faturamentoData, error: faturamentoError } = await (directSupabase as any).rpc('get_faturamento_by_month_chart', {
       schema_name: requestedSchema,
-      p_filiais: finalFiliais || 'all'
+      p_filiais: finalFiliais || 'all',
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
+      p_filter_type: filterType,
     });
 
     if (faturamentoError) {
