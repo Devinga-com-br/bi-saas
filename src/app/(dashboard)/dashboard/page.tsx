@@ -997,15 +997,58 @@ export default function DashboardPage() {
       // Coluna de custo tem lógica invertida (aumento é ruim)
       const custoColumn = 6
 
+      // Configuração de fonte e ajuste adaptativo para evitar quebra do último dígito/letra
+      const baseTableFontSize = 7
+      const minTableFontSize = 6
+
+      const getHorizontalPadding = (cellPadding: unknown) => {
+        if (typeof cellPadding === 'number') return cellPadding * 2
+        if (cellPadding && typeof cellPadding === 'object') {
+          const padding = cellPadding as { left?: number; right?: number; horizontal?: number }
+          const left = padding.left ?? padding.horizontal ?? 0
+          const right = padding.right ?? padding.horizontal ?? 0
+          return left + right
+        }
+        return 0
+      }
+
+      const fitTextToCell = (data: any) => {
+        if (data.section !== 'body') return
+
+        const text = Array.isArray(data.cell.text) ? data.cell.text.join(' ') : String(data.cell.text ?? '')
+        if (!text) return
+
+        const docRef = data.doc
+        const availableWidth = data.cell.width - getHorizontalPadding(data.cell.styles.cellPadding)
+        if (availableWidth <= 0) return
+
+        const originalDocFontSize = docRef.getFontSize()
+        let fontSize = typeof data.cell.styles.fontSize === 'number' ? data.cell.styles.fontSize : baseTableFontSize
+
+        while (fontSize > minTableFontSize) {
+          docRef.setFontSize(fontSize)
+          const textWidth = docRef.getTextWidth(text)
+          if (textWidth <= availableWidth) break
+          fontSize -= 0.5
+        }
+
+        docRef.setFontSize(originalDocFontSize)
+
+        if (fontSize !== data.cell.styles.fontSize) {
+          data.cell.styles.fontSize = fontSize
+        }
+      }
+
       // Gerar tabela
       autoTable(doc, {
         head: tableHead,
         body: tableBody,
         startY: 38,
+        margin: { left: 6, right: 6 },
         theme: 'grid',
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: baseTableFontSize,
+          cellPadding: 1.5,
           halign: 'right',
           valign: 'middle',
         },
@@ -1019,6 +1062,8 @@ export default function DashboardPage() {
           0: { halign: 'center', fontStyle: 'bold' }, // Filial
         },
         didParseCell: (data) => {
+          fitTextToCell(data)
+
           // Aplicar cor nas colunas de variação
           if (data.section === 'body' && deltaColumns.includes(data.column.index)) {
             const cellText = data.cell.text[0] || ''
