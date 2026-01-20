@@ -1001,8 +1001,24 @@ export default function DashboardPage() {
       const baseTableFontSize = 7
       const minTableFontSize = 6
 
-      const getHorizontalPadding = (cellPadding: unknown) => {
+      type PdfDoc = {
+        getFontSize: () => number
+        setFontSize: (size: number) => void
+        getTextWidth: (text: string) => number
+      }
+
+      type AutoTableCellPadding = number | number[] | { left?: number; right?: number; horizontal?: number }
+      type AutoTableCellStyles = { cellPadding: AutoTableCellPadding; fontSize?: number }
+      type AutoTableCell = { text: string[] | string; width: number; styles: AutoTableCellStyles }
+      type AutoTableHookData = { section: string; cell: AutoTableCell; doc: PdfDoc }
+
+      const getHorizontalPadding = (cellPadding: AutoTableCellPadding) => {
         if (typeof cellPadding === 'number') return cellPadding * 2
+        if (Array.isArray(cellPadding)) {
+          const left = cellPadding[3] ?? cellPadding[1] ?? 0
+          const right = cellPadding[1] ?? cellPadding[3] ?? 0
+          return left + right
+        }
         if (cellPadding && typeof cellPadding === 'object') {
           const padding = cellPadding as { left?: number; right?: number; horizontal?: number }
           const left = padding.left ?? padding.horizontal ?? 0
@@ -1012,7 +1028,7 @@ export default function DashboardPage() {
         return 0
       }
 
-      const fitTextToCell = (data: any) => {
+      const fitTextToCell = (data: AutoTableHookData) => {
         if (data.section !== 'body') return
 
         const text = Array.isArray(data.cell.text) ? data.cell.text.join(' ') : String(data.cell.text ?? '')
