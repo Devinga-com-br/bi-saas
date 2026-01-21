@@ -7,14 +7,14 @@ import { z } from 'zod'
 const branchSchema = z.object({
   tenant_id: z.string().uuid('ID do tenant deve ser um UUID válido'),
   branch_code: z.string().min(1, 'Código da filial é obrigatório').max(20, 'Código da filial muito longo'),
-  store_code: z.string().max(20).optional(),
-  descricao: z.string().max(255).optional(),
-  cep: z.string().regex(/^\d{8}$|^\d{5}-\d{3}$/, 'CEP inválido').optional(),
-  rua: z.string().max(255).optional(),
-  numero: z.string().max(20).optional(),
-  bairro: z.string().max(100).optional(),
-  cidade: z.string().max(100).optional(),
-  estado: z.string().length(2, 'Estado deve ter 2 caracteres').optional(),
+  store_code: z.string().max(20).nullable().optional(),
+  descricao: z.string().max(255).nullable().optional(),
+  cep: z.string().regex(/^\d{8}$|^\d{5}-\d{3}$/, 'CEP inválido').nullable().optional(),
+  rua: z.string().max(255).nullable().optional(),
+  numero: z.string().max(20).nullable().optional(),
+  bairro: z.string().max(100).nullable().optional(),
+  cidade: z.string().max(100).nullable().optional(),
+  estado: z.string().length(2, 'Estado deve ter 2 caracteres').nullable().optional(),
 })
 
 const branchUpdateSchema = branchSchema.partial().required({ tenant_id: true })

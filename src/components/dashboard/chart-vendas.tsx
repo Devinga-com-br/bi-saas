@@ -3,7 +3,6 @@
 import {
   Bar,
   ComposedChart,
-  LabelList,
   Legend,
   ReferenceLine,
   ResponsiveContainer,
@@ -63,120 +62,6 @@ export function ChartVendas({ data = [], salesType = 'complete', filterType = 'y
       return `${sign}R$${(absValue / 1000).toFixed(0)}k`
     }
     return `${sign}R$${absValue.toFixed(0)}`
-  }
-
-  // Format function for bar labels: converts to "3.5M" format with one decimal
-  const formatBarLabel = (value: number): string => {
-    const absValue = Math.abs(value)
-    if (absValue === 0) return ''
-    if (absValue >= 1000000) {
-      return `${(absValue / 1000000).toFixed(1)}M`
-    } else if (absValue >= 1000) {
-      return `${(absValue / 1000).toFixed(1)}K`
-    }
-    return absValue.toString()
-  }
-
-  // Custom label renderer for negative bars (despesa) with background
-  const renderCustomLabel = (props: {
-    x?: string | number
-    y?: string | number
-    width?: string | number
-    height?: string | number
-    value?: string | number
-  }) => {
-    const { x, y, width, height, value } = props
-    if (!value || value === 0 || x === undefined || y === undefined || width === undefined || height === undefined) return null
-
-    const absValue = Math.abs(Number(value))
-    const formattedValue = formatBarLabel(absValue)
-
-    // Convert to numbers
-    const xNum = Number(x)
-    const yNum = Number(y)
-    const widthNum = Number(width)
-    const heightNum = Number(height)
-
-    // Para valores negativos, colocar o label abaixo da barra (y + height + offset)
-    const labelY = Number(value) < 0 ? yNum + heightNum + 15 : yNum - 5
-
-    // Calcular dimensões do fundo
-    const textWidth = formattedValue.length * 7.5 // Aproximação
-    const padding = 4
-
-    return (
-      <g>
-        {/* Fundo do label */}
-        <rect
-          x={xNum + widthNum / 2 - textWidth / 2 - padding}
-          y={labelY - 8}
-          width={textWidth + padding * 2}
-          height={16}
-          fill="rgba(0, 0, 0, 0.75)"
-          rx={3}
-        />
-        {/* Texto */}
-        <text
-          x={xNum + widthNum / 2}
-          y={labelY}
-          fill="#ffffff"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          style={{ fontSize: '12px', fontWeight: 'bold' }}
-        >
-          {formattedValue}
-        </text>
-      </g>
-    )
-  }
-
-  // Custom label renderer for positive bars (receita) with background
-  const renderReceitaLabel = (props: {
-    x?: string | number
-    y?: string | number
-    width?: string | number
-    value?: string | number
-  }) => {
-    const { x, y, width, value } = props
-    if (!value || value === 0 || x === undefined || y === undefined || width === undefined) return null
-
-    const formattedValue = formatBarLabel(Number(value))
-
-    // Convert to numbers
-    const xNum = Number(x)
-    const yNum = Number(y)
-    const widthNum = Number(width)
-
-    const labelY = yNum - 5
-
-    // Calcular dimensões do fundo
-    const textWidth = formattedValue.length * 7.5
-    const padding = 4
-
-    return (
-      <g>
-        {/* Fundo do label */}
-        <rect
-          x={xNum + widthNum / 2 - textWidth / 2 - padding}
-          y={labelY - 8}
-          width={textWidth + padding * 2}
-          height={16}
-          fill="rgba(0, 0, 0, 0.75)"
-          rx={3}
-        />
-        {/* Texto */}
-        <text
-          x={xNum + widthNum / 2}
-          y={labelY}
-          fill="#ffffff"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          style={{ fontSize: '12px', fontWeight: 'bold' }}
-        >
-          {formattedValue}
-        </text>
-      </g>
-    )
   }
 
   // Transform data: receita (positivo), despesa (negativo), lucro
