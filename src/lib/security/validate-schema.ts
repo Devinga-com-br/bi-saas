@@ -2,18 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import type { UserProfile } from '@/types'
 
 /**
- * Whitelist of allowed tenant schemas.
- * Any schema not in this list will be rejected.
+ * Basic schema name validation (format only).
+ * We avoid a static whitelist so new tenants don't require code changes.
  */
-export const ALLOWED_SCHEMAS = ['okilao', 'saoluiz', 'paraiso', 'lucia', 'sol', 'demo'] as const
-export type TenantSchema = (typeof ALLOWED_SCHEMAS)[number]
-
-/**
- * Validates if a schema is in the allowed whitelist.
- * This is a fast check that should be done first.
- */
-export function isValidSchema(schema: string): schema is TenantSchema {
-  return ALLOWED_SCHEMAS.includes(schema as TenantSchema)
+export function isValidSchema(schema: string): boolean {
+  return /^[a-z0-9_]+$/.test(schema)
 }
 
 /**
@@ -34,10 +27,8 @@ export async function validateSchemaAccess(
   user: { id: string },
   requestedSchema: string
 ): Promise<boolean> {
-  // Fast whitelist validation first
-  if (!isValidSchema(requestedSchema)) {
-    return false
-  }
+  // Fast format validation first
+  if (!isValidSchema(requestedSchema)) return false
 
   // Fetch user profile
   const { data: profile } = await supabase
