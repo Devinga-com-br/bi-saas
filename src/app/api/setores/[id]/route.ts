@@ -6,7 +6,7 @@ import { z } from 'zod'
 const putSchema = z.object({
   schema: z.string().min(1).refine(isValidSchema, 'Schema inválido'),
   nome: z.string().min(1, 'Nome obrigatório').max(255, 'Nome muito longo'),
-  nivel_departamento: z.number().int().min(1).max(6),
+  departamento_nivel: z.number().int().min(1).max(6),
   departamento_ids: z.array(z.number().int().positive()),
 })
 
@@ -36,7 +36,7 @@ export async function PUT(
       )
     }
 
-    const { schema, nome, nivel_departamento, departamento_ids } = validation.data
+    const { schema, nome, departamento_nivel, departamento_ids } = validation.data
 
     // Validar acesso ao schema
     const hasAccess = await validateSchemaAccess(supabase, user, schema)
@@ -49,7 +49,7 @@ export async function PUT(
       .from('setores')
       .update({
         nome,
-        nivel_departamento,
+        departamento_nivel,
         departamento_ids,
         updated_at: new Date().toISOString()
       })

@@ -31,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { toast } from 'sonner'
 
 interface Departamento {
   id: number
@@ -148,7 +149,9 @@ export function SetoresContent({ tenantSchema }: SetoresContentProps) {
 
   const handleSaveSetor = async () => {
     if (!formData.nome || formData.departamento_ids.length === 0) {
-      alert('Preencha todos os campos obrigatórios')
+      toast.error('Campos obrigatórios', {
+        description: 'Preencha todos os campos para salvar o setor'
+      })
       return
     }
 
@@ -171,13 +174,18 @@ export function SetoresContent({ tenantSchema }: SetoresContentProps) {
 
       if (!response.ok) throw new Error('Erro ao salvar setor')
 
-      alert(`Setor ${editingSetor ? 'atualizado' : 'cadastrado'} com sucesso`)
+      toast.success(
+        `Setor ${editingSetor ? 'atualizado' : 'cadastrado'} com sucesso`,
+        { description: formData.nome }
+      )
 
       handleCloseDialog()
       loadSetores()
     } catch (error) {
       console.error('Error saving setor:', error)
-      alert('Não foi possível salvar o setor')
+      toast.error('Erro ao salvar setor', {
+        description: 'Tente novamente em alguns instantes'
+      })
     } finally {
       setLoading(false)
     }
@@ -195,12 +203,14 @@ export function SetoresContent({ tenantSchema }: SetoresContentProps) {
 
       if (!response.ok) throw new Error('Erro ao excluir setor')
 
-      alert('Setor excluído com sucesso')
+      toast.success('Setor excluído com sucesso')
 
       loadSetores()
     } catch (error) {
       console.error('Error deleting setor:', error)
-      alert('Não foi possível excluir o setor')
+      toast.error('Erro ao excluir setor', {
+        description: 'Tente novamente em alguns instantes'
+      })
     } finally {
       setLoading(false)
     }
