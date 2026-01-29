@@ -690,6 +690,12 @@ export default function MetaSetorPage() {
     setExpandedDates(prev => ({ ...prev, [date]: !prev[date] }))
   }
 
+  const toNumber = (value: unknown): number => {
+    if (value === null || value === undefined) return 0
+    const num = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(num) ? num : 0
+  }
+
   const currentSetorData = selectedSetor ? metasData[parseInt(selectedSetor)] || [] : []
   const currentSetor = setores.find(s => s.id.toString() === selectedSetor)
 
@@ -712,10 +718,10 @@ export default function MetaSetorPage() {
 
     currentSetorData.forEach((dia) => {
       dia.filiais?.forEach((filial) => {
-        totalRealizado += filial.valor_realizado || 0
-        totalMeta += filial.valor_meta || 0
-        totalCusto += filial.custo_realizado || 0
-        totalLucro += filial.lucro_realizado || 0
+        totalRealizado += toNumber(filial.valor_realizado)
+        totalMeta += toNumber(filial.valor_meta)
+        totalCusto += toNumber(filial.custo_realizado)
+        totalLucro += toNumber(filial.lucro_realizado)
       })
     })
 
@@ -744,8 +750,8 @@ export default function MetaSetorPage() {
       // Apenas dias anteriores ao atual
       if (month === mes && year === ano && day < diaAtual) {
         dia.filiais?.forEach((filial) => {
-          totalRealizado += filial.valor_realizado || 0
-          totalMeta += filial.valor_meta || 0
+          totalRealizado += toNumber(filial.valor_realizado)
+          totalMeta += toNumber(filial.valor_meta)
         })
       }
     })
