@@ -9,6 +9,7 @@ interface Produto {
   nome: string
   filial_id: number
   quantidade_vendida: number
+  quantidade_vendida_ano_anterior: number
   valor_vendido: number
   lucro_total: number
   percentual_lucro: number
@@ -75,6 +76,7 @@ interface RowData {
 }
 
 type PrevYearMap = Map<string, {
+  qtde: number
   valor_vendas: number
   valor_lucro: number
   percentual_lucro: number
@@ -263,6 +265,7 @@ export async function GET(request: Request) {
         const key = buildRowKey(row.dept_nivel3, row.dept_nivel2, row.dept_nivel1, row.produto_codigo, row.filial_id)
         if (!currentKeys.has(key)) continue
         prevYearMap.set(key, {
+          qtde: typeof row.qtde === 'string' ? parseFloat(row.qtde || '0') : (row.qtde || 0),
           valor_vendas: typeof row.valor_vendas === 'string' ? parseFloat(row.valor_vendas || '0') : (row.valor_vendas || 0),
           valor_lucro: typeof row.valor_lucro === 'string' ? parseFloat(row.valor_lucro || '0') : (row.valor_lucro || 0),
           percentual_lucro: typeof row.percentual_lucro === 'string' ? parseFloat(row.percentual_lucro || '0') : (row.percentual_lucro || 0),
@@ -312,6 +315,7 @@ export async function GET(request: Request) {
                   descricao: p.nome,
                   filial_id: p.filial_id,
                   qtde: p.quantidade_vendida,
+                  qtde_ano_anterior: p.quantidade_vendida_ano_anterior,
                   valor_vendas: p.valor_vendido,
                   valor_lucro: p.lucro_total,
                   percentual_lucro: p.percentual_lucro,
@@ -423,6 +427,7 @@ function organizeHierarchyFlat(data: RowData[], prevYearMap?: PrevYearMap | null
       nome: row.produto_descricao,
       filial_id: row.filial_id,
       quantidade_vendida: typeof row.qtde === 'string' ? parseFloat(row.qtde || '0') : (row.qtde || 0),
+      quantidade_vendida_ano_anterior: prev?.qtde ?? 0,
       valor_vendido: typeof row.valor_vendas === 'string' ? parseFloat(row.valor_vendas || '0') : (row.valor_vendas || 0),
       lucro_total: typeof row.valor_lucro === 'string' ? parseFloat(row.valor_lucro || '0') : (row.valor_lucro || 0),
       percentual_lucro: typeof row.percentual_lucro === 'string' ? parseFloat(row.percentual_lucro || '0') : (row.percentual_lucro || 0),

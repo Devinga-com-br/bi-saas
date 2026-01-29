@@ -51,6 +51,7 @@ interface Produto {
   descricao: string
   filial_id: number
   qtde: number
+  qtde_ano_anterior?: number
   valor_vendas: number
   valor_vendas_ano_anterior?: number
   valor_lucro: number
@@ -179,13 +180,26 @@ const ProdutoTable = memo(function ProdutoTable({
               <TableCell className="text-xs">{produto.filial_id}</TableCell>
               <TableCell className="text-xs font-mono">{produto.codigo}</TableCell>
               <TableCell className="text-xs">{produto.descricao}</TableCell>
-              <TableCell className="text-right text-xs">{produto.qtde}</TableCell>
+              <TableCell className="text-right text-xs">
+                <div className="flex flex-col items-end">
+                  <span>{produto.qtde}</span>
+                  {compararAnoAnterior && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {compareLabel} <span className="font-semibold text-black dark:text-white">{(produto.qtde_ano_anterior || 0).toFixed(2)}</span> (
+                      <span className={getDeltaClass(produto.qtde, produto.qtde_ano_anterior || 0)}>
+                        {formatDeltaPercent(produto.qtde, produto.qtde_ano_anterior || 0)}
+                      </span>
+                      )
+                    </span>
+                  )}
+                </div>
+              </TableCell>
               <TableCell className="text-right text-xs">
                 <div className="flex flex-col items-end">
                   <span>{formatCurrency(produto.valor_vendas)}</span>
                   {compararAnoAnterior && (
                     <span className="text-[10px] text-muted-foreground">
-                      {compareLabel} {formatCurrency(produto.valor_vendas_ano_anterior || 0)} (
+                      {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(produto.valor_vendas_ano_anterior || 0)}</span> (
                       <span className={getDeltaClass(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)}>
                         {formatDeltaPercent(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)}
                       </span>
@@ -204,7 +218,7 @@ const ProdutoTable = memo(function ProdutoTable({
                   <span>{formatCurrency(produto.valor_lucro)}</span>
                   {compararAnoAnterior && (
                     <span className="text-[10px] text-muted-foreground">
-                      {compareLabel} {formatCurrency(produto.valor_lucro_ano_anterior || 0)} (
+                      {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(produto.valor_lucro_ano_anterior || 0)}</span> (
                       <span className={getDeltaClass(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)}>
                         {formatDeltaPercent(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)}
                       </span>
@@ -218,7 +232,7 @@ const ProdutoTable = memo(function ProdutoTable({
                   <span>{formatPercent(produto.percentual_lucro)}</span>
                   {compararAnoAnterior && (
                     <span className="text-[10px] text-muted-foreground">
-                      {compareLabel} {formatPercent(produto.percentual_lucro_ano_anterior || 0)} (
+                      {compareLabel} <span className="font-semibold text-black dark:text-white">{formatPercent(produto.percentual_lucro_ano_anterior || 0)}</span> (
                       <span className={getDeltaClass(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)}>
                         {formatDeltaPercent(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)}
                       </span>
@@ -726,6 +740,7 @@ export default function VendaCurvaPage() {
               ])
 
               if (compararAnoAnterior) {
+                const qtdeDelta = formatDeltaPercent(produto.qtde, produto.qtde_ano_anterior || 0)
                 const vendasDelta = formatDeltaPercent(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)
                 const lucroDelta = formatDeltaPercent(produto.valor_lucro, produto.valor_lucro_ano_anterior || 0)
                 const margemDelta = formatDeltaPercent(produto.percentual_lucro, produto.percentual_lucro_ano_anterior || 0)
@@ -733,7 +748,10 @@ export default function VendaCurvaPage() {
                 tableRows.push([
                   { content: '', styles: compareRowBaseStyles },
                   { content: '', styles: compareRowBaseStyles },
-                  { content: '', styles: compareRowBaseStyles },
+                  {
+                    content: `${compareLabel} ${(produto.qtde_ano_anterior || 0).toFixed(2)} (${qtdeDelta})`,
+                    styles: { ...compareRowBaseStyles, textColor: mapPdfColor(getDeltaClass(produto.qtde, produto.qtde_ano_anterior || 0)) }
+                  },
                   {
                     content: `${compareLabel} ${formatCurrency(produto.valor_vendas_ano_anterior || 0)} (${vendasDelta})`,
                     styles: { ...compareRowBaseStyles, textColor: mapPdfColor(getDeltaClass(produto.valor_vendas, produto.valor_vendas_ano_anterior || 0)) }
@@ -1082,7 +1100,7 @@ export default function VendaCurvaPage() {
                               </div>
                               {compararAnoAnterior && (
                                 <div className="text-[10px] text-muted-foreground">
-                                  {compareLabel} {formatCurrency(dept3.total_vendas_ano_anterior || 0)} (
+                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept3.total_vendas_ano_anterior || 0)}</span> (
                                   <span className={getDeltaClass(dept3.total_vendas, dept3.total_vendas_ano_anterior || 0)}>
                                     {formatDeltaPercent(dept3.total_vendas, dept3.total_vendas_ano_anterior || 0)}
                                   </span>
@@ -1097,7 +1115,7 @@ export default function VendaCurvaPage() {
                               </div>
                               {compararAnoAnterior && (
                                 <div className="text-[10px] text-muted-foreground">
-                                  {compareLabel} {formatCurrency(dept3.total_lucro_ano_anterior || 0)} (
+                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept3.total_lucro_ano_anterior || 0)}</span> (
                                   <span className={getDeltaClass(dept3.total_lucro, dept3.total_lucro_ano_anterior || 0)}>
                                     {formatDeltaPercent(dept3.total_lucro, dept3.total_lucro_ano_anterior || 0)}
                                   </span>
@@ -1110,7 +1128,7 @@ export default function VendaCurvaPage() {
                               <div className="font-semibold text-sm">{formatPercent(dept3.margem)}</div>
                               {compararAnoAnterior && (
                                 <div className="text-[10px] text-muted-foreground">
-                                  {compareLabel} {formatPercent(dept3.margem_ano_anterior || 0)} (
+                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatPercent(dept3.margem_ano_anterior || 0)}</span> (
                                   <span className={getDeltaClass(dept3.margem, dept3.margem_ano_anterior || 0)}>
                                     {formatDeltaPercent(dept3.margem, dept3.margem_ano_anterior || 0)}
                                   </span>
@@ -1149,7 +1167,7 @@ export default function VendaCurvaPage() {
                                       </div>
                                       {compararAnoAnterior && (
                                         <div className="text-[10px] text-muted-foreground">
-                                          {compareLabel} {formatCurrency(dept2.total_vendas_ano_anterior || 0)} (
+                                          {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept2.total_vendas_ano_anterior || 0)}</span> (
                                           <span className={getDeltaClass(dept2.total_vendas, dept2.total_vendas_ano_anterior || 0)}>
                                             {formatDeltaPercent(dept2.total_vendas, dept2.total_vendas_ano_anterior || 0)}
                                           </span>
@@ -1164,7 +1182,7 @@ export default function VendaCurvaPage() {
                                       </div>
                                       {compararAnoAnterior && (
                                         <div className="text-[10px] text-muted-foreground">
-                                          {compareLabel} {formatCurrency(dept2.total_lucro_ano_anterior || 0)} (
+                                          {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept2.total_lucro_ano_anterior || 0)}</span> (
                                           <span className={getDeltaClass(dept2.total_lucro, dept2.total_lucro_ano_anterior || 0)}>
                                             {formatDeltaPercent(dept2.total_lucro, dept2.total_lucro_ano_anterior || 0)}
                                           </span>
@@ -1177,7 +1195,7 @@ export default function VendaCurvaPage() {
                                       <div className="font-medium text-xs">{formatPercent(dept2.margem)}</div>
                                       {compararAnoAnterior && (
                                         <div className="text-[10px] text-muted-foreground">
-                                          {compareLabel} {formatPercent(dept2.margem_ano_anterior || 0)} (
+                                          {compareLabel} <span className="font-semibold text-black dark:text-white">{formatPercent(dept2.margem_ano_anterior || 0)}</span> (
                                           <span className={getDeltaClass(dept2.margem, dept2.margem_ano_anterior || 0)}>
                                             {formatDeltaPercent(dept2.margem, dept2.margem_ano_anterior || 0)}
                                           </span>
@@ -1216,7 +1234,7 @@ export default function VendaCurvaPage() {
                                               </div>
                                               {compararAnoAnterior && (
                                                 <div className="text-[10px] text-muted-foreground">
-                                                  {compareLabel} {formatCurrency(dept1.total_vendas_ano_anterior || 0)} (
+                                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept1.total_vendas_ano_anterior || 0)}</span> (
                                                   <span className={getDeltaClass(dept1.total_vendas, dept1.total_vendas_ano_anterior || 0)}>
                                                     {formatDeltaPercent(dept1.total_vendas, dept1.total_vendas_ano_anterior || 0)}
                                                   </span>
@@ -1231,7 +1249,7 @@ export default function VendaCurvaPage() {
                                               </div>
                                               {compararAnoAnterior && (
                                                 <div className="text-[10px] text-muted-foreground">
-                                                  {compareLabel} {formatCurrency(dept1.total_lucro_ano_anterior || 0)} (
+                                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatCurrency(dept1.total_lucro_ano_anterior || 0)}</span> (
                                                   <span className={getDeltaClass(dept1.total_lucro, dept1.total_lucro_ano_anterior || 0)}>
                                                     {formatDeltaPercent(dept1.total_lucro, dept1.total_lucro_ano_anterior || 0)}
                                                   </span>
@@ -1244,7 +1262,7 @@ export default function VendaCurvaPage() {
                                               <div className="font-medium text-xs">{formatPercent(dept1.margem)}</div>
                                               {compararAnoAnterior && (
                                                 <div className="text-[10px] text-muted-foreground">
-                                                  {compareLabel} {formatPercent(dept1.margem_ano_anterior || 0)} (
+                                                  {compareLabel} <span className="font-semibold text-black dark:text-white">{formatPercent(dept1.margem_ano_anterior || 0)}</span> (
                                                   <span className={getDeltaClass(dept1.margem, dept1.margem_ano_anterior || 0)}>
                                                     {formatDeltaPercent(dept1.margem, dept1.margem_ano_anterior || 0)}
                                                   </span>
